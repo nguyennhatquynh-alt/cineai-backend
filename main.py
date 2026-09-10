@@ -54,8 +54,8 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
   ]
 }}"""
 
-        # Đã cập nhật model lên gemini-2.0-flash theo yêu cầu mới nhất từ Google API
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={req.gemini_key}"
+        # Đã cập nhật chính xác theo khuyến nghị mới nhất từ Google API
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={req.gemini_key}"
         payload = {
             "contents": [{ "parts": [{ "text": prompt }] }]
         }
