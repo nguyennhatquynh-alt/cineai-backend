@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 app = FastAPI(title="CineAI Pro Optimized Backend")
 
-# Cấu hình CORS cho phép Frontend gọi trực tiếp
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,7 +32,6 @@ def home():
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        # 1. Xây dựng Prompt chuẩn yêu cầu AI trả về JSON kịch bản
         prompt = f"""You are a Hollywood Film Director and Master DP.
 Transform the raw idea into a professional {req.shots_count}-shot 3-Act Cinematic Storyboard ({req.duration}s).
 Title: "{req.title}". Aspect Ratio: {req.aspect_ratio}. Style: "{req.style}". Mood: "{req.mood}". Story: "{req.story}".
@@ -56,8 +54,8 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
   ]
 }}"""
 
-        # 2. Gọi API Gemini trực tiếp từ Backend
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={req.gemini_key}"
+        # Đã cập nhật model lên gemini-2.0-flash theo yêu cầu mới nhất từ Google API
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={req.gemini_key}"
         payload = {
             "contents": [{ "parts": [{ "text": prompt }] }]
         }
@@ -70,7 +68,6 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
             
         raw_text = resp_data["candidates"][0]["content"]["parts"][0]["text"].strip()
         
-        # 3. Làm sạch và Parse JSON từ phản hồi của Gemini
         clean_text = raw_text.replace("```json", "").replace("```", "").strip()
         first_brace = clean_text.find('{')
         last_brace = clean_text.rfind('}')
@@ -79,14 +76,12 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
             
         parsed_json = json.loads(clean_text)
         
-        # 4. Tự động gán link ảnh Cloud ổn định cho từng shot dựa trên prompt miêu tả
         width = 1024 if req.aspect_ratio == "16:9" else 576
         height = 576 if req.aspect_ratio == "16:9" else 1024
         
         for i, s in enumerate(parsed_json.get("shots", [])):
             scene_prompt = f"{req.style}, {parsed_json.get('char', '')}, {s.get('action', '')}, {s.get('cam', '')}, {s.get('lighting', '')}"
             encoded_prompt = requests.utils.quote(scene_prompt)
-            # Sử dụng hệ thống Cloud Image trực tiếp siêu mượt, không lỗi vặt
             s["img"] = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={1000 + i}"
 
         return {
