@@ -26,13 +26,11 @@ class MovieRequest(BaseModel):
     shots_count: int = 6
     duration: int = 30
 
-class TTSRequest(BaseModel):
-    eleven_labs_key: str
-    text: str
-    @app.post("/api/generate-movie")
+@app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
         genai.configure(api_key=req.gemini_key)
+        # Sử dụng model gemini-1.5-flash ổn định, hạn mức cao và nhanh chóng
         model = genai.GenerativeModel("gemini-1.5-flash")
         
         prompt = f"""
@@ -82,32 +80,6 @@ def generate_movie(req: MovieRequest):
             s["img"] = f"https://pollinations.ai/p/{encoded_prompt}?width={width}&height={height}&nologo=true"
 
         return {"status": "success", "data": data}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-        @app.post("/api/generate-tts")
-def generate_tts(req: TTSRequest):
-    try:
-        url = "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM" # Giọng Rachel mặc định chuẩn mượt
-        headers = {
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "xi-api-key": req.eleven_labs_key
-        }
-        payload = {
-            "text": req.text,
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75
-            }
-        }
-        
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail=f"ElevenLabs Error: {response.text}")
-            
-        audio_base64 = base64.b64encode(response.content).decode("utf-8")
-        return {"status": "success", "audio_base64": audio_base64}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
