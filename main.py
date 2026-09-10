@@ -54,13 +54,13 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
   ]
 }}"""
 
-        # Đã cập nhật chính xác theo khuyến nghị mới nhất từ Google API
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={req.gemini_key}"
         payload = {
             "contents": [{ "parts": [{ "text": prompt }] }]
         }
         
-        resp = requests.post(gemini_url, json=payload, timeout=30)
+        # Tăng timeout lên 60 giây để tránh bị lỗi ngắt kết nối
+        resp = requests.post(gemini_url, json=payload, timeout=60)
         resp_data = resp.json()
         
         if "error" in resp_data:
@@ -91,3 +91,4 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+        
