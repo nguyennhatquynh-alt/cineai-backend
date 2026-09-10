@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Pro Optimized Backend")
+app = FastAPI(title="CineAI Pro Optimized Backend with TTS")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,9 +25,14 @@ class MovieRequest(BaseModel):
     shots_count: int = 6
     duration: int = 30
 
+class TTSRequest(BaseModel):
+    eleven_labs_key: str
+    text: str
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM" # Giọng mẫu chuẩn mặc định của ElevenLabs (Rachel)
+
 @app.get("/")
 def home():
-    return {"status": "ok", "message": "CineAI Pro Backend is live & optimized!"}
+    return {"status": "ok", "message": "CineAI Pro Backend with TTS is live!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
@@ -59,7 +64,6 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
             "contents": [{ "parts": [{ "text": prompt }] }]
         }
         
-        # Tăng timeout lên 60 giây để tránh bị lỗi ngắt kết nối
         resp = requests.post(gemini_url, json=payload, timeout=60)
         resp_data = resp.json()
         
@@ -89,6 +93,36 @@ STRICT DIRECTIVE: Return ONLY a valid raw JSON object starting with {{ and endin
             "data": parsed_json
         }
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/generate-tts")
+def generate_tts(req: TTSRequest):
+    try:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{req.voice_id}"
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": req.eleven_labs_key
+        }
+        data = {
+            "text": req.text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            }
+        }
+        
+        response = requests.post(url, json=data, headers=headers, timeout=30)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail="ElevenLabs API Error: " + response.text)
+            
+        # Trả về dạng stream hoặc base64 để frontend phát âm thanh
+        import base64
+        audio_base64 = base64.b64encode(response.content).decode("utf-8")
+        return {"success": True, "audio_base64": audio_base64}
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
         
