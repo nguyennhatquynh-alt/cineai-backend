@@ -1,10 +1,9 @@
+import os
+import time
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
-import requests
-import json
-import base64
 
 app = FastAPI()
 
@@ -21,69 +20,95 @@ class MovieRequest(BaseModel):
     title: str
     story: str
     aspect_ratio: str = "16:9"
-    style: str = "Cinematic 3D Fantasy"
-    mood: str = "Êm đềm, thơ mộng, chậm"
+    style: str = "Cinematic 3D Epic Biography"
+    mood: str = "Êm đềm, hoài niệm, sâu lắng"
     shots_count: int = 6
     duration: int = 30
+
+@app.get("/")
+def home():
+    return {"status": "CineAI Backend Master Epic is running smoothly!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        genai.configure(api_key=req.gemini_key)
-        # Sử dụng model gemini-1.5-flash ổn định, hạn mức cao và nhanh chóng
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        
-        prompt = f"""
-        Bạn là một đạo diễn điện ảnh Hollywood và là một nhà biên kịch xuất sắc. 
-        Hãy tạo một kịch bản phân cảnh chi tiết cho câu chuyện sau: "{req.story}"
-        Tên dự án: {req.title}
-        Phong cách hình ảnh: {req.style}
-        Tâm trạng/Nhịp điệu: {req.mood}
-        Số lượng phân cảnh (shots): {req.shots_count}
-        Định dạng khung hình: {req.aspect_ratio}
+        # Cấu hình API Key cho Gemini
+        api_key = req.gemini_key or os.environ.get("GEMINI_API_KEY", "AIzaSyAXkRSS1n_dREtWtSFJ9ga7xKKIeMMQZa8")
+        genai.configure(api_key=api_key)
 
-        Yêu cầu trả về DUY NHẤT một chuỗi JSON chuẩn (không kèm markdown thừa) theo cấu trúc sau:
+        prompt = f"""
+        Bạn là một Đạo diễn điện ảnh và Biên kịch trưởng xuất sắc. Hãy phân rã câu chuyện sau thành một kịch bản phim dài tuân thủ tuyệt đối '11 Chốt Khóa Đạo Diễn' (Khóa nhân vật, địa điểm, phục trang, màu sắc, âm thanh, giọng nói và 5 khóa cấu trúc kịch bản).
+        
+        Tên dự án: {req.title}
+        Nội dung cốt truyện: {req.story}
+        Phong cách mỹ thuật: {req.style}
+        Tâm trạng/Gam màu: {req.mood}
+        Số lượng phân cảnh (Shots): {req.shots_count}
+        Thời lượng: {req.duration} giây
+        Tỷ lệ khung hình: {req.aspect_ratio}
+
+        Hãy trả về kết quả DUY NHẤT dưới định dạng JSON chuẩn (không kèm markdown rườm rà) với cấu trúc như sau:
         {{
-          "char": "Mô tả nhân vật chính nhất quán xuất hiện xuyên suốt",
+          "char": "Mô tả DNA nhân vật và khóa giọng nói xuyên suốt",
           "shots": [
             {{
               "shot": 1,
-              "act": "Hồi 1",
+              "act": "HỒI 1: KHỞI ĐẦU",
               "time": "00:00 - 00:05",
-              "cam": "Góc máy, tiêu cự ống kính",
-              "lighting": "Ánh sáng, màu sắc",
-              "motion": "Chuyển động máy quay",
-              "dialogue": "Lời thoại hoặc lời dẫn truyện bằng tiếng Việt",
-              "sfx": "Hiệu ứng âm thanh",
-              "img": "Prompt tiếng Anh cực kỳ chi tiết bằng cú pháp cinematic photorealistic, 8k, để tạo ảnh qua Pollinations AI"
+              "cam": "Wide cinematic tracking shot",
+              "lighting": "Golden hour warm tones, soft volumetric light",
+              "motion": "Slow gentle pan right",
+              "dialogue": "Câu thoại tiếng Việt có chiều sâu cảm xúc",
+              "sfx": "Tiếng gió nhẹ, âm thanh môi trường hoài niệm",
+              "img": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800"
             }}
           ]
         }}
         """
+
+        response = None
+        last_error = None
+
+        # --- CƠ CHẾ CHỌN TRƯỢT TỰ ĐỘNG & TĂNG TIMEOUT ---
+        # Thử nghiệm với các model lần lượt để chống lỗi Read timed out
+        models_to_try = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
         
-        response = model.generate_content(prompt)
+        for model_name in models_to_try:
+            try:
+                print(f"Đang thử kết nối với model: {model_name}...")
+                model = genai.GenerativeModel(model_name)
+                
+                # Tăng giới hạn timeout lên 120 giây để không bị ngắt quãng kịch bản dài
+                response = model.generate_content(
+                    prompt,
+                    request_options={"timeout": 120.0}
+                )
+                if response and response.text:
+                    break # Thành công thì thoát vòng lặp thử nghiệm
+            except Exception as e:
+                last_error = str(e)
+                print(f"Model {model_name} thất bại: {last_error}. Đang chuyển trượt (fallback)...")
+                time.sleep(1)
+
+        if not response or not response.text:
+            raise HTTPException(status_code=500, detail=f"Tất cả các mô hình Gemini đều phản hồi chậm hoặc lỗi Timeout. Chi tiết: {last_error}")
+
+        # Xử lý chuỗi JSON trả về từ AI
         raw_text = response.text.strip()
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
-        raw_text = raw_text.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
         
-        data = json.loads(raw_text)
-        
-        # Tự động tạo link ảnh minh họa qua Pollinations AI dựa trên prompt của từng shot
-        for s in data.get("shots", []):
-            img_prompt = s.get("img", "cinematic landscape")
-            encoded_prompt = requests.utils.quote(img_prompt + f", {req.style}, highly detailed 8k")
-            width = 1024 if req.aspect_ratio == "16:9" else 576
-            height = 576 if req.aspect_ratio == "16:9" else 1024
-            s["img"] = f"https://pollinations.ai/p/{encoded_prompt}?width={width}&height={height}&nologo=true"
+        import json
+        data_json = json.loads(raw_text.strip())
 
-        return {"status": "success", "data": data}
+        return {
+            "success": True,
+            "data": data_json
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
-    
+        print(f"Lỗi Backend nghiêm trọng: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý hệ thống Backend: {str(e)}")
+        
