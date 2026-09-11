@@ -29,20 +29,19 @@ class MovieRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "CineAI Secure Dynamic Backend is running!"}
+    return {"status": "CineAI Master Backend is active!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        # Nhận khóa API cá nhân mới nhất do người dùng nhập trực tiếp từ giao diện
         api_key = req.gemini_key.strip()
         if not api_key:
-            raise HTTPException(status_code=400, detail="Vui lòng nhập Gemini API Key của bạn ở phần cài đặt hoặc khung giao diện.")
+            raise HTTPException(status_code=400, detail="Vui lòng nhập Gemini API Key.")
 
         genai.configure(api_key=api_key)
 
         prompt = f"""
-        Bạn là một Đạo diễn điện ảnh và Biên kịch trưởng xuất sắc. Hãy phân rã câu chuyện sau thành một kịch bản phim dài tuân thủ tuyệt đối '11 Chốt Khóa Đạo Diễn'.
+        Bạn là Đạo diễn điện ảnh trưởng. Hãy phân rã câu chuyện sau thành kịch bản phim tuân thủ tuyệt đối '11 Chốt Khóa Đạo Diễn'.
         
         Tên dự án: {req.title}
         Nội dung cốt truyện: {req.story}
@@ -52,7 +51,7 @@ def generate_movie(req: MovieRequest):
         Thời lượng: {req.duration} giây
         Tỷ lệ khung hình: {req.aspect_ratio}
 
-        Hãy trả về kết quả DUY NHẤT dưới định dạng JSON chuẩn (không kèm markdown) với cấu trúc:
+        Trả về kết quả DUY NHẤT dưới dạng JSON chuẩn (không markdown) với cấu trúc:
         {{
           "char": "Mô tả DNA nhân vật",
           "shots": [
@@ -73,20 +72,25 @@ def generate_movie(req: MovieRequest):
 
         response = None
         last_error = None
-        models_matrix = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-2.5-flash']
+        # Ma trận trượt tối ưu tốc độ và độ bền
+        models_matrix = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
         
         for model_name in models_matrix:
             try:
+                print(f"Đang thử mô hình: {model_name}...")
                 model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt, request_options={"timeout": 120.0})
+                # Nâng thời gian timeout lên 180 giây để thoải mái xử lý kịch bản dài
+                response = model.generate_content(prompt, request_options={"timeout": 180.0})
                 if response and response.text:
+                    print(f"Thành công với model: {model_name}")
                     break 
             except Exception as e:
                 last_error = str(e)
+                print(f"Model {model_name} timeout/lỗi: {last_error}. Đang trượt mô hình...")
                 time.sleep(1)
 
         if not response or not response.text:
-            raise HTTPException(status_code=500, detail=f"Lỗi kết nối AI: {last_error}")
+            raise HTTPException(status_code=500, detail=f"Lỗi kết nối AI (Quá thời gian chờ): {last_error}")
 
         raw_text = response.text.strip()
         if raw_text.startswith("```json"): raw_text = raw_text[7:]
