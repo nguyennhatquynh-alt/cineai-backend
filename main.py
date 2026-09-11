@@ -18,7 +18,7 @@ app.add_middleware(
 )
 
 class MovieRequest(BaseModel):
-    gemini_key: str
+    gemini_key: str = ""
     title: str
     story: str
     aspect_ratio: str = "16:9"
@@ -29,12 +29,16 @@ class MovieRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "CineAI Backend Multi-Model Failover Engine is active with 11 Locks!"}
+    return {"status": "CineAI Secure Backend is running smoothly!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        api_key = req.gemini_key or os.environ.get("GEMINI_API_KEY", "AIzaSyAXkRSS1n_dREtWtSFJ9ga7xKKIeMMQZa8")
+        # Ưu tiên lấy API key từ request của người dùng hoặc từ biến môi trường bảo mật của Hugging Face Space
+        api_key = req.gemini_key.strip() or os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            raise HTTPException(status_code=400, detail="Chưa cấu hình Gemini API Key. Vui lòng thiết lập biến môi trường GEMINI_API_KEY trên Hugging Face Space.")
+
         genai.configure(api_key=api_key)
 
         prompt = f"""
@@ -71,13 +75,7 @@ def generate_movie(req: MovieRequest):
         last_error = None
 
         # --- MA TRẬN ĐA MÔ HÌNH CHỌN TRƯỢT (FAILOVER MATRIX) ---
-        # Hệ thống tự động trượt qua lại giữa các model chủ lực và dự phòng khi gặp sự cố quá tải / timeout
-        models_matrix = [
-            'gemini-1.5-pro',       # Lựa chọn 1: Chủ lực tư duy sâu
-            'gemini-1.5-flash',     # Lựa chọn 2: Tốc độ chớp nhoáng
-            'gemini-pro',           # Lựa chọn 3: Dự phòng ổn định
-            'gemini-2.5-flash'      # Lựa chọn 4: Thế hệ mới dự phòng cao cấp
-        ]
+        models_matrix = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-2.5-flash']
         
         for model_name in models_matrix:
             try:
@@ -93,13 +91,12 @@ def generate_movie(req: MovieRequest):
                     break 
             except Exception as e:
                 last_error = str(e)
-                print(f"Mô hình {model_name} gặp sự cố: {last_error}. Đang chuyển trượt sang mô hình tiếp theo...")
+                print(f"Mô hình {model_name} gặp sự cố: {last_error}. Đang chuyển trượt...")
                 time.sleep(1)
 
         if not response or not response.text:
-            raise HTTPException(status_code=500, detail=f"Tất cả các mô hình trong ma trận đều phản hồi chậm hoặc lỗi. Chi tiết cuối: {last_error}")
+            raise HTTPException(status_code=500, detail=f"Tất cả các mô hình trong ma trận đều thất bại. Chi tiết cuối: {last_error}")
 
-        # Xử lý làm sạch chuỗi JSON trả về
         raw_text = response.text.strip()
         if raw_text.startswith("```json"):
             raw_text = raw_text[7:]
@@ -110,12 +107,10 @@ def generate_movie(req: MovieRequest):
         try:
             data_json = json.loads(raw_text)
         except json.JSONDecodeError as jde:
-            print(f"Phát hiện lỗi cú pháp JSON, đang tự động quét và sửa: {jde}")
             cleaned_text = re.sub(r',\s*([\]}])', r'\1', raw_text)
             try:
                 data_json = json.loads(cleaned_text)
             except Exception as e2:
-                print(f"Không thể parse JSON tự động, chuyển sang dữ liệu dự phòng chuẩn: {e2}")
                 data_json = {
                     "char": "Cinematic character arc default matrix",
                     "shots": [
