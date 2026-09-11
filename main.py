@@ -29,16 +29,13 @@ class MovieRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "CineAI Secure Backend is running smoothly!"}
+    return {"status": "CineAI Backend Master Epic is running smoothly!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        # Ưu tiên lấy API key từ request của người dùng hoặc từ biến môi trường bảo mật của Hugging Face Space
-        api_key = req.gemini_key.strip() or os.environ.get("GEMINI_API_KEY", "")
-        if not api_key:
-            raise HTTPException(status_code=400, detail="Chưa cấu hình Gemini API Key. Vui lòng thiết lập biến môi trường GEMINI_API_KEY trên Hugging Face Space.")
-
+        # Sử dụng API Key cá nhân mới cấp của anh
+        api_key = req.gemini_key.strip() or "AQ.Ab8RN6KvUVsez7g8UEgybKprMjUx1rzUuEMzDhmO9SGb2aV7fg"
         genai.configure(api_key=api_key)
 
         prompt = f"""
@@ -74,7 +71,6 @@ def generate_movie(req: MovieRequest):
         response = None
         last_error = None
 
-        # --- MA TRẬN ĐA MÔ HÌNH CHỌN TRƯỢT (FAILOVER MATRIX) ---
         models_matrix = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-2.5-flash']
         
         for model_name in models_matrix:
