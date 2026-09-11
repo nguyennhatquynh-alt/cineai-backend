@@ -18,7 +18,7 @@ app.add_middleware(
 )
 
 class MovieRequest(BaseModel):
-    gemini_key: str = ""
+    gemini_key: str
     title: str
     story: str
     aspect_ratio: str = "16:9"
@@ -29,17 +29,20 @@ class MovieRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "CineAI Backend Master Epic is running smoothly!"}
+    return {"status": "CineAI Secure Dynamic Backend is running!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        # Sử dụng API Key cá nhân mới cấp của anh
-        api_key = req.gemini_key.strip() or "AQ.Ab8RN6KvUVsez7g8UEgybKprMjUx1rzUuEMzDhmO9SGb2aV7fg"
+        # Nhận khóa API cá nhân mới nhất do người dùng nhập trực tiếp từ giao diện
+        api_key = req.gemini_key.strip()
+        if not api_key:
+            raise HTTPException(status_code=400, detail="Vui lòng nhập Gemini API Key của bạn ở phần cài đặt hoặc khung giao diện.")
+
         genai.configure(api_key=api_key)
 
         prompt = f"""
-        Bạn là một Đạo diễn điện ảnh và Biên kịch trưởng xuất sắc. Hãy phân rã câu chuyện sau thành một kịch bản phim dài tuân thủ tuyệt đối '11 Chốt Khóa Đạo Diễn' (Khóa nhân vật, địa điểm, phục trang, màu sắc, âm thanh, giọng nói và 5 khóa cấu trúc kịch bản).
+        Bạn là một Đạo diễn điện ảnh và Biên kịch trưởng xuất sắc. Hãy phân rã câu chuyện sau thành một kịch bản phim dài tuân thủ tuyệt đối '11 Chốt Khóa Đạo Diễn'.
         
         Tên dự án: {req.title}
         Nội dung cốt truyện: {req.story}
@@ -49,19 +52,19 @@ def generate_movie(req: MovieRequest):
         Thời lượng: {req.duration} giây
         Tỷ lệ khung hình: {req.aspect_ratio}
 
-        Hãy trả về kết quả DUY NHẤT dưới định dạng JSON chuẩn (không kèm markdown rườm rà) với cấu trúc như sau:
+        Hãy trả về kết quả DUY NHẤT dưới định dạng JSON chuẩn (không kèm markdown) với cấu trúc:
         {{
-          "char": "Mô tả DNA nhân vật và khóa giọng nói xuyên suốt",
+          "char": "Mô tả DNA nhân vật",
           "shots": [
             {{
               "shot": 1,
               "act": "HỒI 1: KHỞI ĐẦU",
               "time": "00:00 - 00:05",
               "cam": "Wide cinematic tracking shot",
-              "lighting": "Golden hour warm tones, soft volumetric light",
-              "motion": "Slow gentle pan right",
-              "dialogue": "Câu thoại tiếng Việt có chiều sâu cảm xúc",
-              "sfx": "Tiếng gió nhẹ, âm thanh môi trường hoài niệm",
+              "lighting": "Golden hour warm tones",
+              "motion": "Slow pan",
+              "dialogue": "Câu thoại tiếng Việt sâu lắng",
+              "sfx": "Tiếng gió thiên nhiên",
               "img": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800"
             }}
           ]
@@ -70,66 +73,34 @@ def generate_movie(req: MovieRequest):
 
         response = None
         last_error = None
-
         models_matrix = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-2.5-flash']
         
         for model_name in models_matrix:
             try:
-                print(f"Đang gọi mô hình trong ma trận trượt: {model_name}...")
                 model = genai.GenerativeModel(model_name)
-                
-                response = model.generate_content(
-                    prompt,
-                    request_options={"timeout": 120.0}
-                )
+                response = model.generate_content(prompt, request_options={"timeout": 120.0})
                 if response and response.text:
-                    print(f"Thành công với mô hình: {model_name}")
                     break 
             except Exception as e:
                 last_error = str(e)
-                print(f"Mô hình {model_name} gặp sự cố: {last_error}. Đang chuyển trượt...")
                 time.sleep(1)
 
         if not response or not response.text:
-            raise HTTPException(status_code=500, detail=f"Tất cả các mô hình trong ma trận đều thất bại. Chi tiết cuối: {last_error}")
+            raise HTTPException(status_code=500, detail=f"Lỗi kết nối AI: {last_error}")
 
         raw_text = response.text.strip()
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:]
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
+        if raw_text.startswith("```json"): raw_text = raw_text[7:]
+        if raw_text.endswith("```"): raw_text = raw_text[:-3]
         raw_text = raw_text.strip()
 
         try:
             data_json = json.loads(raw_text)
-        except json.JSONDecodeError as jde:
+        except json.JSONDecodeError:
             cleaned_text = re.sub(r',\s*([\]}])', r'\1', raw_text)
-            try:
-                data_json = json.loads(cleaned_text)
-            except Exception as e2:
-                data_json = {
-                    "char": "Cinematic character arc default matrix",
-                    "shots": [
-                        {
-                            "shot": 1,
-                            "act": "HỒI 1: KHỞI ĐẦU",
-                            "time": "00:00 - 00:05",
-                            "cam": "Wide cinematic tracking shot",
-                            "lighting": "Golden hour warm tones",
-                            "motion": "Slow gentle pan",
-                            "dialogue": req.story[:100],
-                            "sfx": "Tiếng gió thiên nhiên",
-                            "img": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800"
-                        }
-                    ]
-                }
+            data_json = json.loads(cleaned_text)
 
-        return {
-            "success": True,
-            "data": data_json
-        }
+        return {"success": True, "data": data_json}
 
     except Exception as e:
-        print(f"Lỗi hệ thống Backend nghiêm trọng: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Lỗi xử lý hệ thống Backend: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
         
