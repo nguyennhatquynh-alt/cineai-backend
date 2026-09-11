@@ -29,16 +29,13 @@ class MovieRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "CineAI Auto-Fallback Backend is active!"}
+    return {"status": "CineAI Master Studio Backend is active!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        # Tự động dùng key dự phòng an toàn nếu không tìm thấy key chuẩn
-        api_key = req.gemini_key.strip()
-        if not api_key or not api_key.startswith("AIzaSy"):
-            api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyAXkRSS1n_dREtWtSFJ9ga7xKKIeMMQZa8")
-
+        # Sử dụng khóa chuẩn tích hợp sẵn để hệ thống chạy ổn định tuyệt đối
+        api_key = "AIzaSyAXkRSS1n_dREtWtSFJ9ga7xKKIeMMQZa8"
         genai.configure(api_key=api_key)
 
         prompt = f"""
