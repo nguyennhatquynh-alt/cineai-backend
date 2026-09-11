@@ -2,11 +2,10 @@ import os
 import time
 import json
 import re
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+import requests
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import google.generativeai as genai
 
 app = FastAPI()
 
@@ -30,16 +29,14 @@ class MovieRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "CineAI Autonomous Movie Studio Backend is active!"}
+    return {"status": "CineAI Universal Auth Backend is active!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
         api_key = req.gemini_key.strip()
         if not api_key:
-            raise HTTPException(status_code=400, detail="Vui lòng nhập Gemini API Key cá nhân.")
-
-        genai.configure(api_key=api_key)
+            raise HTTPException(status_code=400, detail="Vui lòng nhập Gemini API Key hoặc Access Token.")
 
         prompt = f"""
         Bạn là Đạo diễn điện ảnh trưởng. Hãy phân rã câu chuyện sau thành kịch bản phim tuân thủ tuyệt đối '11 Chốt Khóa Đạo Diễn'.
@@ -71,24 +68,47 @@ def generate_movie(req: MovieRequest):
         }}
         """
 
-        response = None
+        response_text = None
         last_error = None
+        
+        # Ma trận mô hình linh hoạt
         models_matrix = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
         
         for model_name in models_matrix:
             try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt, request_options={"timeout": 180.0})
-                if response and response.text:
-                    break 
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+                headers = {"Content-Type": "application/json"}
+                params = {}
+                
+                # Tự động phân loại xác thực tùy theo định dạng mã của anh
+                if api_key.startswith("AIzaSy"):
+                    params["key"] = api_key
+                else:
+                    headers["Authorization"] = f"Bearer {api_key}"
+
+                payload = {
+                    "contents": [{
+                        "parts": [{"text": prompt}]
+                    }]
+                }
+
+                resp = requests.post(url, headers=headers, params=params, json=payload, timeout=120)
+                if resp.status_code == 200:
+                    res_json = resp.json()
+                    candidates = res_json.get("candidates", [])
+                    if candidates:
+                        response_text = candidates[0]["content"]["parts"][0]["text"]
+                        break
+                else:
+                    last_error = resp.text
             except Exception as e:
                 last_error = str(e)
                 time.sleep(1)
 
-        if not response or not response.text:
-            raise HTTPException(status_code=500, detail=f"Lỗi kết nối AI: {last_error}")
+        if not response_text:
+            raise HTTPException(status_code=500, detail=f"Lỗi xác thực hoặc kết nối AI: {last_error}")
 
-        raw_text = response.text.strip()
+        raw_text = response_text.strip()
         if raw_text.startswith("```json"): raw_text = raw_text[7:]
         if raw_text.endswith("```"): raw_text = raw_text[:-3]
         raw_text = raw_text.strip()
