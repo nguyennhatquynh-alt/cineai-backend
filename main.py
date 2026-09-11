@@ -29,12 +29,11 @@ class MovieRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "CineAI Backend Master Epic is running smoothly with 11 Locks!"}
+    return {"status": "CineAI Backend Multi-Model Failover Engine is active with 11 Locks!"}
 
 @app.post("/api/generate-movie")
 def generate_movie(req: MovieRequest):
     try:
-        # Cấu hình API Key cho Gemini
         api_key = req.gemini_key or os.environ.get("GEMINI_API_KEY", "AIzaSyAXkRSS1n_dREtWtSFJ9ga7xKKIeMMQZa8")
         genai.configure(api_key=api_key)
 
@@ -71,30 +70,36 @@ def generate_movie(req: MovieRequest):
         response = None
         last_error = None
 
-        # --- CƠ CHẾ CHỌN TRƯỢT TỰ ĐỘNG & TĂNG TIMEOUT ---
-        models_to_try = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
+        # --- MA TRẬN ĐA MÔ HÌNH CHỌN TRƯỢT (FAILOVER MATRIX) ---
+        # Hệ thống tự động trượt qua lại giữa các model chủ lực và dự phòng khi gặp sự cố quá tải / timeout
+        models_matrix = [
+            'gemini-1.5-pro',       # Lựa chọn 1: Chủ lực tư duy sâu
+            'gemini-1.5-flash',     # Lựa chọn 2: Tốc độ chớp nhoáng
+            'gemini-pro',           # Lựa chọn 3: Dự phòng ổn định
+            'gemini-2.5-flash'      # Lựa chọn 4: Thế hệ mới dự phòng cao cấp
+        ]
         
-        for model_name in models_to_try:
+        for model_name in models_matrix:
             try:
-                print(f"Đang thử kết nối với model: {model_name}...")
+                print(f"Đang gọi mô hình trong ma trận trượt: {model_name}...")
                 model = genai.GenerativeModel(model_name)
                 
-                # Tăng giới hạn timeout lên 120 giây
                 response = model.generate_content(
                     prompt,
                     request_options={"timeout": 120.0}
                 )
                 if response and response.text:
+                    print(f"Thành công với mô hình: {model_name}")
                     break 
             except Exception as e:
                 last_error = str(e)
-                print(f"Model {model_name} thất bại: {last_error}. Đang chuyển trượt (fallback)...")
+                print(f"Mô hình {model_name} gặp sự cố: {last_error}. Đang chuyển trượt sang mô hình tiếp theo...")
                 time.sleep(1)
 
         if not response or not response.text:
-            raise HTTPException(status_code=500, detail=f"Tất cả các mô hình Gemini đều phản hồi chậm hoặc lỗi Timeout. Chi tiết: {last_error}")
+            raise HTTPException(status_code=500, detail=f"Tất cả các mô hình trong ma trận đều phản hồi chậm hoặc lỗi. Chi tiết cuối: {last_error}")
 
-        # Xử lý chuỗi JSON trả về từ AI an toàn chống lỗi cú pháp
+        # Xử lý làm sạch chuỗi JSON trả về
         raw_text = response.text.strip()
         if raw_text.startswith("```json"):
             raw_text = raw_text[7:]
@@ -105,14 +110,14 @@ def generate_movie(req: MovieRequest):
         try:
             data_json = json.loads(raw_text)
         except json.JSONDecodeError as jde:
-            print(f"Lỗi cú pháp JSON thuần, đang tự động làm sạch: {jde}")
+            print(f"Phát hiện lỗi cú pháp JSON, đang tự động quét và sửa: {jde}")
             cleaned_text = re.sub(r',\s*([\]}])', r'\1', raw_text)
             try:
                 data_json = json.loads(cleaned_text)
             except Exception as e2:
-                print(f"Không thể parse JSON, dùng dữ liệu dự phòng: {e2}")
+                print(f"Không thể parse JSON tự động, chuyển sang dữ liệu dự phòng chuẩn: {e2}")
                 data_json = {
-                    "char": "Cinematic character arc default",
+                    "char": "Cinematic character arc default matrix",
                     "shots": [
                         {
                             "shot": 1,
@@ -134,6 +139,6 @@ def generate_movie(req: MovieRequest):
         }
 
     except Exception as e:
-        print(f"Lỗi Backend nghiêm trọng: {str(e)}")
+        print(f"Lỗi hệ thống Backend nghiêm trọng: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Lỗi xử lý hệ thống Backend: {str(e)}")
         
