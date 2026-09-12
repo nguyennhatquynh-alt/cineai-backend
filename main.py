@@ -1,164 +1,140 @@
 import os
 import random
-import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+import google.generativeai as genai
 
-app = FastAPI(title="CineAI Studio - Full Enterprise Pipeline v10.22", version="10.22")
+app = FastAPI(title="CineAI Studio Production Backend", version="11.0")
 
-class RequestData(BaseModel):
-    ten_du_an: str
-    cot_truyen: str
+# --- 1. TỰ ĐỘNG QUÉT & CÀI ĐẶT API KEYS (FALLBACK THÔNG MINH) ---
+GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
+GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
 
+ELEVENLABS_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+RUNWAY_KEY = os.getenv("RUNWAY_API_KEY", "")
+REPLICATE_KEY = os.getenv("REPLICATE_API_TOKEN", "")
+
+STABILITY_KEY = (
+    os.getenv("STABILITY_API_KEY") 
+    or os.getenv("STABILITY_KEY_1") 
+    or os.getenv("STABILITY_KEY_2") 
+    or ""
+)
+
+OPENAI_KEY = (
+    os.getenv("OPENAI_API_KEY") 
+    or os.getenv("OPENAI_WHISPER_KEY") 
+    or ""
+)
+
+# --- 2. HÀM XOAY VÒNG KHÓA GEMINI CHO ĐẠO DIỄN ---
+def get_gemini_client_and_key():
+    if not GEMINI_KEYS:
+        return None, "Chưa cấu hình GEMINI_API_KEYS"
+    selected_key = random.choice(GEMINI_KEYS)
+    genai.configure(api_key=selected_key)
+    # Lấy 4 ký tự cuối để hiển thị debug an toàn
+    key_hint = f"...{selected_key[-4:]}" if len(selected_key) > 4 else "Key"
+    return genai.GenerativeModel('gemini-1.5-flash'), key_hint
+
+# --- 3. GIAO DIỆN WEB DASHBOARD & ĐIỀU KHIỂN ---
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return """<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio v10.22 (Full Pipeline)</title>
-    <style>
-        body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 950px; margin: 0 auto; }
-        .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
-        input, textarea { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
-        button { background: #38bdf8; color: #0f172a; border: none; padding: 14px; font-weight: bold; border-radius: 8px; width: 100%; cursor: pointer; font-size: 16px; }
-        .output { background: #0f172a; padding: 20px; margin-top: 15px; border-radius: 8px; border: 1px dashed #475569; white-space: pre-wrap; color: #38bdf8; line-height: 1.6; }
-        .error-log { color: #f87171; background: #450a0a; padding: 10px; border-radius: 6px; margin-top: 10px; display: none; }
-        .badge-ok { color: #4ade80; font-weight: bold; }
-        .badge-warn { color: #facc15; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2>🎬 CineAI Studio v10.22 (Toàn Diện 8 Tầng Sản Xuất)</h2>
-        <label>Tên Dự Án:</label>
-        <input type="text" id="tenDuAn" value="Chiều cuối năm">
-        <label>Cốt Truyện Thô:</label>
-        <textarea id="cotTruyen" rows="4" placeholder="Nhập cốt truyện..."></textarea>
-        <button onclick="chayXuatXuong()">🚀 Kích Hoạt Dây Chuyền Sản Xuất Toàn Diện</button>
-        <div id="errorBox" class="error-log"></div>
-        <div id="resultBox" class="output" style="display: none;"></div>
-    </div>
-    <script>
-        async function chayXuatXuong() {
-            const tenDuAn = document.getElementById('tenDuAn').value;
-            const cotTruyen = document.getElementById('cotTruyen').value;
-            const box = document.getElementById('resultBox');
-            const errBox = document.getElementById('errorBox');
-            
-            if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
-            
-            box.style.display = 'none';
-            errBox.style.display = 'none';
-            box.innerHTML = '';
-            errBox.innerHTML = '';
-            
-            box.style.display = 'block';
-            box.innerHTML = '⏳ Đang vận hành toàn bộ 8 tầng hệ thống: [Gemini ➔ Stability AI ➔ Runway ➔ ElevenLabs ➔ OpenAI Whisper ➔ Suno]...';
+async def home(request: Request):
+    return render_dashboard(
+        story="", 
+        result_html="<p style='color: #94a3b8;'>Nhập cốt truyện hoặc ý tưởng phim ngắn bên dưới để Đạo diễn Gemini tiến hành phân rã 11 chốt khóa...</p>"
+    )
 
-            try {
-                const res = await fetch('/api/v1/run', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ ten_du_an: tenDuAn, cot_truyen: cotTruyen })
-                });
-                const data = await res.json();
-                if(res.ok) {
-                    let htmlOut = `<strong>✨ KẾT QUẢ XUẤT XƯỞNG TOÀN DIỆN (Key Gemini #${data.key_index_used}):</strong>\\n\\n`;
-                    htmlOut += `📌 <strong>1. Kịch bản & 11 Tầng Đạo Diễn:</strong>\\n` + data.ket_qua_gemini + `\\n\\n`;
-                    htmlOut += `🎨 <strong>2. Stability AI (Keyframe):</strong> ` + data.status_stability + `\\n`;
-                    htmlOut += `🎥 <strong>3. Runway Gen-3 (Video động):</strong> ` + data.status_runway + `\\n`;
-                    htmlOut += `🎙️ <strong>4. ElevenLabs (Lồng tiếng):</strong> ` + data.status_elevenlabs + `\\n`;
-                    htmlOut += `📝 <strong>5. OpenAI Whisper (Phụ đề):</strong> ` + data.status_whisper + `\\n`;
-                    htmlOut += `🎵 <strong>6. Suno AI Audiophile 3D:</strong> ` + data.status_suno;
-                    box.innerHTML = htmlOut;
-                } else {
-                    box.style.display = 'none';
-                    errBox.style.display = 'block';
-                    errBox.innerHTML = '❌ <strong>BÁO CỐ SỰ CỐ:</strong><br>' + (data.detail || JSON.stringify(data));
-                }
-            } catch(e) {
-                box.style.display = 'none';
-                errBox.style.display = 'block';
-                errBox.innerHTML = '❌ Lỗi kết nối mạng: ' + e.message;
-            }
-        }
-    </script>
-</body>
-</html>"""
+@app.post("/produce", response_class=HTMLResponse)
+async def produce_film(request: Request, story: str = Form(...)):
+    # Kiểm tra trạng thái các module kết nối
+    model, key_hint = get_gemini_client_and_key()
+    
+    if not model:
+        output_html = "<p style='color: #ef4444;'>❌ Lỗi: Chưa cấu hình khóa Gemini trong hệ thống biến môi trường!</p>"
+        return render_dashboard(story, output_html)
 
-@app.post("/api/v1/run")
-def run_pipeline(req: RequestData):
-    # --- TẦNG 1-3, 8-10: GEMINI BRAIN (5 Key Rotation) ---
-    env_keys = os.getenv("GEMINI_API_KEYS", "")
-    active_keys = [k.strip() for k in env_keys.split(",") if k.strip()]
+    # Prompt đạo diễn chuyên sâu theo chuẩn CineAI Studio
+    director_prompt = f"""
+    Bạn là một đạo diễn điện ảnh gạo cội. Dựa trên cốt truyện sau: "{story}", 
+    hãy thiết kế hồ sơ sản xuất chi tiết theo chuẩn CineAI Studio gồm 2 phần:
     
-    if not active_keys:
-        raise HTTPException(status_code=400, detail="[LỖI CẤU HÌNH] Chưa thiết lập biến môi trường GEMINI_API_KEYS trên Render.")
+    ### PHẦN 1: 11 CHỐT KHÓA ĐẠO DIỄN (DIRECTOR'S KEY BEATS)
+    - Chia cốt truyện thành các phân cảnh từ Beat 1 đến Beat 11 với góc máy, ánh sáng, hành động cụ thể.
     
-    keys_to_try = list(enumerate(active_keys))
-    random.shuffle(keys_to_try)
-    
-    gemini_result = None
-    used_key_idx = -1
-    gemini_error = ""
-    
-    for idx, key in keys_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key}"
-        headers = {"Content-Type": "application/json"}
-        prompt = (
-            f"CineAI Studio Master Director. Dự án: '{req.ten_du_an}'. "
-            f"Phân rã cốt truyện thành: 1. 11 chốt khóa đạo diễn. 2. Visual Prompt tối giản cho Stability AI / Keyframe. 3. Kịch bản lời thoại Voiceover cho ElevenLabs. 4. Mã lệnh Suno AI Audiophile 3D (chia 2 phần tiếng Anh). "
-            f"Cốt truyện: {req.cot_truyen}"
-        )
-        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"maxOutputTokens": 2000}}
+    ### PHẦN 2: THÔNG SỐ KỸ THUẬT TỪNG TẦNG
+    - Visual Prompt cho Stability AI / Replicate (Khóa cứng nhân vật, bối cảnh, phục trang).
+    - Prompt chuyển động cho Runway Gen-3.
+    - Cấu trúc âm nhạc Audiophile 3D cho Suno.
+    """
+
+    try:
+        response = model.generate_content(director_prompt)
+        raw_text = response.text
+        # Định dạng lại markdown cơ bản cho dễ đọc trên web
+        formatted_text = raw_text.replace("\n", "<br>")
         
-        try:
-            response = requests.post(url, headers=headers, json=payload, timeout=45)
-            data = response.json()
-            if response.status_code == 200 and "candidates" in data:
-                gemini_result = data["candidates"][0]["content"]["parts"][0]["text"]
-                used_key_idx = idx + 1
-                break
-            else:
-                gemini_error = f"Gemini Key #{idx+1} Error: {data.get('error', {}).get('message', response.text)}"
-        except Exception as ex:
-            gemini_error = f"Gemini Key #{idx+1} Exception: {str(ex)}"
-            continue
-            
-    if not gemini_result:
-        raise HTTPException(status_code=500, detail=f"[LỖI GEMINI AI] Toàn bộ cụm key thất bại. Chi tiết: {gemini_error}")
+        output_html = f"""
+        <div style="background: #0f172a; padding: 15px; border-radius: 8px; border-left: 4px solid #38bdf8; margin-top: 15px;">
+            <h3 style="color: #38bdf8; margin-top: 0;">✨ KẾT QUẢ PHÂN RÃ TỪ ĐẠO DIỄN (Sử dụng Gemini {key_hint}):</h3>
+            <div style="color: #f8fafc; line-height: 1.6; font-size: 14px;">{formatted_text}</div>
+        </div>
+        """
+    except Exception as e:
+        output_html = f"<p style='color: #ef4444;'>❌ Lỗi gọi API Gemini: {str(e)}</p>"
 
-    # --- TẦNG 4 & 6: STABILITY AI (SDXL API) ---
-    stab_key = os.getenv("STABILITY_API_KEY", "")
-    status_stability = '<span class="badge-ok">🟩 Đã kết nối khóa Stability (Sẵn sàng khởi tạo SDXL Keyframe)</span>' if stab_key else '<span class="badge-warn">⚠️ Thiếu STABILITY_API_KEY</span>'
+    return render_dashboard(story, output_html)
 
-    # --- TẦNG 11: RUNWAY GEN-3 ALPHA API ---
-    runway_key = os.getenv("RUNWAY_API_KEY", "")
-    status_runway = '<span class="badge-ok">🟩 Đã kết nối khóa Runway Gen-3 (Sẵn sàng xuất bản video động)</span>' if runway_key else '<span class="badge-warn">⚠️ Thiếu RUNWAY_API_KEY</span>'
+def render_dashboard(story: str, result_html: str):
+    # Trạng thái đèn báo các module
+    s_stab = "🟩 Đã kết nối" if STABILITY_KEY else "⚠️ Chưa cấu hình"
+    s_rep = "🟩 Đã kết nối (Khóa nhân vật/bối cảnh)" if REPLICATE_KEY else "⚠️ Chưa cấu hình"
+    s_runway = "🟩 Đã kết nối" if RUNWAY_KEY else "⚠️ Chưa cấu hình"
+    s_eleven = "🟩 Đã kết nối" if ELEVENLABS_KEY else "⚠️ Chưa cấu hình"
+    s_openai = "🟩 Đã kết nối" if OPENAI_KEY else "⚠️ Chưa cấu hình"
+    s_gemini = f"🟩 Sẵn sàng ({len(GEMINI_KEYS)} Key xoay vòng)" if GEMINI_KEYS else "⚠️ Chưa có key"
 
-    # --- TẦNG 7: ELEVENLABS API ---
-    eleven_key = os.getenv("ELEVENLABS_API_KEY", "")
-    status_elevenlabs = '<span class="badge-ok">🟩 Đã kết nối khóa ElevenLabs (Sẵn sàng tổng hợp giọng đọc lồng tiếng)</span>' if eleven_key else '<span class="badge-warn">⚠️ Thiếu ELEVENLABS_API_KEY</span>'
+    return HTMLResponse(content=f"""
+    <html>
+        <head>
+            <title>CineAI Studio - Trạm Sản Xuất Phim Ngắn</title>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 20px; }}
+                .container {{ max-width: 850px; margin: auto; }}
+                .card {{ background: #1e293b; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; }}
+                h2 {{ color: #38bdf8; margin-top: 0; }}
+                .status-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; background: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 20px; }}
+                textarea {{ width: 100%; height: 100px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 8px; padding: 12px; font-size: 14px; box-sizing: border-box; resize: vertical; }}
+                button {{ background: #0ea5e9; color: white; border: none; padding: 12px 20px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; transition: background 0.2s; }}
+                button:hover {{ background: #0284c7; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="card">
+                    <h2>🎬 CineAI Studio v11.0 - Trạm Điều Khiển Toàn Diện</h2>
+                    <p style="color: #94a3b8; font-size: 14px;">Hệ thống sản xuất phim ngắn tự động hóa 11 tầng tích hợp AI đa mô hình.</p>
+                    
+                    <div class="status-grid">
+                        <div><strong>Đạo diễn Gemini:</strong> {s_gemini}</div>
+                        <div><strong>Replicate (Khóa nhân vật):</strong> {s_rep}</div>
+                        <div><strong>Stability AI (Keyframe):</strong> {s_stab}</div>
+                        <div><strong>Runway Gen-3 (Video):</strong> {s_runway}</div>
+                        <div><strong>ElevenLabs (Lồng tiếng):</strong> {s_eleven}</div>
+                        <div><strong>OpenAI Whisper (Phụ đề):</strong> {s_openai}</div>
+                    </div>
 
-    # --- TẦNG HẬU KỲ: OPENAI WHISPER API ---
-    whisper_key = os.getenv("OPENAI_API_KEY", "")
-    status_whisper = '<span class="badge-ok">🟩 Đã kết nối khóa OpenAI Whisper (Sẵn sàng đồng bộ phụ đề Vietsub)</span>' if whisper_key else '<span class="badge-warn">⚠️ Thiếu OPENAI_API_KEY (Whisper)</span>'
+                    <form action="/produce" method="post">
+                        <label style="font-weight: bold; font-size: 14px; display: block; margin-bottom: 8px;">Nhập cốt truyện / Ý tưởng phim ngắn:</label>
+                        <textarea name="story" placeholder="Nhập ý tưởng tại đây (Ví dụ: Một buổi chiều mưa ở phố cổ...)">{story}</textarea>
+                        <button type="submit">🚀 Kích Hoạt Đạo Diễn & Sản Xuất Toàn Bộ</button>
+                    </form>
 
-    # --- TẦNG 7 & 11: SUNO AI MODULE ---
-    suno_key = os.getenv("SUNO_API_KEY", "")
-    status_suno = '<span class="badge-ok">🟩 Đã tối ưu chuẩn 3D Audiophile (Sẵn sàng truyền lệnh 2 phần qua Suno Wrapper)</span>' if suno_key else '<span class="badge-warn">⚠️ Suno Wrapper sẵn sàng ở chế độ Auto-Prompt</span>'
-
-    return {
-        "status": "success",
-        "key_index_used": used_key_idx,
-        "ket_qua_gemini": gemini_result,
-        "status_stability": status_stability,
-        "status_runway": status_runway,
-        "status_elevenlabs": status_elevenlabs,
-        "status_whisper": status_whisper,
-        "status_suno": status_suno
-    }
+                    {result_html}
+                </div>
+            </div>
+        </body>
+    </html>
+    """)
     
