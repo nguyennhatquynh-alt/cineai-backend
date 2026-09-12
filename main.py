@@ -4,7 +4,7 @@ import requests
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 
-app = FastAPI(title="CineAI Studio Production Backend", version="11.4")
+app = FastAPI(title="CineAI Studio Production Backend", version="11.5")
 
 # --- 1. TỰ ĐỘNG QUÉT & CÀI ĐẶT API KEYS (FALLBACK THÔNG MINH) ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
@@ -35,7 +35,6 @@ def call_gemini_direct(prompt_text):
     selected_key = random.choice(GEMINI_KEYS)
     key_hint = f"...{selected_key[-4:]}" if len(selected_key) > 4 else "Key"
     
-    # Danh sách model thử nghiệm qua API v1beta
     models_to_try = ['gemini-1.5-flash', 'gemini-pro']
     
     last_error = ""
@@ -61,46 +60,46 @@ def call_gemini_direct(prompt_text):
             
     return None, f"Lỗi gọi Gemini API: {last_error}"
 
-# --- 3. GIAO DIỆN WEB DASHBOARD (TỐI ƯU MOBILE TO RÕ) ---
+# --- 3. ĐIỀU HƯỚNG GỘP (CHỐNG LỖI METHOD NOT ALLOWED TUYỆT ĐỐI) ---
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return render_dashboard(
-        story="", 
-        result_html="<div style='color: #94a3b8; font-size: 16px; padding: 10px;'>👋 Nhập cốt truyện hoặc ý tưởng phim ngắn bên dưới để Đạo diễn Gemini tiến hành phân rã 11 chốt khóa sản xuất...</div>"
-    )
-
-@app.post("/produce", response_class=HTMLResponse)
-async def produce_film(request: Request, story: str = Form(...)):
-    if not story.strip():
-        return render_dashboard(story, "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>")
-
-    director_prompt = f"""
-    Bạn là một đạo diễn điện ảnh gạo cội. Dựa trên cốt truyện sau: "{story}", 
-    hãy thiết kế hồ sơ sản xuất chi tiết theo chuẩn CineAI Studio gồm 2 phần:
+@app.post("/", response_class=HTMLResponse)
+async def home_or_produce(request: Request, story: str = Form(None)):
+    result_html = "<div style='color: #94a3b8; font-size: 16px; padding: 10px;'>👋 Nhập ý tưởng phim ngắn bên dưới để Đạo diễn Gemini tiến hành phân rã 11 chốt khóa sản xuất...</div>"
     
-    ### PHẦN 1: 11 CHỐT KHÓA ĐẠO DIỄN (DIRECTOR'S KEY BEATS)
-    - Chia cốt truyện thành các phân cảnh từ Beat 1 đến Beat 11 với góc máy, ánh sáng, hành động cụ thể.
-    
-    ### PHẦN 2: THÔNG SỐ KỸ THUẬT TỪNG TẦNG
-    - Visual Prompt cho Stability AI / Replicate (Khóa cứng nhân vật, bối cảnh, phục trang).
-    - Prompt chuyển động cho Runway Gen-3.
-    - Cấu trúc âm nhạc Audiophile 3D cho Suno.
-    """
+    if request.method == "POST" and story:
+        if not story.strip():
+            result_html = "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>"
+        else:
+            director_prompt = f"""
+            Bạn là một đạo diễn điện ảnh gạo cội. Dựa trên cốt truyện sau: "{story}", 
+            hãy thiết kế hồ sơ sản xuất chi tiết theo chuẩn CineAI Studio gồm 2 phần:
+            
+            ### PHẦN 1: 11 CHỐT KHÓA ĐẠO DIỄN (DIRECTOR'S KEY BEATS)
+            - Chia cốt truyện thành các phân cảnh từ Beat 1 đến Beat 11 với góc máy, ánh sáng, hành động cụ thể.
+            
+            ### PHẦN 2: THÔNG SỐ KỸ THUẬT TỪNG TẦNG
+            - Visual Prompt cho Stability AI / Replicate (Khóa cứng nhân vật, bối cảnh, phục trang).
+            - Prompt chuyển động cho Runway Gen-3.
+            - Cấu trúc âm nhạc Audiophile 3D cho Suno.
+            """
 
-    raw_text, info_hint = call_gemini_direct(director_prompt)
-    
-    if not raw_text:
-        output_html = f"<p style='color: #ef4444; font-size: 16px;'>❌ {info_hint}</p>"
+            raw_text, info_hint = call_gemini_direct(director_prompt)
+            
+            if not raw_text:
+                result_html = f"<p style='color: #ef4444; font-size: 16px;'>❌ {info_hint}</p>"
+            else:
+                formatted_text = raw_text.replace("\n", "<br>")
+                result_html = f"""
+                <div style="background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #38bdf8; margin-top: 20px;">
+                    <h3 style="color: #38bdf8; margin-top: 0; font-size: 18px;">✨ KẾT QUẢ PHÂN RÃ TỪ ĐẠO DIỄN (Model: {info_hint}):</h3>
+                    <div style="color: #f8fafc; line-height: 1.7; font-size: 15px;">{formatted_text}</div>
+                </div>
+                """
+        current_story = story
     else:
-        formatted_text = raw_text.replace("\n", "<br>")
-        output_html = f"""
-        <div style="background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #38bdf8; margin-top: 20px;">
-            <h3 style="color: #38bdf8; margin-top: 0; font-size: 18px;">✨ KẾT QUẢ PHÂN RÃ TỪ ĐẠO DIỄN (Model: {info_hint}):</h3>
-            <div style="color: #f8fafc; line-height: 1.7; font-size: 15px;">{formatted_text}</div>
-        </div>
-        """
+        current_story = ""
 
-    return render_dashboard(story, output_html)
+    return render_dashboard(current_story, result_html)
 
 def render_dashboard(story: str, result_html: str):
     s_stab = "🟩 Đã kết nối" if STABILITY_KEY else "⚠️ Chưa cấu hình"
@@ -133,7 +132,7 @@ def render_dashboard(story: str, result_html: str):
         <body>
             <div class="container">
                 <div class="card">
-                    <h2>🎬 CineAI Studio v11.4 - Trạm Điều Khiển</h2>
+                    <h2>🎬 CineAI Studio v11.5 - Trạm Điều Khiển</h2>
                     <p style="color: #94a3b8; font-size: 15px; margin-bottom: 15px;">Hệ thống sản xuất phim ngắn tự động hóa 11 tầng tích hợp AI đa mô hình.</p>
                     
                     <div class="status-grid">
@@ -145,7 +144,7 @@ def render_dashboard(story: str, result_html: str):
                         <div><strong>OpenAI Whisper:</strong> {s_openai}</div>
                     </div>
 
-                    <form action="/produce" method="post">
+                    <form action="/" method="post">
                         <label>Nhập cốt truyện / Ý tưởng phim ngắn:</label>
                         <textarea name="story" placeholder="Nhập ý tưởng tại đây...">{story}</textarea>
                         <button type="submit">🚀 Kích Hoạt Đạo Diễn & Sản Xuất Toàn Bộ</button>
@@ -157,3 +156,4 @@ def render_dashboard(story: str, result_html: str):
         </body>
     </html>
     """)
+    
