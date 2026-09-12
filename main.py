@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio - Secure Production", version="10.10")
+app = FastAPI(title="CineAI Studio - Production v10.11", version="10.11")
 
 class RequestData(BaseModel):
     ten_du_an: str
@@ -18,7 +18,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio</title>
+    <title>CineAI Studio v10.11</title>
     <style>
         body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
@@ -29,7 +29,7 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.10</h2>
+        <h2>🎬 CineAI Studio v10.11</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
@@ -45,7 +45,7 @@ def home():
             if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
-            box.innerHTML = '⏳ Hệ thống đang quét cụm Key an toàn...';
+            box.innerHTML = '⏳ Hệ thống đang điều phối cụm 5 Key với model chuẩn...';
 
             try {
                 const res = await fetch('/api/v1/run', {
@@ -76,7 +76,7 @@ def run_pipeline(req: RequestData):
     if not active_keys:
         raise HTTPException(
             status_code=400, 
-            detail="Chưa cấu hình biến môi trường GEMINI_API_KEYS trên Render. Hãy vào Render -> Environment để thêm vào."
+            detail="Chưa cấu hình biến môi trường GEMINI_API_KEYS trên Render."
         )
     
     # Xáo trộn ngẫu nhiên để trượt key tự động
@@ -86,7 +86,8 @@ def run_pipeline(req: RequestData):
     last_error = ""
     
     for idx, key in keys_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+        # Cập nhật chuẩn model mới nhất theo thông báo từ Google API
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         
         prompt = (
@@ -115,5 +116,5 @@ def run_pipeline(req: RequestData):
             last_error = str(ex)
             continue
             
-    raise HTTPException(status_code=500, detail=f"Cả cụm API Key đều bị nghẽn. Chi tiết: {last_error}")
+    raise HTTPException(status_code=500, detail=f"Cả cụm API Key đều gặp sự cố. Chi tiết: {last_error}")
     
