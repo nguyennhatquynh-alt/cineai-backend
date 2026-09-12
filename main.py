@@ -1,5 +1,6 @@
 import os
 import random
+import uvicorn
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 import google.generativeai as genai
@@ -132,3 +133,8 @@ def render_dashboard(story: str, result_html: str):
         </body>
     </html>
     """)
+
+# --- 4. KHỞI ĐỘNG SERVER UVICORN ---
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
