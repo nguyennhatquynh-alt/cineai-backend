@@ -5,7 +5,7 @@ import os
 import requests
 import json
 
-app = FastAPI(title="CineAI Studio - Autonomous Director", version="3.1")
+app = FastAPI(title="CineAI Studio - Autonomous Director", version="3.2")
 
 class ScriptRequest(BaseModel):
     project_name: str
@@ -16,35 +16,22 @@ class ScriptRequest(BaseModel):
     api_key: str = ""
 
 def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
-    """
-    Hệ thống gọi AI đa tầng hỗ trợ cả API Key truyền thống và OAuth Token (tiền tố AQ.)
-    """
     gemini_key = api_key or os.environ.get("GEMINI_API_KEY", "")
     
     if gemini_key:
         try:
-            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-            
-            # Xử lý linh hoạt định dạng khóa AQ. (Bearer Token) và khóa truyền thống (?key=)
-            if gemini_key.startswith("AQ."):
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {gemini_key}"
-                }
-                api_url = url
-            else:
-                headers = {"Content-Type": "application/json"}
-                api_url = f"{url}?key={gemini_key}"
-
+            # Sử dụng mô hình chuẩn gemini-1.5-flash tương thích hoàn toàn với khóa AQ.
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+            headers = {"Content-Type": "application/json"}
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}]
             }
             
-            response = requests.post(api_url, headers=headers, json=payload, timeout=15)
+            response = requests.post(url, headers=headers, json=payload, timeout=15)
             if response.status_code == 200:
                 res_data = response.json()
                 text_result = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                return {"source": "Gemini-2.5-Flash (Live AI)", "content": text_result}
+                return {"source": "Gemini-1.5-Flash (Live AI)", "content": text_result}
             else:
                 print(f"Gemini API lỗi code {response.status_code}: {response.text}")
         except Exception as e:
@@ -129,12 +116,12 @@ async def home():
         <div class="card">
             <div class="form-group">
                 <label>Tên Dự Án Phim</label>
-                <input type="text" id="project_name" value="Tiếng Vọng Sông Đắk Bla">
+                <input type="text" id="project_name" value="Mùi khói bếp đầu mùa">
             </div>
 
             <div class="form-group">
                 <label>Cốt Truyện Thô / Nguyên Liệu Đời Thực</label>
-                <textarea id="story_prompt">Chiều cuối năm, gió bắc thổi lùa qua những mái ngói rêu phong ở phố núi Kon Tum.</textarea>
+                <textarea id="story_prompt">Chiều cuối năm, gió bắc tràn về qua những kẽ lá, mang theo cái lạnh se sắt của miền quê nghèo.</textarea>
             </div>
 
             <div class="row">
