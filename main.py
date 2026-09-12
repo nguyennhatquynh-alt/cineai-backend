@@ -1,12 +1,15 @@
 import os
+import random
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio", version="10.5")
+app = FastAPI(title="CineAI Studio - Secure Multi-Key", version="10.8")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+# Đọc danh sách các API Key từ biến môi trường trên Render (cách nhau bằng dấu phẩy)
+raw_keys = os.getenv("GEMINI_API_KEYS", "")
+HARDCODED_KEYS = [k.strip() for k in raw_keys.split(",") if k.strip()]
 
 class RequestData(BaseModel):
     ten_du_an: str
@@ -19,7 +22,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio</title>
+    <title>CineAI Studio - Secure Cluster</title>
     <style>
         body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
@@ -30,12 +33,12 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.5</h2>
+        <h2>🎬 CineAI Studio v10.8 (Secure Multi-Key)</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
         <textarea id="cotTruyen" rows="4" placeholder="Nhập nội dung..."></textarea>
-        <button onclick="chayXuatXuong()">🚀 Kích Hoạt Đạo Diễn AI</button>
+        <button onclick="chayXuatXuong()">🚀 Kích Hoạt Đạo Diễn AI (Bảo Mật An Toàn)</button>
         <div id="resultBox" class="output"></div>
     </div>
     <script>
@@ -46,7 +49,7 @@ def home():
             if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
-            box.innerHTML = '⏳ Đang xử lý 11 tầng đạo diễn...';
+            box.innerHTML = '⏳ Hệ thống đang điều phối cụm Key an toàn...';
 
             try {
                 const res = await fetch('/api/v1/run', {
@@ -56,7 +59,7 @@ def home():
                 });
                 const data = await res.json();
                 if(res.ok) {
-                    box.innerHTML = '<strong>✨ KẾT QUẢ ĐẠO DIỄN:</strong>\\n\\n' + data.ket_qua;
+                    box.innerHTML = '<strong>✨ KẾT QUẢ ĐẠO DIỄN (Dùng Key số ' + data.key_index_used + '):</strong>\\n\\n' + data.ket_qua;
                 } else {
                     box.innerHTML = '❌ Lỗi API: ' + (data.detail || JSON.stringify(data));
                 }
@@ -70,38 +73,43 @@ def home():
 
 @app.post("/api/v1/run")
 def run_pipeline(req: RequestData):
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=400, detail="Chưa cấu hình GEMINI_API_KEY trong Environment Variables của Render.")
+    if not HARDCODED_KEYS:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình biến môi trường GEMINI_API_KEYS trên Render.")
     
-    # Sử dụng model gemini-2.5-flash chuẩn mới nhất và bền vững nhất
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-    headers = {"Content-Type": "application/json"}
+    keys_to_try = list(enumerate(HARDCODED_KEYS))
+    random.shuffle(keys_to_try)
     
-    prompt = (
-        f"Bạn là hệ thống trí tuệ nhân tạo cốt lõi của CineAI Studio. "
-        f"Dự án: '{req.ten_du_an}'. "
-        f"Hãy phân rã cốt truyện thô sau đây thành một bộ hồ sơ xuất xưởng hoàn chỉnh đạt chuẩn >= 90 điểm: "
-        f"1. 11 chốt khóa đạo diễn điện ảnh sắc bén. "
-        f"2. Bộ Visual Prompt cực kỳ chuẩn xác và tối giản cho Keyframe hình ảnh. "
-        f"3. Cấu trúc âm thanh và mã lệnh Suno AI Audiophile chia 2 phần, 100% tiếng Anh chuẩn xác tích hợp Stereo 3D. "
-        f"Cốt truyện thô đầu vào: {req.cot_truyen}"
-    )
+    last_error = ""
     
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        data = response.json()
+    for idx, key in keys_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+        headers = {"Content-Type": "application/json"}
         
-        if response.status_code != 200:
-            err_msg = data.get("error", {}).get("message", response.text)
-            raise HTTPException(status_code=response.status_code, detail=f"Google API Error: {err_msg}")
+        prompt = (
+            f"Bạn là hệ thống trí tuệ nhân tạo cốt lõi của CineAI Studio. "
+            f"Dự án: '{req.ten_du_an}'. "
+            f"Hãy phân rã cốt truyện thô sau đây thành một bộ hồ sơ xuất xưởng hoàn chỉnh đạt chuẩn >= 90 điểm: "
+            f"1. 11 chốt khóa đạo diễn điện ảnh sắc bén. "
+            f"2. Bộ Visual Prompt cực kỳ chuẩn xác và tối giản cho Keyframe hình ảnh. "
+            f"3. Cấu trúc âm thanh và mã lệnh Suno AI Audiophile chia 2 phần, 100% tiếng Anh chuẩn xác tích hợp Stereo 3D. "
+            f"Cốt truyện thô đầu vào: {req.cot_truyen}"
+        )
+        
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            data = response.json()
             
-        ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
-        return {"status": "success", "ket_qua": ket_qua_ai}
-        
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=str(e))
-        
+            if response.status_code == 200 and "candidates" in data:
+                ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
+                return {"status": "success", "key_index_used": idx + 1, "ket_qua": ket_qua_ai}
+            else:
+                last_error = data.get("error", {}).get("message", response.text)
+                continue
+        except Exception as ex:
+            last_error = str(ex)
+            continue
+            
+    raise HTTPException(status_code=500, detail=f"Cả cụm API Key đều bị nghẽn. Chi tiết: {last_error}")
+    
