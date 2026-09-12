@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio - Production v10.15", version="10.15")
+app = FastAPI(title="CineAI Studio - Production v10.16", version="10.16")
 
 class RequestData(BaseModel):
     ten_du_an: str
@@ -18,7 +18,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio v10.15</title>
+    <title>CineAI Studio v10.16</title>
     <style>
         body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
@@ -29,7 +29,7 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.15</h2>
+        <h2>🎬 CineAI Studio v10.16</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
@@ -45,7 +45,7 @@ def home():
             if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
-            box.innerHTML = '⏳ Đang truyền tải siêu tốc qua cụm 5 Key...';
+            box.innerHTML = '⏳ Đang kết nối cụm 5 Key v1beta...';
 
             try {
                 const res = await fetch('/api/v1/run', {
@@ -81,23 +81,23 @@ def run_pipeline(req: RequestData):
     last_error = ""
     
     for idx, key in keys_to_try:
-        # Sử dụng endpoint v1 chuẩn để tăng tốc độ phản hồi tối đa
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={key}"
+        # Quay về sử dụng đúng endpoint v1beta và định dạng model chuẩn
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         
-        # Tối ưu hóa prompt cực kỳ súc tích để AI trả về ngay lập tức, chống nghẽn mạng
         prompt = (
             f"Đạo diễn CineAI dự án '{req.ten_du_an}'. "
-            f"Xuất file 11 chốt khóa đạo diễn, Visual Prompt tối giản và lệnh Suno AI Audiophile 3D từ cốt truyện: {req.cot_truyen}"
+            f"Phân rã cốt truyện sau thành hồ sơ chuẩn gồm: 1. 11 chốt khóa đạo diễn. 2. Visual Prompt tối giản. 3. Lệnh Suno AI Audiophile 3D bằng tiếng Anh. "
+            f"Cốt truyện: {req.cot_truyen}"
         )
         
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"maxOutputTokens": 1000} # Giới hạn token để phản hồi trả về trong 3 giây
+            "generationConfig": {"maxOutputTokens": 1200}
         }
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
             data = response.json()
             
             if response.status_code == 200 and "candidates" in data:
@@ -110,5 +110,5 @@ def run_pipeline(req: RequestData):
             last_error = str(ex)
             continue
             
-    raise HTTPException(status_code=500, detail=f"Lỗi mạng/Timeout: {last_error}")
+    raise HTTPException(status_code=500, detail=f"Lỗi API: {last_error}")
     
