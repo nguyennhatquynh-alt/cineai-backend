@@ -4,7 +4,7 @@ import requests
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 
-app = FastAPI(title="CineAI Studio Production Backend", version="11.3")
+app = FastAPI(title="CineAI Studio Production Backend", version="11.4")
 
 # --- 1. TỰ ĐỘNG QUÉT & CÀI ĐẶT API KEYS (FALLBACK THÔNG MINH) ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
@@ -27,7 +27,7 @@ OPENAI_KEY = (
     or ""
 )
 
-# --- 2. HÀM GỌI GEMINI TRỰC TIẾP QUA HTTP API (CHỐNG LỖI 404 TUYỆT ĐỐI) ---
+# --- 2. HÀM GỌI GEMINI HTTP API CHUẨN V1BETA & XOAY VÒNG KEY ---
 def call_gemini_direct(prompt_text):
     if not GEMINI_KEYS:
         return None, "Chưa cấu hình GEMINI_API_KEYS trong biến môi trường!"
@@ -35,25 +35,31 @@ def call_gemini_direct(prompt_text):
     selected_key = random.choice(GEMINI_KEYS)
     key_hint = f"...{selected_key[-4:]}" if len(selected_key) > 4 else "Key"
     
-    # Sử dụng endpoint chuẩn v1 mới nhất của Gemini
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt_text}]
-        }]
-    }
+    # Danh sách model thử nghiệm qua API v1beta
+    models_to_try = ['gemini-1.5-flash', 'gemini-pro']
     
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        if response.status_code == 200:
-            data = response.json()
-            text_result = data["candidates"][0]["content"]["parts"][0]["text"]
-            return text_result, f"gemini-1.5-flash ({key_hint})"
-        else:
-            return None, f"Lỗi HTTP {response.status_code}: {response.text}"
-    except Exception as e:
-        return None, f"Lỗi kết nối: {str(e)}"
+    last_error = ""
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt_text}]
+            }]
+        }
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
+                data = response.json()
+                text_result = data["candidates"][0]["content"]["parts"][0]["text"]
+                return text_result, f"{model_name} ({key_hint})"
+            else:
+                last_error = response.text
+        except Exception as e:
+            last_error = str(e)
+            
+    return None, f"Lỗi gọi Gemini API: {last_error}"
 
 # --- 3. GIAO DIỆN WEB DASHBOARD (TỐI ƯU MOBILE TO RÕ) ---
 @app.get("/", response_class=HTMLResponse)
@@ -127,7 +133,7 @@ def render_dashboard(story: str, result_html: str):
         <body>
             <div class="container">
                 <div class="card">
-                    <h2>🎬 CineAI Studio v11.3 - Trạm Điều Khiển</h2>
+                    <h2>🎬 CineAI Studio v11.4 - Trạm Điều Khiển</h2>
                     <p style="color: #94a3b8; font-size: 15px; margin-bottom: 15px;">Hệ thống sản xuất phim ngắn tự động hóa 11 tầng tích hợp AI đa mô hình.</p>
                     
                     <div class="status-grid">
@@ -151,4 +157,3 @@ def render_dashboard(story: str, result_html: str):
         </body>
     </html>
     """)
-    
