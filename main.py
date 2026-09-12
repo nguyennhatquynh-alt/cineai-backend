@@ -5,7 +5,7 @@ import os
 import requests
 import json
 
-app = FastAPI(title="CineAI Studio - Autonomous Director", version="3.2")
+app = FastAPI(title="CineAI Studio - Autonomous Director", version="3.3")
 
 class ScriptRequest(BaseModel):
     project_name: str
@@ -16,18 +16,18 @@ class ScriptRequest(BaseModel):
     api_key: str = ""
 
 def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
-    gemini_key = api_key or os.environ.get("GEMINI_API_KEY", "")
+    # Lấy key ưu tiên từ ô nhập trực tiếp trên giao diện, nếu trống mới tìm trong biến môi trường
+    gemini_key = api_key.strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     
     if gemini_key:
         try:
-            # Sử dụng mô hình chuẩn gemini-1.5-flash tương thích hoàn toàn với khóa AQ.
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
             headers = {"Content-Type": "application/json"}
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}]
             }
             
-            response = requests.post(url, headers=headers, json=payload, timeout=15)
+            response = requests.post(url, headers=headers, json=payload, timeout=20)
             if response.status_code == 200:
                 res_data = response.json()
                 text_result = res_data["candidates"][0]["content"]["parts"][0]["text"]
@@ -37,7 +37,7 @@ def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
         except Exception as e:
             print(f"Lỗi kết nối Gemini API: {e}")
 
-    # Fallback dự phòng tự động an toàn
+    # Fallback dự phòng an toàn nếu chưa nhập key
     fallback_content = f"""
     [PHÂN TÍCH 11 CHỐT KHÓA ĐẠO DIỄN - HỆ THỐNG DỰ PHÒNG TỰ ĐỘNG]
     1. Tiền đề & Chủ đề: Khắc họa chiều sâu ký ức và bản chất con người.
@@ -52,7 +52,7 @@ def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
     10. Thông điệp truyền tải: Sự chữa lành và tiếng vọng của tâm hồn.
     11. Bản vẽ Visual Prompt: Photorealistic, 8k resolution, volumetric lighting, masterpiece cinematic shot.
     """
-    return {"source": "Autonomous-Fallback-Engine", "content": fallback_content}
+    return {"source": "Autonomous-Fallback-Engine (Chưa có API Key)", "content": fallback_content}
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -143,6 +143,11 @@ async def home():
                 </div>
             </div>
 
+            <div class="form-group">
+                <label>Gemini API Key (Dán trực tiếp mã AQ... vào đây)</label>
+                <input type="text" id="api_key" placeholder="Dán khóa API của bạn vào đây...">
+            </div>
+
             <button class="btn" onclick="runDirector()">🎬 KHỞI CHẠY HỆ THỐNG ĐẠO DIỄN</button>
         </div>
 
@@ -165,7 +170,7 @@ async def home():
                 art_style: document.getElementById('art_style').value,
                 mood: "Hoài niệm",
                 shots: parseInt(document.getElementById('shots').value) || 4,
-                api_key: ""
+                api_key: document.getElementById('api_key').value
             };
 
             document.getElementById('loading').style.display = 'block';
