@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio - Production v10.17", version="10.17")
+app = FastAPI(title="CineAI Studio - Production v10.18", version="10.18")
 
 class RequestData(BaseModel):
     ten_du_an: str
@@ -18,7 +18,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio v10.17</title>
+    <title>CineAI Studio v10.18</title>
     <style>
         body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
@@ -29,7 +29,7 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.17</h2>
+        <h2>🎬 CineAI Studio v10.18</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
@@ -45,7 +45,7 @@ def home():
             if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
-            box.innerHTML = '⏳ Đang khởi chạy cụm 5 Key với gemini-2.5-flash...';
+            box.innerHTML = '⏳ Đang kết nối cụm Key với gemini-3.6-flash (60s)...';
 
             try {
                 const res = await fetch('/api/v1/run', {
@@ -81,23 +81,24 @@ def run_pipeline(req: RequestData):
     last_error = ""
     
     for idx, key in keys_to_try:
-        # Cập nhật chuẩn xác định danh model gemini-2.5-flash mới nhất
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+        # Sử dụng đúng model gemini-3.6-flash theo yêu cầu mới nhất của Google API
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         
         prompt = (
-            f"Đạo diễn CineAI dự án '{req.ten_du_an}'. "
-            f"Phân rã cốt truyện sau thành hồ sơ chuẩn gồm: 1. 11 chốt khóa đạo diễn. 2. Visual Prompt tối giản. 3. Lệnh Suno AI Audiophile 3D bằng tiếng Anh. "
+            f"Đạo diễn điện ảnh CineAI. Dự án: '{req.ten_du_an}'. "
+            f"Phân rã cốt truyện thành hồ sơ chuẩn: 1. 11 chốt khóa đạo diễn. 2. Visual Prompt tối giản. 3. Lệnh Suno AI Audiophile 3D (tiếng Anh). "
             f"Cốt truyện: {req.cot_truyen}"
         )
         
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"maxOutputTokens": 1200}
+            "generationConfig": {"maxOutputTokens": 1000}
         }
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            # Tăng timeout lên 60 giây để đảm bảo không bị ngắt mạng giữa chừng
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
             data = response.json()
             
             if response.status_code == 200 and "candidates" in data:
@@ -110,5 +111,5 @@ def run_pipeline(req: RequestData):
             last_error = str(ex)
             continue
             
-    raise HTTPException(status_code=500, detail=f"Lỗi API: {last_error}")
+    raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {last_error}")
     
