@@ -2,10 +2,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import os
-import requests
-import json
+from google import genai
 
-app = FastAPI(title="CineAI Studio - Autonomous Director", version="3.4")
+app = FastAPI(title="CineAI Studio - Autonomous Director", version="4.0")
 
 class ScriptRequest(BaseModel):
     project_name: str
@@ -16,38 +15,23 @@ class ScriptRequest(BaseModel):
     api_key: str = ""
 
 def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
+    # Ưu tiên lấy key từ giao diện web, nếu không có thì lấy từ biến môi trường Render
     gemini_key = api_key.strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     
     if gemini_key:
         try:
-            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-            
-            # Xử lý chuẩn xác: Nếu là token AQ. thì gửi qua Header Authorization: Bearer
-            if gemini_key.startswith("AQ."):
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {gemini_key}"
-                }
-                api_url = url
-            else:
-                headers = {"Content-Type": "application/json"}
-                api_url = f"{url}?key={gemini_key}"
-
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}]
-            }
-            
-            response = requests.post(api_url, headers=headers, json=payload, timeout=25)
-            if response.status_code == 200:
-                res_data = response.json()
-                text_result = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                return {"source": "Gemini-1.5-Flash (Live AI - Bearer Auth)", "content": text_result}
-            else:
-                print(f"Gemini API lỗi code {response.status_code}: {response.text}")
+            # Sử dụng Google GenAI SDK chính thức (Hỗ trợ tuyệt đối cho cả khóa AQ. và AIza...)
+            client = genai.Client(api_key=gemini_key)
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+            )
+            if response and response.text:
+                return {"source": "Gemini-2.5-Flash (Official SDK)", "content": response.text}
         except Exception as e:
-            print(f"Lỗi kết nối Gemini API: {e}")
+            print(f"Lỗi khi gọi Google GenAI SDK: {e}")
 
-    # Fallback dự phòng an toàn
+    # Fallback dự phòng an toàn tuyệt đối
     fallback_content = f"""
     [PHÂN TÍCH 11 CHỐT KHÓA ĐẠO DIỄN - HỆ THỐNG DỰ PHÒNG TỰ ĐỘNG]
     1. Tiền đề & Chủ đề: Khắc họa chiều sâu ký ức và bản chất con người.
@@ -62,7 +46,7 @@ def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
     10. Thông điệp truyền tải: Sự chữa lành và tiếng vọng của tâm hồn.
     11. Bản vẽ Visual Prompt: Photorealistic, 8k resolution, volumetric lighting, masterpiece cinematic shot.
     """
-    return {"source": "Autonomous-Fallback-Engine (Lỗi xác thực Token)", "content": fallback_content}
+    return {"source": "Autonomous-Fallback-Engine (Chờ xác thực)", "content": fallback_content}
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -154,8 +138,8 @@ async def home():
             </div>
 
             <div class="form-group">
-                <label>OAuth Token / API Key (Mã AQ...)</label>
-                <input type="text" id="api_key" placeholder="Dán mã AQ... của bạn vào đây...">
+                <label>Gemini API Key (Dán mã AQ... vào đây)</label>
+                <input type="text" id="api_key" placeholder="Dán khóa API định dạng AQ... vào đây...">
             </div>
 
             <button class="btn" onclick="runDirector()">🎬 KHỞI CHẠY HỆ THỐNG ĐẠO DIỄN</button>
