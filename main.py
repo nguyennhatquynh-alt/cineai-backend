@@ -1,5 +1,5 @@
 # =====================================================================
-# CINEAI STUDIO v10.1 - TƯ DUY NGƯỢC TIẾT KIỆM CHI PHÍ & TỰ ĐỘNG HÓA
+# CINEAI STUDIO v10.2 - FIX LỖI 404 & ĐỒNG BỘ LUỒNG PIPELINE
 # =====================================================================
 
 import os
@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio v10.1 - Cost-Optimized Pipeline", version="10.1")
+app = FastAPI(title="CineAI Studio v10.2", version="10.2")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_KEY")
 
@@ -22,7 +22,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio v10.1 - Xưởng Phim Tối Ưu Chi Phí</title>
+    <title>CineAI Studio v10.2 - Xưởng Phim Tự Động</title>
     <style>
         :root { --bg: #0b0f19; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc; --muted: #94a3b8; --border: #334155; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
@@ -44,8 +44,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
     <div class="container">
         <header>
-            <h1>🎬 CineAI Studio v10.1</h1>
-            <p>Xưởng Sản Xuất Phim Chuẩn Tư Duy Ngược (Tối Ưu Token & Chi Phí 0đ)</p>
+            <h1>🎬 CineAI Studio v10.2</h1>
+            <p>Xưởng Sản Xuất Phim Chuẩn Tối Ưu Chi Phí & Đồng Bộ API</p>
         </header>
 
         <div class="card">
@@ -57,14 +57,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <label>Cốt Truyện Thô / Nguyên Liệu Đời Thực:</label>
                 <textarea id="cotTruyen" placeholder="Nhập chất liệu thô..."></textarea>
             </div>
-            <button onclick="chayQuyTrinhTietKiem()">🚀 Kích Hoạt Đạo Diễn Tối Ưu Chi Phí</button>
-            <div id="loadingText" class="loading">⏳ Hệ thống đang áp dụng tư duy ngược, nén thông tin và kiểm duyệt 11 tầng...</div>
+            <button onclick="chayQuyTrinh()">🚀 Kích Hoạt Đạo Diễn Tối Ưu Chi Phí</button>
+            <div id="loadingText" class="loading">⏳ Hệ thống đang điều phối 11 tầng đạo diễn...</div>
             <div id="resultBox" class="output"></div>
         </div>
     </div>
 
     <script>
-        async function chayQuyTrinhTietKiem() {
+        async function chayQuyTrinh() {
             const tenDuAn = document.getElementById('tenDuAn').value.trim();
             const cotTruyen = document.getElementById('cotTruyen').value.trim();
             const btn = document.querySelector('button');
@@ -78,7 +78,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             box.style.display = 'none';
 
             try {
-                const res = await fetch('/api/v1/studio/cost-optimized-pipeline', {
+                const res = await fetch('/api/v1/studio/pipeline', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ ten_du_an: tenDuAn, cot_truyen: cotTruyen })
@@ -90,9 +90,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 box.style.display = 'block';
 
                 if (res.ok) {
-                    box.innerHTML = `<strong>✨ KẾT QUẢ ĐẠO DIỄN (ĐÃ TỐI ƯU CHI PHÍ):</strong>\\n\\n${data.ket_qua_11_tang}`;
+                    box.innerHTML = `<strong>✨ KẾT QUẢ ĐẠO DIỄN:</strong>\\n\\n${data.ket_qua_11_tang}`;
                 } else {
-                    box.innerHTML = `❌ Lỗi: ${data.detail || JSON.stringify(data)}`;
+                    box.innerHTML = `❌ Lỗi hệ thống: ${data.detail || JSON.stringify(data)}`;
                 }
             } catch(e) {
                 loading.style.display = 'none';
@@ -110,8 +110,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 def home():
     return HTML_TEMPLATE
 
-@app.post("/api/v1/studio/cost-optimized-pipeline")
-def cost_optimized_pipeline(req: ProjectRequest):
+@app.post("/api/v1/studio/pipeline")
+def pipeline(req: ProjectRequest):
     try:
         if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_KEY":
             raise HTTPException(status_code=400, detail="Thiếu Gemini API Key.")
@@ -119,18 +119,17 @@ def cost_optimized_pipeline(req: ProjectRequest):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
         headers = {"Content-Type": "application/json"}
         
-        # Prompt áp dụng tư duy ngược: Chi phí thấp nhất, hiệu quả nghệ thuật cao nhất
-        prompt_tư_duy_ngược = (
-            f"Bạn là hệ thống trí tuệ nhân tạo cốt lõi của CineAI Studio vận hành theo triết lý 'Tư duy ngược tối ưu chi phí'. "
+        prompt = (
+            f"Bạn là hệ thống trí tuệ nhân tạo cốt lõi của CineAI Studio. "
             f"Dự án: '{req.ten_du_an}'. "
-            f"Hãy phân rã cốt truyện thô sau đây bằng cách nén thông tin, loại bỏ mọi chi tiết thừa thãi, chỉ giữ lại phần tinh hoa cốt lõi để đạt chuẩn >= 90 điểm: "
+            f"Hãy phân rã cốt truyện thô sau đây thành một bộ hồ sơ xuất xưởng hoàn chỉnh đạt chuẩn >= 90 điểm: "
             f"1. 11 chốt khóa đạo diễn điện ảnh sắc bén. "
-            f"2. Bộ Visual Prompt cực kỳ chuẩn xác và tối giản cho Keyframe hình ảnh (giúp hạn chế tối đa việc phải render đi render lại tốn kém). "
+            f"2. Bộ Visual Prompt cực kỳ chuẩn xác và tối giản cho Keyframe hình ảnh. "
             f"3. Cấu trúc âm thanh và mã lệnh Suno AI Audiophile chia 2 phần, 100% tiếng Anh chuẩn xác tích hợp Stereo 3D. "
             f"Cốt truyện thô đầu vào: {req.cot_truyen}"
         )
         
-        payload = {"contents": [{"parts": [{"text": prompt_tư_duy_ngược}]}]}
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code != 200:
