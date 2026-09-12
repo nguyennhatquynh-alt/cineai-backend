@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 import google.generativeai as genai
 
-app = FastAPI(title="CineAI Studio Production Backend", version="11.1")
+app = FastAPI(title="CineAI Studio Production Backend", version="11.2")
 
 # --- 1. TỰ ĐỘNG QUÉT & CÀI ĐẶT API KEYS (FALLBACK THÔNG MINH) ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
@@ -27,7 +27,7 @@ OPENAI_KEY = (
     or ""
 )
 
-# --- 2. HÀM XOAY VÒNG KHÓA GEMINI & THỬ NGHIỆM MODEL AN TOÀN ---
+# --- 2. HÀM XOAY VÒNG KHÓA GEMINI & GỌI MODEL CHUẨN ---
 def get_gemini_response(prompt_text):
     if not GEMINI_KEYS:
         return None, "Chưa cấu hình GEMINI_API_KEYS trong biến môi trường!"
@@ -36,8 +36,8 @@ def get_gemini_response(prompt_text):
     genai.configure(api_key=selected_key)
     key_hint = f"...{selected_key[-4:]}" if len(selected_key) > 4 else "Key"
     
-    # Danh sách model fallback tự động nếu model chính gặp sự cố
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    # Danh sách model ưu tiên sử dụng
+    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro']
     
     last_error = ""
     for model_name in models_to_try:
@@ -52,7 +52,7 @@ def get_gemini_response(prompt_text):
             
     return None, f"Lỗi gọi Gemini API: {last_error}"
 
-# --- 3. GIAO DIỆN WEB DASHBOARD (TỐI ƯU CỠ CHỮ TO RÕ TRÊN MOBILE) ---
+# --- 3. GIAO DIỆN WEB DASHBOARD (TỐI ƯU MOBILE TO RÕ) ---
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return render_dashboard(
@@ -95,7 +95,7 @@ async def produce_film(request: Request, story: str = Form(...)):
 
 def render_dashboard(story: str, result_html: str):
     s_stab = "🟩 Đã kết nối" if STABILITY_KEY else "⚠️ Chưa cấu hình"
-    s_rep = "🟩 Đã kết nối (Khóa nhân vật)" if REPLICATE_KEY else "⚠️ Chưa cấu hình"
+    s_rep = "🟩 Đã kết nối" if REPLICATE_KEY else "⚠️ Chưa cấu hình"
     s_runway = "🟩 Đã kết nối" if RUNWAY_KEY else "⚠️ Chưa cấu hình"
     s_eleven = "🟩 Đã kết nối" if ELEVENLABS_KEY else "⚠️ Chưa cấu hình"
     s_openai = "🟩 Đã kết nối" if OPENAI_KEY else "⚠️ Chưa cấu hình"
@@ -124,7 +124,7 @@ def render_dashboard(story: str, result_html: str):
         <body>
             <div class="container">
                 <div class="card">
-                    <h2>🎬 CineAI Studio v11.1 - Trạm Điều Khiển</h2>
+                    <h2>🎬 CineAI Studio v11.2 - Trạm Điều Khiển</h2>
                     <p style="color: #94a3b8; font-size: 15px; margin-bottom: 15px;">Hệ thống sản xuất phim ngắn tự động hóa 11 tầng tích hợp AI đa mô hình.</p>
                     
                     <div class="status-grid">
