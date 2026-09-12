@@ -1,4 +1,23 @@
-# --- PHẦN 1: GIAO DIỆN WEB & KHỞI TẠO ---
+# =====================================================================
+# CINEAI STUDIO v9.2 - XƯỞNG PHIM TỰ ĐỘNG 11 TẦNG (FULL PIPELINE)
+# =====================================================================
+
+import os
+import requests
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+
+app = FastAPI(title="CineAI Studio v9.2 - Full Pipeline", version="9.2")
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_KEY")
+
+class ProjectRequest(BaseModel):
+    ten_du_an: str
+    cot_truyen: str
+    phong_cach: str = "Cinematic 3D Epic"
+
+# --- PHẦN 1: GIAO DIỆN WEB DASHBOARD (HTML/CSS/JS) ---
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -35,7 +54,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="card">
             <div class="form-group">
                 <label>Tên Dự Án Phim:</label>
-                <input type="text" id="tenDuAn" value="Mùi khói bếp đầu mùa">
+                <input type="text" id="tenDuAn" value="Chiều cuối năm">
             </div>
             <div class="form-group">
                 <label>Cốt Truyện Thô / Nguyên Liệu Đời Thực:</label>
@@ -86,7 +105,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 box.style.display = 'block';
 
                 if (res.ok) {
-                    box.innerHTML = `<strong>✨ KẾT QUẢ XUẤT XƯỞNG TOÀN DIỆN (11 TẦNG):</strong>\\n\\n${data.ket_qua_11_tang}`;
+                    box.innerHTML = `<strong>✨ KẾT QUẢ XUẤT XƯỞNG TOÀN DIỆN (11 TẦNG):</strong>\n\n${data.ket_qua_11_tang}`;
                 } else {
                     box.innerHTML = `❌ Lỗi hệ thống: ${data.detail || JSON.stringify(data)}`;
                 }
@@ -101,22 +120,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>
 """
+
 # --- PHẦN 2: BACKEND & LOGIC XỬ LÝ 11 TẦNG ---
-import os
-import requests
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-
-app = FastAPI(title="CineAI Studio v9.2 - Full Pipeline", version="9.2")
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_KEY")
-
-class ProjectRequest(BaseModel):
-    ten_du_an: str
-    cot_truyen: str
-    phong_cach: str = "Cinematic 3D Epic"
-
 @app.get("/", response_class=HTMLResponse)
 def home():
     return HTML_TEMPLATE
@@ -128,7 +133,8 @@ def san_xuat_toan_dien(req: ProjectRequest):
         if not api_key:
             raise HTTPException(status_code=400, detail="Chưa cấu hình Gemini API Key trên hệ thống Cloud.")
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # Sử dụng model gemini-2.5-flash mới nhất và chuẩn xác
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         headers = {"Content-Type": "application/json"}
         
         prompt_he_thong = (
