@@ -33,7 +33,6 @@ def get_gemini_client_and_key():
         return None, "Chưa cấu hình GEMINI_API_KEYS"
     selected_key = random.choice(GEMINI_KEYS)
     genai.configure(api_key=selected_key)
-    # Lấy 4 ký tự cuối để hiển thị debug an toàn
     key_hint = f"...{selected_key[-4:]}" if len(selected_key) > 4 else "Key"
     return genai.GenerativeModel('gemini-1.5-flash'), key_hint
 
@@ -47,14 +46,12 @@ async def home(request: Request):
 
 @app.post("/produce", response_class=HTMLResponse)
 async def produce_film(request: Request, story: str = Form(...)):
-    # Kiểm tra trạng thái các module kết nối
     model, key_hint = get_gemini_client_and_key()
     
     if not model:
         output_html = "<p style='color: #ef4444;'>❌ Lỗi: Chưa cấu hình khóa Gemini trong hệ thống biến môi trường!</p>"
         return render_dashboard(story, output_html)
 
-    # Prompt đạo diễn chuyên sâu theo chuẩn CineAI Studio
     director_prompt = f"""
     Bạn là một đạo diễn điện ảnh gạo cội. Dựa trên cốt truyện sau: "{story}", 
     hãy thiết kế hồ sơ sản xuất chi tiết theo chuẩn CineAI Studio gồm 2 phần:
@@ -71,7 +68,6 @@ async def produce_film(request: Request, story: str = Form(...)):
     try:
         response = model.generate_content(director_prompt)
         raw_text = response.text
-        # Định dạng lại markdown cơ bản cho dễ đọc trên web
         formatted_text = raw_text.replace("\n", "<br>")
         
         output_html = f"""
@@ -86,7 +82,6 @@ async def produce_film(request: Request, story: str = Form(...)):
     return render_dashboard(story, output_html)
 
 def render_dashboard(story: str, result_html: str):
-    # Trạng thái đèn báo các module
     s_stab = "🟩 Đã kết nối" if STABILITY_KEY else "⚠️ Chưa cấu hình"
     s_rep = "🟩 Đã kết nối (Khóa nhân vật/bối cảnh)" if REPLICATE_KEY else "⚠️ Chưa cấu hình"
     s_runway = "🟩 Đã kết nối" if RUNWAY_KEY else "⚠️ Chưa cấu hình"
@@ -137,4 +132,3 @@ def render_dashboard(story: str, result_html: str):
         </body>
     </html>
     """)
-    
