@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio", version="10.3")
+app = FastAPI(title="CineAI Studio", version="10.4")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
@@ -30,9 +30,9 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.3</h2>
+        <h2>🎬 CineAI Studio v10.4</h2>
         <label>Tên Dự Án:</label>
-        <input type="text" id="tenDuAn" value="Mùi khói bếp đầu mùa">
+        <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
         <textarea id="cotTruyen" rows="4" placeholder="Nhập nội dung..."></textarea>
         <button onclick="chayXuatXuong()">🚀 Kích Hoạt Đạo Diễn AI</button>
@@ -43,7 +43,7 @@ def home():
             const tenDuAn = document.getElementById('tenDuAn').value;
             const cotTruyen = document.getElementById('cotTruyen').value;
             const box = document.getElementById('resultBox');
-            if(!cotTruyen) { alert('Nhập cốt truyện đi anh!'); return; }
+            if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
             box.innerHTML = '⏳ Đang xử lý 11 tầng đạo diễn...';
@@ -56,12 +56,12 @@ def home():
                 });
                 const data = await res.json();
                 if(res.ok) {
-                    box.innerHTML = '<strong>✨ KẾT QUẢ:</strong>\\n\\n' + data.ket_qua;
+                    box.innerHTML = '<strong>✨ KẾT QUẢ ĐẠO DIỄN:</strong>\\n\\n' + data.ket_qua;
                 } else {
                     box.innerHTML = '❌ Lỗi API: ' + (data.detail || JSON.stringify(data));
                 }
             } catch(e) {
-                box.innerHTML = '❌ Lỗi kết nối JavaScript: ' + e.message;
+                box.innerHTML = '❌ Lỗi kết nối: ' + e.message;
             }
         }
     </script>
@@ -73,9 +73,19 @@ def run_pipeline(req: RequestData):
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=400, detail="Chưa cấu hình GEMINI_API_KEY trong Environment Variables của Render.")
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+    # Sử dụng model gemini-1.5-flash chuẩn ổn định nhất
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
-    prompt = f"Phân rã dự án '{req.ten_du_an}' với cốt truyện '{req.cot_truyen}' thành 11 chốt khóa đạo diễn, Visual Prompt và mã lệnh Suno AI 3D."
+    
+    prompt = (
+        f"Bạn là hệ thống trí tuệ nhân tạo cốt lõi của CineAI Studio. "
+        f"Dự án: '{req.ten_du_an}'. "
+        f"Hãy phân rã cốt truyện thô sau đây thành một bộ hồ sơ xuất xưởng hoàn chỉnh đạt chuẩn >= 90 điểm: "
+        f"1. 11 chốt khóa đạo diễn điện ảnh sắc bén. "
+        f"2. Bộ Visual Prompt cực kỳ chuẩn xác và tối giản cho Keyframe hình ảnh. "
+        f"3. Cấu trúc âm thanh và mã lệnh Suno AI Audiophile chia 2 phần, 100% tiếng Anh chuẩn xác tích hợp Stereo 3D. "
+        f"Cốt truyện thô đầu vào: {req.cot_truyen}"
+    )
     
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     response = requests.post(url, headers=headers, json=payload)
@@ -84,6 +94,10 @@ def run_pipeline(req: RequestData):
         raise HTTPException(status_code=response.status_code, detail=response.text)
         
     data = response.json()
-    ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
+    try:
+        ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        raise HTTPException(status_code=500, detail="Phản hồi từ Google API không đúng cấu trúc mong đợi.")
+        
     return {"status": "success", "ket_qua": ket_qua_ai}
     
