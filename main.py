@@ -5,7 +5,7 @@ import os
 import requests
 import json
 
-app = FastAPI(title="CineAI Studio - Autonomous Director", version="3.3")
+app = FastAPI(title="CineAI Studio - Autonomous Director", version="3.4")
 
 class ScriptRequest(BaseModel):
     project_name: str
@@ -16,28 +16,38 @@ class ScriptRequest(BaseModel):
     api_key: str = ""
 
 def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
-    # Lấy key ưu tiên từ ô nhập trực tiếp trên giao diện, nếu trống mới tìm trong biến môi trường
     gemini_key = api_key.strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     
     if gemini_key:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-            headers = {"Content-Type": "application/json"}
+            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+            
+            # Xử lý chuẩn xác: Nếu là token AQ. thì gửi qua Header Authorization: Bearer
+            if gemini_key.startswith("AQ."):
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {gemini_key}"
+                }
+                api_url = url
+            else:
+                headers = {"Content-Type": "application/json"}
+                api_url = f"{url}?key={gemini_key}"
+
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}]
             }
             
-            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            response = requests.post(api_url, headers=headers, json=payload, timeout=25)
             if response.status_code == 200:
                 res_data = response.json()
                 text_result = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                return {"source": "Gemini-1.5-Flash (Live AI)", "content": text_result}
+                return {"source": "Gemini-1.5-Flash (Live AI - Bearer Auth)", "content": text_result}
             else:
                 print(f"Gemini API lỗi code {response.status_code}: {response.text}")
         except Exception as e:
             print(f"Lỗi kết nối Gemini API: {e}")
 
-    # Fallback dự phòng an toàn nếu chưa nhập key
+    # Fallback dự phòng an toàn
     fallback_content = f"""
     [PHÂN TÍCH 11 CHỐT KHÓA ĐẠO DIỄN - HỆ THỐNG DỰ PHÒNG TỰ ĐỘNG]
     1. Tiền đề & Chủ đề: Khắc họa chiều sâu ký ức và bản chất con người.
@@ -52,7 +62,7 @@ def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
     10. Thông điệp truyền tải: Sự chữa lành và tiếng vọng của tâm hồn.
     11. Bản vẽ Visual Prompt: Photorealistic, 8k resolution, volumetric lighting, masterpiece cinematic shot.
     """
-    return {"source": "Autonomous-Fallback-Engine (Chưa có API Key)", "content": fallback_content}
+    return {"source": "Autonomous-Fallback-Engine (Lỗi xác thực Token)", "content": fallback_content}
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -121,7 +131,7 @@ async def home():
 
             <div class="form-group">
                 <label>Cốt Truyện Thô / Nguyên Liệu Đời Thực</label>
-                <textarea id="story_prompt">Chiều cuối năm, gió bắc tràn về qua những kẽ lá, mang theo cái lạnh se sắt của miền quê nghèo.</textarea>
+                <textarea id="story_prompt">Chiều cuối năm, gió bắc tràn về qua những kẽ lá, mang theo cái lạnh se sắt của miền quê nghèo. Nam ngồi xuống chiếc ghế đẩu thấp quen thuộc, phụ mẹ chụm từng cọng rơm vào bếp lửa.</textarea>
             </div>
 
             <div class="row">
@@ -144,8 +154,8 @@ async def home():
             </div>
 
             <div class="form-group">
-                <label>Gemini API Key (Dán trực tiếp mã AQ... vào đây)</label>
-                <input type="text" id="api_key" placeholder="Dán khóa API của bạn vào đây...">
+                <label>OAuth Token / API Key (Mã AQ...)</label>
+                <input type="text" id="api_key" placeholder="Dán mã AQ... của bạn vào đây...">
             </div>
 
             <button class="btn" onclick="runDirector()">🎬 KHỞI CHẠY HỆ THỐNG ĐẠO DIỄN</button>
