@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio - Production v10.16", version="10.16")
+app = FastAPI(title="CineAI Studio - Production v10.17", version="10.17")
 
 class RequestData(BaseModel):
     ten_du_an: str
@@ -18,7 +18,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio v10.16</title>
+    <title>CineAI Studio v10.17</title>
     <style>
         body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
@@ -29,7 +29,7 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.16</h2>
+        <h2>🎬 CineAI Studio v10.17</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
@@ -45,7 +45,7 @@ def home():
             if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
-            box.innerHTML = '⏳ Đang kết nối cụm 5 Key v1beta...';
+            box.innerHTML = '⏳ Đang khởi chạy cụm 5 Key với gemini-2.5-flash...';
 
             try {
                 const res = await fetch('/api/v1/run', {
@@ -81,8 +81,8 @@ def run_pipeline(req: RequestData):
     last_error = ""
     
     for idx, key in keys_to_try:
-        # Quay về sử dụng đúng endpoint v1beta và định dạng model chuẩn
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+        # Cập nhật chuẩn xác định danh model gemini-2.5-flash mới nhất
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         
         prompt = (
