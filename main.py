@@ -133,8 +133,8 @@ def san_xuat_toan_dien(req: ProjectRequest):
         if not api_key:
             raise HTTPException(status_code=400, detail="Chưa cấu hình Gemini API Key trên hệ thống Cloud.")
 
-        # Sử dụng model gemini-2.5-flash mới nhất và chuẩn xác
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        # Sử dụng model gemini-3.6-flash chuẩn mới nhất theo yêu cầu hệ thống
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
         headers = {"Content-Type": "application/json"}
         
         prompt_he_thong = (
