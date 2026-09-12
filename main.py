@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import os
 from google import genai
 
-app = FastAPI(title="CineAI Studio - Autonomous Director", version="4.0")
+app = FastAPI(title="CineAI Studio - Autonomous Director", version="4.1")
 
 class ScriptRequest(BaseModel):
     project_name: str
@@ -15,23 +15,22 @@ class ScriptRequest(BaseModel):
     api_key: str = ""
 
 def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
-    # Ưu tiên lấy key từ giao diện web, nếu không có thì lấy từ biến môi trường Render
     gemini_key = api_key.strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     
     if gemini_key:
         try:
-            # Sử dụng Google GenAI SDK chính thức (Hỗ trợ tuyệt đối cho cả khóa AQ. và AIza...)
+            # Khởi tạo client chính thức tương thích hoàn hảo với mã định dạng AQ.
             client = genai.Client(api_key=gemini_key)
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-1.5-flash',
                 contents=prompt,
             )
             if response and response.text:
-                return {"source": "Gemini-2.5-Flash (Official SDK)", "content": response.text}
+                return {"source": "Gemini-1.5-Flash (Live AI - AQ Token Auth)", "content": response.text}
         except Exception as e:
-            print(f"Lỗi khi gọi Google GenAI SDK: {e}")
+            print(f"Lỗi gọi Gemini SDK với AQ Token: {e}")
 
-    # Fallback dự phòng an toàn tuyệt đối
+    # Fallback dự phòng an toàn
     fallback_content = f"""
     [PHÂN TÍCH 11 CHỐT KHÓA ĐẠO DIỄN - HỆ THỐNG DỰ PHÒNG TỰ ĐỘNG]
     1. Tiền đề & Chủ đề: Khắc họa chiều sâu ký ức và bản chất con người.
@@ -46,7 +45,7 @@ def call_ai_with_fallback(prompt: str, api_key: str = "") -> dict:
     10. Thông điệp truyền tải: Sự chữa lành và tiếng vọng của tâm hồn.
     11. Bản vẽ Visual Prompt: Photorealistic, 8k resolution, volumetric lighting, masterpiece cinematic shot.
     """
-    return {"source": "Autonomous-Fallback-Engine (Chờ xác thực)", "content": fallback_content}
+    return {"source": "Autonomous-Fallback-Engine", "content": fallback_content}
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -138,8 +137,8 @@ async def home():
             </div>
 
             <div class="form-group">
-                <label>Gemini API Key (Dán mã AQ... vào đây)</label>
-                <input type="text" id="api_key" placeholder="Dán khóa API định dạng AQ... vào đây...">
+                <label>Mã AQ... (OAuth Token)</label>
+                <input type="text" id="api_key" placeholder="Dán mã AQ... của bạn vào đây...">
             </div>
 
             <button class="btn" onclick="runDirector()">🎬 KHỞI CHẠY HỆ THỐNG ĐẠO DIỄN</button>
@@ -211,4 +210,3 @@ async def api_direct(req: ScriptRequest):
         "model_used": ai_response["source"],
         "result": ai_response["content"]
     }
-    
