@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio - Production v10.12", version="10.12")
+app = FastAPI(title="CineAI Studio - Production v10.13", version="10.13")
 
 class RequestData(BaseModel):
     ten_du_an: str
@@ -18,7 +18,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio v10.12</title>
+    <title>CineAI Studio v10.13</title>
     <style>
         body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
@@ -29,7 +29,7 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.12</h2>
+        <h2>🎬 CineAI Studio v10.13</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
@@ -45,7 +45,7 @@ def home():
             if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
-            box.innerHTML = '⏳ Đang phân rã kịch bản 11 tầng đạo diễn...';
+            box.innerHTML = '⏳ Hệ thống đang phân rã 11 tầng đạo diễn...';
 
             try {
                 const res = await fetch('/api/v1/run', {
@@ -69,7 +69,6 @@ def home():
 
 @app.post("/api/v1/run")
 def run_pipeline(req: RequestData):
-    # Đọc danh sách 5 key từ biến môi trường trên Render
     env_keys = os.getenv("GEMINI_API_KEYS", "")
     active_keys = [k.strip() for k in env_keys.split(",") if k.strip()]
     
@@ -79,15 +78,14 @@ def run_pipeline(req: RequestData):
             detail="Chưa cấu hình biến môi trường GEMINI_API_KEYS trên Render."
         )
     
-    # Xáo trộn ngẫu nhiên để phân phối tải qua 5 tài khoản
     keys_to_try = list(enumerate(active_keys))
     random.shuffle(keys_to_try)
     
     last_error = ""
     
     for idx, key in keys_to_try:
-        # Sử dụng model gemini-2.5-flash ổn định cao cho API v1beta
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+        # Cập nhật chuẩn xác model gemini-3.6-flash theo đúng yêu cầu từ Google API
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         
         prompt = (
@@ -110,11 +108,13 @@ def run_pipeline(req: RequestData):
                 ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
                 return {"status": "success", "key_index_used": idx + 1, "ket_qua": ket_qua_ai}
             else:
-                last_error = data.get("error", {}).get("message", response.text)
+                err_text = data.get("error", {}).get("message", response.text)
+                last_error = err_text
+                # Chỉ tiếp tục trượt nếu lỗi là quá tải (quota/429), còn nếu lỗi sai model thì báo luôn để xử lý
                 continue
         except Exception as ex:
             last_error = str(ex)
             continue
             
-    raise HTTPException(status_code=500, detail=f"Cả cụm 5 API Key đều gặp sự cố. Chi tiết: {last_error}")
+    raise HTTPException(status_code=500, detail=f"Lỗi hệ thống khi gọi API. Chi tiết: {last_error}")
     
