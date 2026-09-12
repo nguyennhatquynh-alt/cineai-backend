@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio - Production v10.13", version="10.13")
+app = FastAPI(title="CineAI Studio - Production v10.14", version="10.14")
 
 class RequestData(BaseModel):
     ten_du_an: str
@@ -18,7 +18,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineAI Studio v10.13</title>
+    <title>CineAI Studio v10.14</title>
     <style>
         body { background: #0b0f19; color: #f8fafc; font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
@@ -29,7 +29,7 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.13</h2>
+        <h2>🎬 CineAI Studio v10.14</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
@@ -45,7 +45,7 @@ def home():
             if(!cotTruyen) { alert('Vui lòng nhập cốt truyện!'); return; }
             
             box.style.display = 'block';
-            box.innerHTML = '⏳ Hệ thống đang phân rã 11 tầng đạo diễn...';
+            box.innerHTML = '⏳ Đang kết nối cụm 5 Key (Timeout 60s)...';
 
             try {
                 const res = await fetch('/api/v1/run', {
@@ -84,37 +84,34 @@ def run_pipeline(req: RequestData):
     last_error = ""
     
     for idx, key in keys_to_try:
-        # Cập nhật chuẩn xác model gemini-3.6-flash theo đúng yêu cầu từ Google API
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         
         prompt = (
-            f"Bạn là hệ thống trí tuệ nhân tạo cốt lõi của CineAI Studio. "
-            f"Dự án: '{req.ten_du_an}'. "
-            f"Hãy phân rã cốt truyện thô sau đây thành một bộ hồ sơ xuất xưởng hoàn chỉnh đạt chuẩn >= 90 điểm: "
-            f"1. 11 chốt khóa đạo diễn điện ảnh sắc bén. "
-            f"2. Bộ Visual Prompt cực kỳ chuẩn xác và tối giản cho Keyframe hình ảnh. "
-            f"3. Cấu trúc âm thanh và mã lệnh Suno AI Audiophile chia 2 phần, 100% tiếng Anh chuẩn xác tích hợp Stereo 3D. "
-            f"Cốt truyện thô đầu vào: {req.cot_truyen}"
+            f"Đạo diễn điện ảnh CineAI. Dự án: '{req.ten_du_an}'. "
+            f"Phân rã cốt truyện sau thành hồ sơ chuẩn >= 90 điểm gồm: "
+            f"1. 11 chốt khóa đạo diễn sắc bén. "
+            f"2. Visual Prompt tối giản cho Keyframe. "
+            f"3. Cấu trúc âm thanh & lệnh Suno AI Audiophile 2 phần bằng tiếng Anh tích hợp Stereo 3D. "
+            f"Cốt truyện: {req.cot_truyen}"
         )
         
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            # Tăng thời gian chờ lên 60 giây để tránh timeout
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
             data = response.json()
             
             if response.status_code == 200 and "candidates" in data:
                 ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
                 return {"status": "success", "key_index_used": idx + 1, "ket_qua": ket_qua_ai}
             else:
-                err_text = data.get("error", {}).get("message", response.text)
-                last_error = err_text
-                # Chỉ tiếp tục trượt nếu lỗi là quá tải (quota/429), còn nếu lỗi sai model thì báo luôn để xử lý
+                last_error = data.get("error", {}).get("message", response.text)
                 continue
         except Exception as ex:
             last_error = str(ex)
             continue
             
-    raise HTTPException(status_code=500, detail=f"Lỗi hệ thống khi gọi API. Chi tiết: {last_error}")
+    raise HTTPException(status_code=500, detail=f"Quá thời gian chờ (Timeout 60s). Chi tiết: {last_error}")
     
