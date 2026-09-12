@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="CineAI Studio", version="10.4")
+app = FastAPI(title="CineAI Studio", version="10.5")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
@@ -30,7 +30,7 @@ def home():
 </head>
 <body>
     <div class="card">
-        <h2>🎬 CineAI Studio v10.4</h2>
+        <h2>🎬 CineAI Studio v10.5</h2>
         <label>Tên Dự Án:</label>
         <input type="text" id="tenDuAn" value="Chiều cuối năm">
         <label>Cốt Truyện Thô:</label>
@@ -73,8 +73,8 @@ def run_pipeline(req: RequestData):
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=400, detail="Chưa cấu hình GEMINI_API_KEY trong Environment Variables của Render.")
     
-    # Sử dụng model gemini-1.5-flash chuẩn ổn định nhất
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Sử dụng model gemini-2.5-flash chuẩn mới nhất và bền vững nhất
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     
     prompt = (
@@ -88,16 +88,20 @@ def run_pipeline(req: RequestData):
     )
     
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    response = requests.post(url, headers=headers, json=payload)
     
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-        
-    data = response.json()
     try:
-        ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-        raise HTTPException(status_code=500, detail="Phản hồi từ Google API không đúng cấu trúc mong đợi.")
+        response = requests.post(url, headers=headers, json=payload)
+        data = response.json()
         
-    return {"status": "success", "ket_qua": ket_qua_ai}
-    
+        if response.status_code != 200:
+            err_msg = data.get("error", {}).get("message", response.text)
+            raise HTTPException(status_code=response.status_code, detail=f"Google API Error: {err_msg}")
+            
+        ket_qua_ai = data["candidates"][0]["content"]["parts"][0]["text"]
+        return {"status": "success", "ket_qua": ket_qua_ai}
+        
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
+        
