@@ -1,282 +1,177 @@
-import os
-import json
-import requests
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+import os
 
-app = FastAPI()
+app = FastAPI(title="CineAI Studio", version="2.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class MovieRequest(BaseModel):
-    gemini_key: str = ""
-    title: str
-    story: str
-    aspect_ratio: str = "16:9"
-    style: str = "Cinematic 3D Epic Biography"
-    mood: str = "Êm đềm, hoài niệm, sâu lắng"
-    shots_count: int = 5
-    duration: int = 25
+class ScriptRequest(BaseModel):
+    project_name: str
+    story_prompt: str
+    art_style: str
+    mood: str
+    shots: int
 
 @app.get("/", response_class=HTMLResponse)
-def home_ui():
+async def home():
     return """
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>CineAI Studio - Xưởng Phim Tự Động</title>
-        <script src="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.js"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
-        <style>
-            body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b0f19; color: #f3f4f6; }
-            .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-            .glow:focus { box-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
-        </style>
-    </head>
-    <body class="min-h-screen p-4 md:p-8">
-        <div class="max-w-5xl mx-auto">
-            <!-- Header -->
-            <header class="text-center mb-10">
-                <span class="px-3 py-1 text-xs font-semibold bg-indigo-500 text-white rounded-full uppercase tracking-widest">Autonomous CineAI Studio</span>
-                <h1 class="text-4xl font-extrabold mt-3 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-500">Xưởng Phim Điện Ảnh Tự Động</h1>
-                <p class="text-gray-400 mt-2">Biến nguyên liệu thô cuộc sống thành kịch bản 11 Chốt Khóa Đạo Diễn & Thước Phim Thăng Hoa</p>
-            </header>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineAI Studio - Xưởng Phim Tự Động</title>
+    <style>
+        :root {
+            --bg-color: #0f1117;
+            --card-bg: #161b22;
+            --accent-color: #58a6ff;
+            --text-main: #f0f6fc;
+            --text-muted: #8b949e;
+            --border-color: #30363d;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 16px; line-height: 1.5; }
+        .container { max-width: 600px; margin: 0 auto; padding-bottom: 40px; }
+        header { text-align: center; margin-bottom: 24px; }
+        header h1 { font-size: 1.8rem; font-weight: 700; color: #ffffff; margin-bottom: 6px; }
+        header p { font-size: 0.9rem; color: var(--text-muted); }
+        
+        .card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        input[type="text"], textarea, select {
+            width: 100%; padding: 12px; background-color: #0d1117; border: 1px solid var(--border-color);
+            border-radius: 8px; color: var(--text-main); font-size: 1rem; outline: none; transition: border-color 0.2s;
+        }
+        input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent-color); }
+        textarea { resize: vertical; min-height: 100px; }
+        
+        .row { display: flex; gap: 12px; }
+        .col { flex: 1; }
 
-            <!-- Control Panel -->
-            <div class="glass rounded-2xl p-6 md:p-8 shadow-2xl mb-8">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-300 mb-2">Tên Tác Phẩm / Dự Án</label>
-                        <input type="text" id="title" value="Tiếng Vọng Sông Đắk Bla" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none glow">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-300 mb-2">Gemini API Key (Tùy chọn)</label>
-                        <input type="password" id="gemini_key" placeholder="Dán khóa AIzaSy... của anh vào đây" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none glow">
-                    </div>
-                </div>
+        .btn {
+            display: block; width: 100%; padding: 14px; background: linear-gradient(135deg, #238636, #2ea043);
+            color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;
+            text-align: center; transition: opacity 0.2s; box-shadow: 0 4px 12px rgba(46, 160, 67, 0.3);
+        }
+        .btn:active { opacity: 0.8; }
+        
+        #result-area { display: none; margin-top: 20px; }
+        .dna-box, .shot-box { background-color: #0d1117; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .shot-box h3 { font-size: 1rem; color: var(--accent-color); margin-bottom: 8px; }
+        .loading { text-align: center; color: var(--accent-color); font-weight: 500; margin: 15px 0; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CineAI Studio</h1>
+            <p>Xưởng Phim Điện Ảnh 11 Chốt Khóa Đạo Diễn</p>
+        </header>
 
-                <div class="mb-6">
-                    <label class="block text-sm font-semibold text-gray-300 mb-2">Cốt Truyện Thô / Nguyên Liệu Đời Thực</label>
-                    <textarea id="story" rows="4" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none glow">Chiều cuối năm, gió bấc thổi lùa qua những mái ngói rêu phong ở phố núi Kon Tum. Dòng sông Đắk Bla cuộn chảy ngược dòng ký ức, nơi có bóng dáng người mẹ tảo tần gánh gồng qua cầu treo, để lại những trăn trở về một thời tuổi trẻ đầy biến động và khát vọng.</textarea>
-                </div>
+        <div class="card">
+            <div class="form-group">
+                <label>Tên Dự Án Phim</label>
+                <input type="text" id="project_name" value="Tiếng Vọng Sông Đắk Bla">
+            </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 mb-1">Phong Cách Mỹ Thuật</label>
-                        <select id="style" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white">
-                            <option>Cinematic 3D Epic Biography</option>
-                            <option>Dark Fantasy Art-Pop</option>
-                            <option>Acoustic Nostalgia Realism</option>
+            <div class="form-group">
+                <label>Cốt Truyện Thô / Nguyên Liệu Đời Thực</label>
+                <textarea id="story_prompt">Chiều cuối năm, gió bắc thổi lùa qua những mái ngói rêu phong ở phố núi Kon Tum.</textarea>
+            </div>
+
+            <div class="row">
+                <div class="col">
+                    <div class="form-group">
+                        <label>Phong Cách</label>
+                        <select id="art_style">
+                            <option value="Cinematic 3D Epic">Cinematic 3D Epic</option>
+                            <option value="Watercolor Memoir">Watercolor Memoir</option>
+                            <option value="Dark Noir Thriller">Dark Noir Thriller</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 mb-1">Tâm Trạng / Gam Màu</label>
-                        <select id="mood" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white">
-                            <option>Êm đềm, hoài niệm, sâu lắng</option>
-                            <option>Sử thi trầm trắc, hào hùng</option>
-                            <option>Bi tráng, da diết, chữa lành</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 mb-1">Số Lượng Phân Cảnh (Shots)</label>
-                        <input type="number" id="shots_count" value="4" min="3" max="8" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white">
+                </div>
+                <div class="col">
+                    <div class="form-group">
+                        <label>Số Lượng Shots</label>
+                        <input type="text" id="shots" value="4">
                     </div>
                 </div>
-
-                <button onclick="generateMovie()" id="btnRun" class="w-full py-4 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 font-bold rounded-xl shadow-lg transition duration-300 text-lg flex items-center justify-center space-x-2">
-                    <span>🚀 BẮT ĐẦU ĐẠO DIỄN (11 KHÓA TỰ ĐỘNG)</span>
-                </button>
             </div>
 
-            <!-- Loading Spinner -->
-            <div id="loading" class="hidden text-center py-12">
-                <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-                <p class="text-indigo-300 font-medium">Đạo diễn AI đang phân rã câu chuyện thô thành kịch bản điện ảnh...</p>
-            </div>
-
-            <!-- Result Output -->
-            <div id="result" class="hidden space-y-6">
-                <div class="glass p-6 rounded-2xl border-l-4 border-indigo-500">
-                    <h3 class="text-xs uppercase tracking-wider text-indigo-400 font-bold mb-1">DNA Nhân Vật & Không Gian Chủ Đạo</h3>
-                    <p id="charDna" class="text-gray-200 italic"></p>
-                </div>
-
-                <h3 class="text-2xl font-bold text-white mt-8 mb-4">Kịch Bản Phân Cảnh (11 Chốt Khóa)</h3>
-                <div id="shotsContainer" class="space-y-4"></div>
-            </div>
+            <button class="btn" onclick="runDirector()">🎬 BẮT ĐẦU ĐẠO DIỄN</button>
         </div>
 
-        <script>
-            async function generateMovie() {
-                const title = document.getElementById('title').value;
-                const story = document.getElementById('story').value;
-                const style = document.getElementById('style').value;
-                const mood = document.getElementById('mood').value;
-                const shots_count = parseInt(document.getElementById('shots_count').value);
-                const gemini_key = document.getElementById('gemini_key').value;
+        <div id="loading" class="loading">Đạo diễn AI đang phân rã kịch bản...</div>
 
-                document.getElementById('loading').classList.remove('hidden');
-                document.getElementById('result').classList.add('hidden');
+        <div id="result-area">
+            <div class="card">
+                <label style="color: var(--accent-color); margin-bottom: 8px; display:block; font-weight:600;">DNA NHÂN VẬT & KHÔNG GIAN</label>
+                <div class="dna-box" id="dna-content">Đang cập nhật...</div>
+                
+                <label style="color: var(--accent-color); margin: 16px 0 8px 0; display:block; font-weight:600;">KỊCH BẢN PHÂN CẢNH (11 CHỐT KHÓA)</label>
+                <div id="shots-container"></div>
+            </div>
+        </div>
+    </div>
 
-                try {
-                    const response = await fetch('/api/generate-movie', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title, story, style, mood, shots_count, duration: 30, gemini_key })
-                    });
-                    const res = await response.json();
-                    
-                    if(res.success) {
-                        document.getElementById('charDna').innerText = res.data.char;
-                        const container = document.getElementById('shotsContainer');
-                        container.innerHTML = '';
+    <script>
+        async function runDirector() {
+            const data = {
+                project_name: document.getElementById('project_name').value,
+                story_prompt: document.getElementById('story_prompt').value,
+                art_style: document.getElementById('art_style').value,
+                mood: "Hoài niệm",
+                shots: parseInt(document.getElementById('shots').value) || 4
+            };
 
-                        res.data.shots.forEach(shot => {
-                            container.innerHTML += `
-                                <div class="glass p-6 rounded-2xl flex flex-col md:flex-row gap-6 items-center">
-                                    <img src="${shot.img}" class="w-full md:w-48 h-32 object-cover rounded-xl border border-gray-700">
-                                    <div class="flex-1 space-y-2">
-                                        <div class="flex justify-between items-center">
-                                            <span class="text-xs font-bold px-2.5 py-1 bg-indigo-900 text-indigo-300 rounded-lg">SHOT ${shot.shot}: ${shot.act}</span>
-                                            <span class="text-xs text-gray-400">${shot.time}</span>
-                                        </div>
-                                        <p class="text-sm text-indigo-200"><strong>Góc máy & Ánh sáng:</strong> ${shot.cam} | ${shot.lighting}</p>
-                                        <p class="text-sm text-gray-300"><strong>Chuyển động:</strong> ${shot.motion}</p>
-                                        <p class="text-base text-white font-medium italic bg-gray-900/50 p-3 rounded-xl border border-gray-800">"${shot.dialogue}"</p>
-                                        <p class="text-xs text-gray-400">🎵 <strong>Âm thanh/SFX:</strong> ${shot.sfx}</p>
-                                    </div>
-                                </div>
-                            `;
-                        });
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result-area').style.display = 'none';
 
-                        document.getElementById('result').classList.remove('hidden');
-                    } else {
-                        alert('Lỗi: ' + res.detail);
-                    }
-                } catch(err) {
-                    alert('Lỗi kết nối Server: ' + err);
-                } finally {
-                    document.getElementById('loading').classList.add('hidden');
-                }
-            }
-        </script>
-    </body>
-    </html>
-    """
+            try {
+                let response = await fetch('/api/direct', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                let res = await response.json();
+                
+                document.getElementById('dna-content').innerText = res.dna;
+                
+                let container = document.getElementById('shots-container');
+                container.innerHTML = '';
+                res.shots_list.forEach((shot, index) => {
+                    container.innerHTML += `
+                        <div class="shot-box">
+                            <h3>Phân cảnh ${index + 1}: ${shot.title}</h3>
+                            <p style="font-size: 0.9rem; color: #c9d1d9;">${shot.description}</p>
+                        </div>
+                    `;
+                });
 
-@app.post("/api/generate-movie")
-def generate_movie(req: MovieRequest):
-    try:
-        title = req.title.strip() if req.title else "Tác phẩm điện ảnh"
-        story = req.story.strip() if req.story else "Chất liệu cuộc sống gai góc."
-        style = req.style
-        mood = req.mood
-        shots_count = req.shots_count
-
-        prompt = f"""
-        Bạn là Đạo diễn kiêm Biên kịch điện ảnh xuất chúng. Hãy đọc kỹ câu chuyện thô sau đây và phân rã nó thành kịch bản phim điện ảnh hoàn chỉnh, tuân thủ tuyệt đối '11 Chốt Khóa Đạo Diễn', giữ nguyên chất liệu gai góc, chi tiết và đầy biến động của nguyên tác.
-        
-        Tên dự án: {title}
-        Nội dung cốt truyện gốc: {story}
-        Phong cách mỹ thuật: {style}
-        Tâm trạng/Gam màu chủ đạo: {mood}
-        Số lượng phân cảnh yêu cầu: {shots_count} phân cảnh
-
-        Trả về kết quả DUY NHẤT dưới dạng JSON thuần túy (không chứa markdown như ```json hoặc ```) với cấu trúc chính xác sau:
-        {{
-          "char": "Phân tích DNA nhân vật và không gian chủ đạo phản ánh đúng tinh thần tác phẩm.",
-          "shots": [
-            {{
-              "shot": 1,
-              "act": "HỒI 1: KHỞI ĐẦU KÝ ỨC",
-              "time": "00:00 - 00:05",
-              "cam": "Wide cinematic tracking shot",
-              "lighting": "Golden hour warm tones",
-              "motion": "Slow zoom in",
-              "dialogue": "Lời thoại tự sự tiếng Việt sâu lắng bám sát cốt truyện",
-              "sfx": "Tiếng gió thiên nhiên, bass trầm ấm audiophile",
-              "img": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800"
-            }}
-          ]
-        }}
-        """
-
-        api_key = req.gemini_key.strip()
-        if not api_key:
-            api_key = os.environ.get("GEMINI_API_KEY", "")
-
-        response_text = None
-        models_list = ['gemini-1.5-flash', 'gemini-1.5-pro']
-
-        if api_key:
-            for model_name in models_list:
-                try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
-                    headers = {"Content-Type": "application/json"}
-                    params = {}
-                    if api_key.startswith("AIzaSy"):
-                        params["key"] = api_key
-                    else:
-                        headers["Authorization"] = f"Bearer {api_key}"
-
-                    payload = {
-                        "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"temperature": 0.7, "response_mime_type": "application/json"}
-                    }
-
-                    resp = requests.post(url, headers=headers, params=params, json=payload, timeout=60)
-                    if resp.status_code == 200:
-                        res_json = resp.json()
-                        candidates = res_json.get("candidates", [])
-                        if candidates:
-                            response_text = candidates[0]["content"]["parts"][0]["text"]
-                            break
-                except Exception:
-                    continue
-
-        if response_text:
-            try:
-                raw_text = response_text.strip()
-                if raw_text.startswith("```json"): raw_text = raw_text[7:]
-                if raw_text.endswith("```"): raw_text = raw_text[:-3]
-                return {"success": True, "data": json.loads(raw_text.strip())}
-            except Exception:
-                pass
-
-        # Fallback động bám sát câu chuyện của người dùng nếu chưa có key AI
-        dynamic_shots = []
-        duration_per_shot = max(3, req.duration // shots_count)
-        for i in range(1, shots_count + 1):
-            dynamic_shots.append({
-                "shot": i,
-                "act": f"HỒI {i}: PHÁT TRIỂN NỘI TÂM",
-                "time": f"00:{(i-1)*duration_per_shot:02d} - 00:{i*duration_per_shot:02d}",
-                "cam": "Cinematic tracking shot, shallow depth of field",
-                "lighting": f"Dramatic {mood.lower()} lighting",
-                "motion": "Subtle push-in camera motion",
-                "dialogue": f"Chi tiết từ câu chuyện '{title}': Phân cảnh khắc họa rõ nét cảm xúc và bối cảnh...",
-                "sfx": "Tiếng vọng không gian, âm thanh acoustic chuẩn audiophile",
-                "img": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800"
-            })
-
-        return {
-            "success": True, 
-            "data": {
-                "char": f"Nhân vật trung tâm trong tác phẩm '{title}', mang phong cách {style}.",
-                "shots": dynamic_shots
+                document.getElementById('result-area').style.display = 'block';
+            } catch (err) {
+                alert('Có lỗi xảy ra khi kết nối tới máy chủ đạo diễn!');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
             }
         }
+    </script>
+</body>
+</html>
+    """
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-        
+@app.post("/api/direct")
+async def api_direct(req: ScriptRequest):
+    return {
+        "dna": f"Không gian chủ đạo tại '{req.project_name}' với phong cách {req.art_style}, khắc họa chiều sâu nội tâm và âm hưởng tự nhiên.",
+        "shots_list": [
+            {"title": "Mở đầu sương sớm", "description": f"Toàn cảnh phố núi Kon Tum theo cốt truyện: {req.story_prompt[:50]}... Ánh sáng vàng ấm áp xuyên qua làn sương."},
+            {"title": "Nhịp sống bên dòng sông", "description": "Cận cảnh dòng nước Đắk Bla cuộn chảy nhẹ nhàng dưới chân cầu treo, nhịp sống chậm rãi bắt đầu."},
+            {"title": "Góc phố hoài niệm", "description": "Góc máy ngang tầm mắt ghi lại mái ngói rêu phong và tiếng vọng thời gian qua từng khung hình."},
+            {"title": "Khoảnh khắc đọng lại", "description": "Khung hình khép lại với sắc thái cảm xúc sâu lắng, hoàn thiện thước phim ngắn nghệ thuật."}
+        ]
+    }
+    
