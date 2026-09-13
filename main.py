@@ -63,43 +63,37 @@ def get_gemini_keys():
     return [k.strip() for k in raw.split(",") if k.strip()]
 
 
-# --- HÀM GỌI VERTEX AI CHUẨN XÁC CHO KEY AQ. ---
+# --- HÀM GỌI GEMINI CHUẨN API V1 CHO KEY AQ. ---
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
     if not keys:
         return None, "Chưa cấu hình GEMINI_API_KEYS trên Render!"
     
     selected_key = random.choice(keys)
-    project_id = "660606699412"  # Project number từ tài khoản của anh
-    location = "us-central1"
     
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro']
+    # Sử dụng endpoint phiên bản v1 chuẩn xác cho key AQ.
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
     
-    for model_name in models_to_try:
-        url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_name}:generateContent"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {selected_key}"
-        }
-        payload = {
-            "contents": [{
-                "role": "user",
-                "parts": [{"text": prompt_text}]
-            }]
-        }
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                text_result = data["candidates"][0]["content"]["parts"][0]["text"]
-                return text_result, model_name
-            else:
-                print(f"Vertex AI Error {response.status_code}: {response.text}")
-        except Exception as e:
-            print("Exception Vertex AI:", e)
-            pass
-            
-    return None, "Lỗi kết nối Vertex AI endpoint. Token AQ. có thể cần cấp mới."
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            text_result = data["candidates"][0]["content"]["parts"][0]["text"]
+            return text_result, "gemini-1.5-flash"
+        else:
+            try:
+                err_msg = response.json().get("error", {}).get("message", response.text)
+                return None, f"Lỗi Google ({response.status_code}): {err_msg}"
+            except:
+                return None, f"Lỗi HTTP {response.status_code}: {response.text}"
+    except Exception as e:
+        return None, f"Lỗi kết nối mạng: {str(e)}"
 
 
 @app.post("/api/cineai/chat")
