@@ -71,13 +71,13 @@ def call_gemini_direct(prompt_text):
     
     selected_key = random.choice(keys)
     
-    # Bắt lỗi chi tiết từng bước SDK
     try:
         client = genai.Client(api_key=selected_key)
     except Exception as e:
         return None, f"Lỗi khởi tạo genai.Client: {str(e)}"
     
-    models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-pro']
+    # Sử dụng đúng tên model chuẩn được hỗ trợ bởi google-genai SDK
+    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro']
     last_error = ""
     
     for model_name in models_to_try:
