@@ -8,6 +8,7 @@ import html
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from google import genai
 
 
 app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.9")
@@ -58,7 +59,7 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 
-# --- HÀM GỌI GEMINI: BẮT LỖI CHI TIẾT TỪ GOOGLE ---
+# --- HÀM GỌI GEMINI SỬ DỤNG SDK GOOGLE-GENAI MỚI NHẤT CHO KEY AQ. ---
 def get_gemini_keys():
     raw = os.getenv("GEMINI_API_KEYS", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
@@ -70,35 +71,23 @@ def call_gemini_direct(prompt_text):
         return None, "Chưa cấu hình GEMINI_API_KEYS trên Render!"
     
     selected_key = random.choice(keys)
-    models_to_try = ['gemini-1.5-flash', 'gemini-pro']
     
+    # Thử gọi các model phù hợp với SDK mới
+    models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash']
     for model_name in models_to_try:
-        headers = {"Content-Type": "application/json"}
-        # Tự động nhận diện định dạng Token/Key
-        if selected_key.startswith("AQ."):
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
-            headers["Authorization"] = f"Bearer {selected_key}"
-        else:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
-            
-        payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                text_result = data["candidates"][0]["content"]["parts"][0]["text"]
-                return text_result, model_name
-            else:
-                # Nếu lỗi, ép trả về nguyên văn thông báo lỗi của Google
-                try:
-                    error_detail = response.json().get("error", {}).get("message", response.text)
-                    return None, f"Google báo lỗi ({response.status_code}): {error_detail}"
-                except:
-                    return None, f"Google báo lỗi HTTP {response.status_code}: {response.text}"
+            client = genai.Client(api_key=selected_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt_text,
+            )
+            if response and response.text:
+                return response.text, model_name
         except Exception as e:
-            return None, f"Lỗi hệ thống khi gọi mạng: {str(e)}"
+            print(f"Lỗi với model {model_name}:", e)
+            continue
             
-    return None, "Lỗi gọi Gemini API không xác định"
+    return None, "Lỗi gọi Gemini API qua google-genai SDK"
 
 
 @app.post("/api/cineai/chat")
