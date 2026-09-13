@@ -92,7 +92,6 @@ async def stream_chat(data: dict):
         text_result = "⚠️ Đạo diễn ảo đang bận, không thể phản hồi lúc này. Vui lòng thử lại!"
     
     def generate():
-        # Giả lập streaming mượt mà từng cụm từ từ kết quả trả về
         chunk_size = 10
         for i in range(0, len(text_result), chunk_size):
             yield text_result[i:i+chunk_size]
@@ -117,6 +116,7 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
     
     user_projects = USERS_DB.get(username, {}).get("projects", [])
     current_title = ""
+    current_edit_id = edit_id if edit_id else ""
     chat_initial_html = (
         "<div style='background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; max-width: 85%; align-self: flex-start; font-size: 14px;'>"
         "🎬 Chào anh! Em là Đạo diễn ảo đây. Chúng ta hãy cùng trò chuyện, bàn về ý tưởng hoặc gọt giũa kịch bản trực tiếp tại Tầng 7 & 8 nhé. Anh muốn bắt đầu câu chuyện thế nào ạ?"
@@ -132,7 +132,7 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
                     chat_initial_html = p["result"]
                 break
 
-    return render_studio_dashboard(username, edit_id if 'edit_id' in locals() else "", current_title, chat_initial_html, user_projects, active_tab=view)
+    return render_studio_dashboard(username, current_edit_id, current_title, chat_initial_html, user_projects, active_tab=view)
 
 @app.post("/auth/register", response_class=HTMLResponse)
 async def register(username: str = Form(...), password: str = Form(...)):
