@@ -58,14 +58,18 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 
-# --- HÀM ĐỌC KEY THÔNG MINH, QUÉT TOÀN BỘ BIẾN MÔI TRƯỜNG ---
+# --- HÀM ĐỌC KEY SIÊU LINH HOẠT, CHẤP MỌI ĐỊNH DẠNG ---
 def get_gemini_keys():
     keys = []
+    # Quét toàn bộ biến môi trường trên Render, tìm biến nào có chữ GEMINI
     for name, val in os.environ.items():
         if "GEMINI" in name.upper() and val:
-            for k in val.split(","):
+            # Thay thế mọi ký tự phân tách có thể xảy ra (dấu phẩy, chấm phẩy, khoảng trắng thừa) thành dấu phẩy
+            normalized = val.replace(";", ",").replace(" ", ",")
+            for k in normalized.split(","):
                 clean_k = k.strip()
-                if clean_k and clean_k not in keys:
+                # Key chuẩn của Gemini bắt đầu bằng AIza hoặc AQ...
+                if len(clean_k) > 10 and clean_k not in keys:
                     keys.append(clean_k)
     return keys
 
@@ -73,7 +77,7 @@ def get_gemini_keys():
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
     if not keys:
-        return None, "Chưa tìm thấy API Key trong môi trường!"
+        return None, "Chưa tìm thấy API Key hợp lệ trong môi trường!"
     
     selected_key = random.choice(keys)
     models_to_try = ['gemini-1.5-flash', 'gemini-pro']
@@ -105,9 +109,9 @@ async def chat_with_director(data: dict):
         f"Yêu cầu từ người dùng: {user_message}"
     )
     
-    reply_text, _ = call_gemini_direct(prompt)
+    reply_text, err_msg = call_gemini_direct(prompt)
     if not reply_text:
-        reply_text = "⚠️ Hệ thống đang bận hoặc chưa nhận diện được API Key."
+        reply_text = f"⚠️ Lỗi: {err_msg}"
         
     return JSONResponse({"reply": reply_text})
 
