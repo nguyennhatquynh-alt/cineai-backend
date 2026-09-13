@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="12.3")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.0")
 
 # --- 1. HỆ THỐNG LƯU TRỮ VĨNH VIỄN QUA FILE JSON ---
 USER_FILE = "users_db.json"
@@ -98,23 +98,23 @@ async def register(username: str = Form(...), password: str = Form(...)):
     if not username or not password:
         return render_auth_page(error="Vui lòng điền đầy đủ thông tin!")
     if username in USERS_DB:
-        return render_auth_page(error="Tài khoản đã tồn tại!")
+        return render_auth_page(error="Tài khoản này đã tồn tại trên hệ thống! Vui lòng đăng nhập.")
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
     save_users()
-    return render_auth_page(error="", success="✨ Đăng ký thành công! Vui lòng đăng nhập.")
+    return render_auth_page(error="", success="✨ Đăng ký thành công! Bạn có thể đăng nhập ngay bên dưới.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
 async def login(response: Response, username: str = Form(...), password: str = Form(...)):
     username = username.strip()
     user_data = USERS_DB.get(username)
     if not user_data:
-        return render_auth_page(error="Tài khoản không tồn tại!")
+        return render_auth_page(error="Tài khoản chưa tồn tại! Vui lòng bấm sang tab Đăng Ký để tạo tài khoản mới.")
     
     pwd_hash, _ = hash_password(password, user_data["salt"])
     if pwd_hash != user_data["password_hash"]:
-        return render_auth_page(error="Mật khẩu không chính xác!")
+        return render_auth_page(error="Mật khẩu không chính xác! Vui lòng kiểm tra lại.")
     
     session_token = secrets.token_hex(32)
     ACTIVE_SESSIONS[session_token] = username
@@ -161,7 +161,7 @@ async def produce_film(request: Request, story: str = Form(...), session_token: 
     return render_studio_dashboard(username, story, output_html, USERS_DB[username]["projects"])
 
 @app.post("/project/save", response_class=HTMLResponse)
-async def save_project(story: str = Form(...), result_html: str = Form(...), session_token: str = Cookie(None)):
+async def save_project(story: str = Form(...), result_html: str = Form(""), session_token: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return RedirectResponse(url="/", status_code=303)
@@ -173,6 +173,9 @@ async def save_project(story: str = Form(...), result_html: str = Form(...), ses
     title = story[:35] + "..." if len(story) > 35 else story
     time_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     
+    if not result_html or "HỒ SƠ 12 TẦNG" not in result_html:
+        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Ý tưởng thô:</b> {story}</div>"
+
     new_proj = {
         "id": project_id,
         "title": title,
@@ -185,29 +188,32 @@ async def save_project(story: str = Form(...), result_html: str = Form(...), ses
     save_users()
     return RedirectResponse(url="/?view=library", status_code=303)
 
-# --- 4. GIAO DIỆN HTML ---
+# --- 4. GIAO DIỆN HTML (MOBILE-FRIENDLY & UX HOÀN HẢO) ---
 def render_auth_page(error="", success=""):
-    err_div = f"<div style='color: #ef4444; margin-bottom: 15px; font-size: 14px;'>{error}</div>" if error else ""
-    suc_div = f"<div style='color: #22c55e; margin-bottom: 15px; font-size: 14px;'>{success}</div>" if success else ""
+    err_div = f"<div style='background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>{error}</div>" if error else ""
+    suc_div = f"<div style='background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #86efac; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>{success}</div>" if success else ""
     return HTMLResponse(content=f"""
     <html>
         <head>
-            <title>Cine AI Studio Pro 3.0 - Xác thực</title>
+            <title>Cine AI Studio Pro 3.0 - Đăng Nhập / Đăng Ký</title>
             <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body {{ font-family: -apple-system, sans-serif; background: #0b0f19; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }}
-                .auth-card {{ background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }}
-                h2 {{ color: #38bdf8; text-align: center; margin-top: 0; }}
-                input {{ width: 100%; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 8px; padding: 12px; font-size: 15px; margin-bottom: 15px; box-sizing: border-box; }}
-                button {{ background: #0284c7; color: white; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; }}
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }}
+                .auth-card {{ background: #1e293b; padding: 25px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); border: 1px solid #334155; }}
+                h2 {{ color: #38bdf8; text-align: center; margin-top: 0; font-size: 22px; }}
+                input {{ width: 100%; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 14px; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; }}
+                input:focus {{ border-color: #38bdf8; outline: none; }}
+                button {{ background: #0284c7; color: white; border: none; padding: 16px; font-size: 16px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4); }}
+                button:hover {{ background: #0369a1; }}
                 .tabs {{ display: flex; margin-bottom: 20px; border-bottom: 2px solid #334155; }}
-                .tab {{ flex: 1; text-align: center; padding: 10px; cursor: pointer; color: #94a3b8; font-weight: bold; }}
+                .tab {{ flex: 1; text-align: center; padding: 12px; cursor: pointer; color: #94a3b8; font-weight: bold; font-size: 15px; }}
                 .tab.active {{ color: #38bdf8; border-bottom: 2px solid #38bdf8; margin-bottom: -2px; }}
             </style>
         </head>
         <body>
             <div class="auth-card">
                 <h2>🎬 Cine AI Studio Pro</h2>
+                <p style="text-align: center; color: #94a3b8; font-size: 13px; margin-top: -5px; margin-bottom: 20px;">Hệ thống sản xuất phim ngắn 12 tầng tự động</p>
                 {err_div}{suc_div}
                 <div class="tabs">
                     <div id="tab-login" class="tab active" onclick="switchTab('login')">Đăng Nhập</div>
@@ -216,12 +222,12 @@ def render_auth_page(error="", success=""):
                 <form id="form-login" action="/auth/login" method="post">
                     <input type="text" name="username" placeholder="Tên đăng nhập / Email" required>
                     <input type="password" name="password" placeholder="Mật khẩu" required>
-                    <button type="submit">🔑 Đăng Nhập</button>
+                    <button type="submit">🔑 Đăng Nhập Hệ Thống</button>
                 </form>
                 <form id="form-reg" action="/auth/register" method="post" style="display:none;">
                     <input type="text" name="username" placeholder="Tên đăng nhập mới" required>
                     <input type="password" name="password" placeholder="Mật khẩu bảo mật" required>
-                    <button type="submit" style="background: #0d9488;">✨ Đăng Ký Tài Khoản</button>
+                    <button type="submit" style="background: #0d9488; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4);">✨ Tạo Tài Khoản Mới</button>
                 </form>
             </div>
             <script>
@@ -246,16 +252,16 @@ def render_auth_page(error="", success=""):
 def render_studio_dashboard(username: str, story: str, result_html: str, projects: list, active_tab: str = "studio"):
     proj_html = ""
     if not projects:
-        proj_html = "<p style='color: #94a3b8; text-align: center; padding: 20px;'>Chưa có dự án nháp nào được lưu.</p>"
+        proj_html = "<p style='color: #94a3b8; text-align: center; padding: 30px; font-size: 14px;'>Chưa có dự án nháp nào. Hãy nhập ý tưởng và bấm lưu nhé!</p>"
     else:
         for p in projects:
             proj_html += f"""
-            <div style="background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div style="color: #38bdf8; font-weight: bold; font-size: 15px;">{p['title']}</div>
-                    <div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">🕒 Lưu lúc: {p['time']}</div>
+            <div style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
+                <div style="overflow: hidden; padding-right: 10px;">
+                    <div style="color: #38bdf8; font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p['title']}</div>
+                    <div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">🕒 {p['time']}</div>
                 </div>
-                <a href="/?view=studio&edit_id={p['id']}" style="background: #0284c7; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: bold;">📂 Mở Xem</a>
+                <a href="/?view=studio&edit_id={p['id']}" style="background: #0284c7; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: bold; white-space: nowrap;">📂 Mở Xem</a>
             </div>
             """
 
@@ -264,35 +270,26 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
     studio_active = "active" if active_tab == "studio" else ""
     library_active = "active" if active_tab == "library" else ""
 
-    # Cho phép hiển thị nút Lưu nháp ngay cả khi chưa chạy kích hoạt đạo diễn
-    save_html = f"""
-    <form action='/project/save' method='post' style='margin-top: 15px;'>
-        <input type='hidden' name='story' value='{story}'>
-        <input type='hidden' name='result_html' value='{result_html.replace('"', '&quot;')}'>
-        <button type='submit' class='save-btn'>💾 Lưu Ý Tưởng / Dự Án Nháp Này</button>
-    </form>
-    """ if story.strip() else ""
-
     return HTMLResponse(content=f"""
     <html>
         <head>
             <title>Cine AI Studio Pro 3.0</title>
             <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body {{ font-family: -apple-system, sans-serif; background: #0b0f19; color: #f8fafc; padding: 15px; margin: 0; }}
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; padding: 15px; margin: 0; }}
                 .container {{ max-width: 900px; margin: auto; }}
-                .card {{ background: #1e293b; padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); margin-bottom: 20px; }}
+                .card {{ background: #1e293b; padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); margin-bottom: 20px; border: 1px solid #334155; }}
                 .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 12px; }}
                 h2 {{ color: #38bdf8; margin: 0; font-size: 18px; }}
-                .logout-btn {{ background: #ef4444; color: white; padding: 5px 10px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold; }}
+                .logout-btn {{ background: #ef4444; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold; }}
                 .nav-tabs {{ display: flex; gap: 10px; margin-bottom: 20px; }}
-                .nav-tab {{ flex: 1; text-align: center; padding: 10px; background: #0f172a; border-radius: 8px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 14px; border: 1px solid #334155; }}
+                .nav-tab {{ flex: 1; text-align: center; padding: 12px; background: #0f172a; border-radius: 10px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 14px; border: 1px solid #334155; }}
                 .nav-tab.active {{ background: #0284c7; color: white; border-color: #0284c7; }}
-                textarea {{ width: 100%; height: 130px; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 14px; font-size: 15px; box-sizing: border-box; resize: vertical; }}
+                textarea {{ width: 100%; height: 140px; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 14px; font-size: 15px; box-sizing: border-box; resize: vertical; }}
                 textarea:focus {{ border-color: #38bdf8; outline: none; }}
-                button {{ background: #0284c7; color: white; border: none; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 12px; }}
+                button {{ background: #0284c7; color: white; border: none; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 12px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }}
                 button:hover {{ background: #0369a1; }}
-                .save-btn {{ background: #10b981 !important; }}
+                .save-btn {{ background: #10b981 !important; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }}
                 .save-btn:hover {{ background: #059669 !important; }}
             </style>
         </head>
@@ -314,18 +311,22 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
 
                     <div id="tab-studio" style="display: {studio_display};">
                         <form action="/produce" method="post">
-                            <label style="font-weight: bold; display: block; margin-bottom: 8px; font-size: 14px;">Nhập cốt truyện / Ý tưởng phim ngắn (12 Tầng):</label>
+                            <label style="font-weight: bold; display: block; margin-bottom: 8px; font-size: 14px; color: #cbd5e1;">Nhập cốt truyện / Ý tưởng phim ngắn (12 Tầng):</label>
                             <textarea name="story" placeholder="Nhập ý tưởng của bạn tại đây...">{story}</textarea>
                             <button type="submit">🚀 Kích Hoạt Đạo Diễn Ảo & 12 Tầng</button>
                         </form>
 
-                        {save_html}
+                        <form action="/project/save" method="post" style="margin-top: 5px;">
+                            <input type='hidden' name='story' value='{story}'>
+                            <input type='hidden' name='result_html' value='{result_html.replace('"', '&quot;')}'>
+                            <button type='submit' class='save-btn'>💾 Lưu Ý Tưởng / Dự Án Nháp Ngay</button>
+                        </form>
 
                         {result_html}
                     </div>
 
-                    <div id="tab-library" style="display: {library_library if 'library_library' in locals() else library_display};">
-                        <h3 style="color: #38bdf8; font-size: 16px; margin-top: 0;">📚 Kho Dự Án Nháp Của Bạn</h3>
+                    <div id="tab-library" style="display: {library_display};">
+                        <h3 style="color: #38bdf8; font-size: 16px; margin-top: 0; margin-bottom: 15px;">📚 Kho Dự Án Nháp Của Bạn</h3>
                         {proj_html}
                     </div>
                 </div>
