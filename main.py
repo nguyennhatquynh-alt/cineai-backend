@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.2")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.3")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -324,13 +324,13 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
             proj_html += (
                 "<div style='background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;'>"
                 "<div style='overflow: hidden; padding-right: 10px;'>"
-                f"<div style='color: #38bdf8; font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{html.escape(p['title'])}</div>"
-                f"<div style='color: #94a3b8; font-size: 12px; margin-top: 4px;'>🕒 {p['time']}</div>"
+                "<div style='color: #38bdf8; font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>" + html.escape(p['title']) + "</div>"
+                "<div style='color: #94a3b8; font-size: 12px; margin-top: 4px;'>🕒 " + p['time'] + "</div>"
                 "</div>"
                 "<div style='display: flex; gap: 8px; flex-shrink: 0;'>"
-                f"<a href='/?view=studio&edit_id={p['id']}' style='background: #0284c7; color: white; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold;'>📂 Mở</a>"
-                f"<form action='/project/delete' method='post' onsubmit=\"return confirm('⚠️ Bạn có chắc chắn muốn XÓA vĩnh viễn dự án này không?');\" style='margin:0;'>"
-                f"<input type='hidden' name='project_id' value='{p['id']}'>"
+                "<a href='/?view=studio&edit_id=" + p['id'] + "' style='background: #0284c7; color: white; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold;'>📂 Mở</a>"
+                "<form action='/project/delete' method='post' onsubmit=\"return confirm('⚠️ Bạn có chắc chắn muốn XÓA vĩnh viễn dự án này không?');\" style='margin:0;'>"
+                "<input type='hidden' name='project_id' value='" + p['id'] + "'>"
                 "<button type='submit' style='background: #ef4444; color: white; border: none; padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; margin-top:0; width: auto; box-shadow: none;'>🗑️ Xóa</button>"
                 "</form>"
                 "</div>"
@@ -344,6 +344,7 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
 
     safe_result = html.escape(result_html, quote=True)
     escaped_title = html.escape(title, quote=True)
+    len_proj_str = str(len(projects))
 
     html_content = (
         "<html>"
@@ -375,14 +376,13 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
         "<div class='header'>"
         "<h2>🎬 Cine AI Pro 3.0</h2>"
         "<div>"
-        f"<span style='color: #cbd5e1; font-size: 13px; margin-right: 8px;'>👤 {username}</span>"
+        "<span style='color: #cbd5e1; font-size: 13px; margin-right: 8px;'>👤 " + username + "</span>"
         "<a href='/auth/logout' class='logout-btn'>Thoát</a>"
         "</div>"
         "</div>"
         "<div class='nav-tabs'>"
-        f"<a href='/?view=studio' class='nav-tab {studio_active}'>⚡ Studio Sản Xuất</a>"
-        f"<a href='/?view=library' class='nav-tab {library_active}'>📂 Thư Viện Nháp ({len(projects)})</a>"
+        "<a href='/?view=studio' class='nav-tab " + studio_active + "'>⚡ Studio Sản Xuất</a>"
+        "<a href='/?view=library' class='nav-tab " + library_active + "'>📂 Thư Viện Nháp (" + len_proj_str + ")</a>"
         "</div>"
-        f"<div id='tab-studio' style='display: {studio_display};'>"
-        "<form id='produce-form' action='/produce' method='post'>"
-        f"<input type=
+        "<div id='tab-studio' style='display: " + studio_display + ";'>"
+       
