@@ -8,7 +8,6 @@ import html
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-import google.generativeai as genai
 
 app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.9")
 
@@ -53,9 +52,29 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
-# --- 2. CÀI ĐẶT API KEYS & ENDPOINT CHAT FIX MODEL ---
+# --- 2. CÀI ĐẶT API KEYS & HÀM GỌI GEMINI TRỰC TIẾP CHUẨN XÁC ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEYS", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
+
+def call_gemini_direct(prompt_text):
+    if not GEMINI_KEYS:
+        return None, "Chưa cấu hình GEMINI_API_KEY!"
+    selected_key = random.choice(GEMINI_KEYS)
+    # Thử danh sách các model chuẩn hiện hành
+    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
+                data = response.json()
+                text_res = data["candidates"][0]["content"]["parts"][0]["text"]
+                return text_res, model_name
+        except Exception:
+            pass
+    return None, "Lỗi kết nối API"
 
 @app.post("/api/cineai/chat")
 async def chat_with_director(data: dict):
@@ -63,27 +82,18 @@ async def chat_with_director(data: dict):
     if not user_message:
         return JSONResponse({"reply": "Vui lòng nhập nội dung trao đổi!"})
     
-    system_instruction = (
+    prompt = (
         "Bạn là Đạo diễn ảo chuyên nghiệp của hệ thống Cine AI Studio Pro 3.0. "
         "Hãy phản hồi trực tiếp, tư vấn và cùng người dùng thảo luận kịch bản phim ngắn "
-        "tại Tầng 7 & 8 một cách gần gũi, chuyên nghiệp và chi tiết."
+        "tại Tầng 7 & 8 một cách gần gũi, chuyên nghiệp và chi tiết.\n\n"
+        f"Yêu cầu từ người dùng: {user_message}"
     )
     
-    try:
-        api_key = random.choice(GEMINI_KEYS) if GEMINI_KEYS else os.getenv("GEMINI_API_KEY", "")
-        genai.configure(api_key=api_key)
+    reply_text, _ = call_gemini_direct(prompt)
+    if not reply_text:
+        reply_text = "⚠️ Đạo diễn ảo đang bận hoặc chưa nhận diện được API Key. Vui lòng kiểm tra lại cấu hình trên Render!"
         
-        # Đổi sang model 'gemini-pro' chuẩn tương thích tuyệt đối
-        model = genai.GenerativeModel(
-            model_name="gemini-pro",
-            system_instruction=system_instruction
-        )
-        
-        response = model.generate_content(user_message)
-        reply_text = response.text if response and response.text else "Đạo diễn ảo đã ghi nhận ý tưởng."
-        return JSONResponse({"reply": reply_text})
-    except Exception as e:
-        return JSONResponse({"reply": f"⚠️ Lỗi kết nối Gemini API: {str(e)}"})
+    return JSONResponse({"reply": reply_text})
 
 def hash_password(password: str, salt: str = None):
     if not salt:
