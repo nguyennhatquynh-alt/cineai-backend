@@ -7,7 +7,7 @@ import json
 import html
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import google.generativeai as genai
 
 app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.9")
@@ -53,20 +53,20 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
-# --- 2. CÀI ĐẶT API KEYS & ENDPOINT CHAT STREAMING CHUẨN ---
+# --- 2. CÀI ĐẶT API KEYS & ENDPOINT CHAT JSON ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEYS", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
 
-@app.post("/api/cineai/stream-chat")
-async def stream_chat(data: dict):
+@app.post("/api/cineai/chat")
+async def chat_with_director(data: dict):
     user_message = data.get("message", "")
     if not user_message:
-        raise HTTPException(status_code=400, detail="Tin nhắn trống")
+        return JSONResponse({"reply": "Vui lòng nhập nội dung trao đổi!"})
     
     system_instruction = (
         "Bạn là Đạo diễn ảo chuyên nghiệp của hệ thống Cine AI Studio Pro 3.0. "
         "Hãy phản hồi trực tiếp, tư vấn và cùng người dùng thảo luận kịch bản phim ngắn "
-        "tại Tầng 7 & 8 một cách ngắn gọn, súc tích và chuyên nghiệp."
+        "tại Tầng 7 & 8 một cách gần gũi, chuyên nghiệp và chi tiết."
     )
     
     try:
@@ -78,18 +78,11 @@ async def stream_chat(data: dict):
             system_instruction=system_instruction
         )
         
-        response = model.generate_content(user_message, stream=True)
-        
-        def generate():
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-                    
-        return StreamingResponse(generate(), media_type="text/plain")
+        response = model.generate_content(user_message)
+        reply_text = response.text if response and response.text else "Đạo diễn ảo đã ghi nhận ý tưởng."
+        return JSONResponse({"reply": reply_text})
     except Exception as e:
-        def generate_error():
-            yield f"⚠️ Lỗi kết nối Gemini API: {str(e)}"
-        return StreamingResponse(generate_error(), media_type="text/plain")
+        return JSONResponse({"reply": f"⚠️ Lỗi kết nối Gemini API: chồng lệnh hoặc thiếu Key ({str(e)})"})
 
 def hash_password(password: str, salt: str = None):
     if not salt:
@@ -382,7 +375,7 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, chat_html: 
         "</div>"
         "</div>"
         
-        # --- JAVASCRIPT XỬ LÝ CHAT STREAMING ---
+        # --- JAVASCRIPT XỬ LÝ CHAT JSON ---
         "<script>"
         "async function sendChatMessage() {"
         "  var inputField = document.getElementById('chat-input');"
@@ -395,29 +388,21 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, chat_html: 
         "  chatBox.scrollTop = chatBox.scrollHeight;"
         "  "
         "  var aiMsgId = 'ai-msg-' + Date.now();"
-        "  chatBox.innerHTML += '<div id=\"' + aiMsgId + '\" style=\"background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; max-width: 85%; align-self: flex-start; font-size: 14px;\">⏳ Đạo diễn ảo đang trả lời...</div>';"
+        "  chatBox.innerHTML += '<div id=\"' + aiMsgId + '\" style=\"background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; max-width: 85%; align-self: flex-start; font-size: 14px;\">⏳ Đạo diễn ảo đang suy nghĩ...</div>';"
         "  chatBox.scrollTop = chatBox.scrollHeight;"
         "  "
         "  try {"
-        "    var response = await fetch('/api/cineai/stream-chat', {"
+        "    var response = await fetch('/api/cineai/chat', {"
         "      method: 'POST',"
         "      headers: { 'Content-Type': 'application/json' },"
         "      body: JSON.stringify({ message: message })"
         "    });"
-        "    if (!response.ok) throw new Error('Lỗi kết nối server.');"
-        "    var reader = response.body.getReader();"
-        "    var decoder = new TextDecoder();"
+        "    var data = await response.json();"
         "    var aiBubble = document.getElementById(aiMsgId);"
-        "    aiBubble.innerText = '';"
-        "    "
-        "    while (true) {"
-        "      var res = await reader.read();"
-        "      if (res.done) break;"
-        "      aiBubble.innerText += decoder.decode(res.value, { stream: true });"
-        "      chatBox.scrollTop = chatBox.scrollHeight;"
-        "    }"
+        "    aiBubble.innerText = data.reply;"
+        "    chatBox.scrollTop = chatBox.scrollHeight;"
         "  } catch (err) {"
-        "    document.getElementById(aiMsgId).innerText = '❌ Lỗi: ' + err.message;"
+        "    document.getElementById(aiMsgId).innerText = '❌ Lỗi kết nối: ' + err.message;"
         "  }"
         "}"
         "function prepareSaveData() {"
