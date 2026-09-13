@@ -8,8 +8,9 @@ import html
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+import google.generativeai as genai
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.8")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.9")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -52,34 +53,41 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
-# --- 2. CÀI ĐẶT API KEYS ---
+# --- 2. CÀI ĐẶT API KEYS & GEMINI CHAT STREAM ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
 
-def call_gemini_direct(prompt_text):
-    if not GEMINI_KEYS:
-        return None, "Chưa cấu hình GEMINI_API_KEYS trong biến môi trường!"
+@app.post("/api/cineai/stream-chat")
+async def stream_chat(data: dict):
+    user_message = data.get("message", "")
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Tin nhắn không được để trống")
     
-    selected_key = random.choice(GEMINI_KEYS)
-    key_hint = f"...{selected_key[-4:]}" if len(selected_key) > 4 else "Key"
+    system_instruction = (
+        "Bạn là Đạo diễn ảo chuyên nghiệp của hệ thống Cine AI Studio Pro 3.0. "
+        "Hãy trò chuyện trực tiếp, tư vấn và cùng người dùng thảo luận, bồi đắp ý tưởng, "
+        "kịch bản phim ngắn tại Tầng 7 & 8 một cách gần gũi, chuyên nghiệp và chi tiết."
+    )
     
-    models_to_try = ['gemini-1.5-flash', 'gemini-pro']
-    last_error = ""
-    for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
-        headers = {"Content-Type": "application/json"}
-        payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                text_result = data["candidates"][0]["content"]["parts"][0]["text"]
-                return text_result, f"{model_name} ({key_hint})"
-            else:
-                last_error = response.text
-        except Exception as e:
-            last_error = str(e)
-    return None, f"Lỗi gọi Gemini API: {last_error}"
+    try:
+        selected_key = random.choice(GEMINI_KEYS) if GEMINI_KEYS else os.getenv("GEMINI_API_KEY", "")
+        genai.configure(api_key=selected_key)
+        
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-pro",
+            system_instruction=system_instruction
+        )
+        
+        response = model.generate_content(user_message, stream=True)
+        
+        def generate():
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+                    
+        return StreamingResponse(generate(), media_type="text/plain")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def hash_password(password: str, salt: str = None):
     if not salt:
@@ -99,25 +107,23 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
     
     user_projects = USERS_DB.get(username, {}).get("projects", [])
     current_title = ""
-    current_story = ""
     current_edit_id = ""
-    result_html = "<div style='color: #94a3b8; font-size: 15px; padding: 10px;'>👋 Chào mừng bạn đến với Cine AI Studio Pro 3.0. Nhập tiêu đề và ý tưởng kịch bản bên dưới để Đạo diễn ảo vận hành 12 tầng...</div>"
+    chat_initial_html = (
+        "<div style='background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; max-width: 85%; align-self: flex-start; font-size: 14px;'>"
+        "🎬 Chào anh! Em là Đạo diễn ảo đây. Chúng ta hãy cùng trò chuyện, bàn về ý tưởng hoặc gọt giũa kịch bản trực tiếp tại Tầng 7 & 8 nhé. Anh muốn bắt đầu câu chuyện thế nào ạ?"
+        "</div>"
+    )
     
     if edit_id:
         for p in user_projects:
             if p["id"] == edit_id:
                 current_edit_id = p["id"]
                 current_title = p["title"]
-                current_story = p["story"]
-                result_html = (
-                    "<div style='background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #22c55e; margin-top: 20px;'>"
-                    "<h3 style='color: #22c55e; margin-top: 0; font-size: 18px;'>📂 Đang chỉnh sửa dự án: " + html.escape(p['title']) + "</h3>"
-                    "<div style='color: #f8fafc; line-height: 1.7; font-size: 15px;'>" + p['result'] + "</div>"
-                    "</div>"
-                )
+                if p.get("result"):
+                    chat_initial_html = p["result"]
                 break
 
-    return render_studio_dashboard(username, current_edit_id, current_title, current_story, result_html, user_projects, active_tab=view)
+    return render_studio_dashboard(username, current_edit_id, current_title, chat_initial_html, user_projects, active_tab=view)
 
 @app.post("/auth/register", response_class=HTMLResponse)
 async def register(username: str = Form(...), password: str = Form(...)):
@@ -127,12 +133,12 @@ async def register(username: str = Form(...), password: str = Form(...)):
     if not username or not password:
         return render_auth_page(error="Vui lòng điền đầy đủ thông tin!")
     if username in USERS_DB:
-        return render_auth_page(error="Tài khoản này đã tồn tại trên hệ thống! Vui lòng đăng nhập.")
+        return render_auth_page(error="Tài khoản đã tồn tại!")
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
     save_users()
-    return render_auth_page(error="", success="✨ Đăng ký thành công! Bạn có thể đăng nhập ngay bên dưới.")
+    return render_auth_page(error="", success="✨ Đăng ký thành công! Vui lòng đăng nhập.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
 async def login(response: Response, username: str = Form(...), password: str = Form(...)):
@@ -141,15 +147,14 @@ async def login(response: Response, username: str = Form(...), password: str = F
     username = username.strip()
     user_data = USERS_DB.get(username)
     if not user_data:
-        return render_auth_page(error="Tài khoản chưa tồn tại! Vui lòng bấm sang tab Đăng Ký để tạo tài khoản mới.")
+        return render_auth_page(error="Tài khoản chưa tồn tại!")
     
     pwd_hash, _ = hash_password(password, user_data["salt"])
     if pwd_hash != user_data["password_hash"]:
-        return render_auth_page(error="Mật khẩu không chính xác! Vui lòng kiểm tra lại.")
+        return render_auth_page(error="Mật khẩu không chính xác!")
     
     session_token = secrets.token_hex(32)
     ACTIVE_SESSIONS[session_token] = username
-    
     resp = RedirectResponse(url="/", status_code=303)
     resp.set_cookie(key="session_token", value=session_token, httponly=True)
     return resp
@@ -162,87 +167,19 @@ async def logout(session_token: str = Cookie(None)):
     resp.delete_cookie(key="session_token")
     return resp
 
-# --- ENDPOINT STREAMING TẦNG 7 & 8 ---
-@app.post("/api/cineai/stream-script")
-async def stream_script(data: dict):
-    user_prompt = data.get("prompt", "")
-    if not user_prompt:
-        raise HTTPException(status_code=400, detail="Prompt ý tưởng thô không được để trống")
-    
-    system_instruction = (
-        "Bạn là Đạo diễn ảo chuyên nghiệp của hệ thống Cine AI Studio Pro 3.0. "
-        "Hãy tiếp nhận ý tưởng thô từ Tầng 7 và chuyển hóa thành kịch bản phim ngắn "
-        "chuẩn điện ảnh chi tiết, phân đoạn rõ ràng, thoại tự nhiên tại Tầng 8."
-    )
-    
-    try:
-        selected_key = random.choice(GEMINI_KEYS) if GEMINI_KEYS else os.getenv("GEMINI_API_KEY", "")
-        genai.configure(api_key=selected_key)
-        
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            system_instruction=system_instruction
-        )
-        
-        response = model.generate_content(user_prompt, stream=True)
-        
-        def generate():
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-                    
-        return StreamingResponse(generate(), media_type="text/plain")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/produce", response_class=HTMLResponse)
-async def produce_film(request: Request, edit_id: str = Form(""), title: str = Form(""), story: str = Form(""), session_token: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_token)
-    if not username:
-        return RedirectResponse(url="/", status_code=303)
-
-    if not story.strip():
-        return render_studio_dashboard(username, edit_id, title, "", "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>", USERS_DB.get(username, {}).get("projects", []))
-
-    director_prompt = (
-        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 3.0. Dựa trên cốt truyện: \"{story}\", "
-        "hãy thiết kế hồ sơ sản xuất chi tiết qua 12 tầng điện ảnh (Tầng 1 đến 12): "
-        "- Phân tích cốt truyện, bối cảnh, nhân vật, góc máy, visual prompt, âm thanh Audiophile 3D."
-    )
-
-    raw_text, info_hint = call_gemini_direct(director_prompt)
-    if not raw_text:
-        output_html = "<p style='color: #ef4444; font-size: 16px;'>❌ " + info_hint + "</p>"
-    else:
-        formatted_text = raw_text.replace("\n", "<br>")
-        output_html = (
-            "<div style='background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #38bdf8; margin-top: 20px;'>"
-            "<h3 style='color: #38bdf8; margin-top: 0; font-size: 18px;'>✨ HỒ SƠ 12 TẦNG SẢN XUẤT (Model: " + info_hint + "):</h3>"
-            "<div style='color: #f8fafc; line-height: 1.7; font-size: 15px;'>" + formatted_text + "</div>"
-            "</div>"
-        )
-
-    return render_studio_dashboard(username, edit_id, title, story, output_html, USERS_DB.get(username, {}).get("projects", []))
-
 @app.post("/project/save", response_class=HTMLResponse)
-async def save_project(edit_id: str = Form(""), title: str = Form(""), story: str = Form(""), result_html: str = Form(""), session_token: str = Cookie(None)):
+async def save_project(edit_id: str = Form(""), title: str = Form(""), chat_html: str = Form(""), session_token: str = Cookie(None)):
     global USERS_DB
     USERS_DB = load_users()
-    
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return RedirectResponse(url="/", status_code=303)
     
-    clean_title = title.strip() if title.strip() else "Dự án phim ngắn không tên"
-    clean_story = story.strip()
+    clean_title = title.strip() if title.strip() else "Dự án phòng chat không tên"
     time_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    if not result_html or "HỒ SƠ 12 TẦNG" not in result_html:
-        result_html = "<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Cốt truyện thô:</b> " + html.escape(clean_story) + "</div>"
-
     if username not in USERS_DB:
         USERS_DB[username] = {"password_hash": "", "salt": "", "projects": []}
-
     user_projects = USERS_DB[username]["projects"]
 
     updated = False
@@ -250,8 +187,7 @@ async def save_project(edit_id: str = Form(""), title: str = Form(""), story: st
         for p in user_projects:
             if p["id"] == edit_id:
                 p["title"] = clean_title
-                p["story"] = clean_story
-                p["result"] = result_html
+                p["result"] = chat_html
                 p["time"] = time_str
                 updated = True
                 break
@@ -261,8 +197,7 @@ async def save_project(edit_id: str = Form(""), title: str = Form(""), story: st
         new_proj = {
             "id": project_id,
             "title": clean_title,
-            "story": clean_story,
-            "result": result_html,
+            "result": chat_html,
             "time": time_str
         }
         user_projects.insert(0, new_proj)
@@ -284,7 +219,7 @@ async def delete_project(project_id: str = Form(...), session_token: str = Cooki
         save_users()
         
     return RedirectResponse(url="/?view=library", status_code=303)
-    # --- 4. GIAO DIỆN HTML (Tích hợp Stream Tầng 7 & 8) ---
+    # --- 4. GIAO DIỆN HTML & PHÒNG CHAT TRỰC TIẾP ---
 def render_auth_page(error="", success=""):
     err_div = "<div style='background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>" + error + "</div>" if error else ""
     suc_div = "<div style='background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #86efac; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>" + success + "</div>" if success else ""
@@ -292,7 +227,7 @@ def render_auth_page(error="", success=""):
     html_content = (
         "<html>"
         "<head>"
-        "<title>Cine AI Studio Pro 3.0 - Đăng Nhập / Đăng Ký</title>"
+        "<title>Cine AI Studio Pro 3.0 - Đăng Nhập</title>"
         "<meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>"
         "<style>"
         "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }"
@@ -310,7 +245,7 @@ def render_auth_page(error="", success=""):
         "<body>"
         "<div class='auth-card'>"
         "<h2>🎬 Cine AI Studio Pro</h2>"
-        "<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-top: -5px; margin-bottom: 20px;'>Hệ thống sản xuất phim ngắn 12 tầng tự động</p>"
+        "<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-top: -5px; margin-bottom: 20px;'>Hệ thống sản xuất phim ngắn tự động</p>"
         + err_div + suc_div +
         "<div class='tabs'>"
         "<div id='tab-login' class='tab active' onclick=\"switchTab('login')\">Đăng Nhập</div>"
@@ -324,7 +259,7 @@ def render_auth_page(error="", success=""):
         "<form id='form-reg' action='/auth/register' method='post' style='display:none;'>"
         "<input type='text' name='username' placeholder='Tên đăng nhập mới' required>"
         "<input type='password' name='password' placeholder='Mật khẩu bảo mật' required>"
-        "<button type='submit' style='background: #0d9488; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4);'>✨ Tạo Tài Khoản Mới</button>"
+        "<button type='submit' style='background: #0d9488;'>✨ Tạo Tài Khoản Mới</button>"
         "</form>"
         "</div>"
         "<script>"
@@ -347,10 +282,10 @@ def render_auth_page(error="", success=""):
     )
     return HTMLResponse(content=html_content)
 
-def render_studio_dashboard(username: str, edit_id: str, title: str, story: str, result_html: str, projects: list, active_tab: str = "studio"):
+def render_studio_dashboard(username: str, edit_id: str, title: str, chat_html: str, projects: list, active_tab: str = "studio"):
     proj_html = ""
     if not projects:
-        proj_html = "<p style='color: #94a3b8; text-align: center; padding: 30px; font-size: 14px;'>Chưa có dự án nào. Hãy nhập ý tưởng và bấm lưu nhé!</p>"
+        proj_html = "<p style='color: #94a3b8; text-align: center; padding: 30px; font-size: 14px;'>Chưa có dự án nào trong thư viện.</p>"
     else:
         for p in projects:
             proj_html += (
@@ -361,9 +296,9 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
                 "</div>"
                 "<div style='display: flex; gap: 8px; flex-shrink: 0;'>"
                 "<a href='/?view=studio&edit_id=" + p['id'] + "' style='background: #0284c7; color: white; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold;'>📂 Mở</a>"
-                "<form action='/project/delete' method='post' onsubmit=\"return confirm('⚠️ Bạn có chắc chắn muốn XÓA vĩnh viễn dự án này không?');\" style='margin:0;'>"
+                "<form action='/project/delete' method='post' onsubmit=\"return confirm('⚠️ Xóa vĩnh viễn dự án này?');\" style='margin:0;'>"
                 "<input type='hidden' name='project_id' value='" + p['id'] + "'>"
-                "<button type='submit' style='background: #ef4444; color: white; border: none; padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; margin-top:0; width: auto; box-shadow: none;'>🗑️ Xóa</button>"
+                "<button type='submit' style='background: #ef4444; color: white; border: none; padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; width: auto;'>🗑️ Xóa</button>"
                 "</form>"
                 "</div>"
                 "</div>"
@@ -374,14 +309,14 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
     studio_active = "active" if active_tab == "studio" else ""
     library_active = "active" if active_tab == "library" else ""
 
-    safe_result = html.escape(result_html, quote=True)
     escaped_title = html.escape(title, quote=True)
+    safe_chat_html = html.escape(chat_html, quote=True)
     len_proj_str = str(len(projects))
 
     html_content = (
         "<html>"
         "<head>"
-        "<title>Cine AI Studio Pro 3.0</title>"
+        "<title>Cine AI Studio Pro 3.0 - Phòng Chat Đạo Diễn Ảo</title>"
         "<meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>"
         "<style>"
         "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; padding: 15px; margin: 0; }"
@@ -395,11 +330,8 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
         ".nav-tab.active { background: #0284c7; color: white; border-color: #0284c7; }"
         "input[type='text'], textarea { width: 100%; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 12px; font-size: 15px; box-sizing: border-box; margin-bottom: 12px; }"
         "input[type='text']:focus, textarea:focus { border-color: #38bdf8; outline: none; }"
-        "textarea { height: 130px; resize: vertical; }"
         "button { background: #0284c7; color: white; border: none; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 10px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }"
         "button:hover { background: #0369a1; }"
-        ".stream-btn { background: #8b5cf6 !important; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); }"
-        ".stream-btn:hover { background: #7c3aed !important; }"
         ".save-btn { background: #10b981 !important; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }"
         ".save-btn:hover { background: #059669 !important; }"
         "</style>"
@@ -415,77 +347,83 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
         "</div>"
         "</div>"
         "<div class='nav-tabs'>"
-        "<a href='/?view=studio' class='nav-tab " + studio_active + "'>⚡ Studio Sản Xuất</a>"
+        "<a href='/?view=studio' class='nav-tab " + studio_active + "'>⚡ Phòng Chat Studio</a>"
         "<a href='/?view=library' class='nav-tab " + library_active + "'>📂 Thư Viện Nháp (" + len_proj_str + ")</a>"
         "</div>"
+        
+        # --- TAB STUDIO & PHÒNG CHAT TRỰC TIẾP TẦNG 7 & 8 ---
         "<div id='tab-studio' style='display: " + studio_display + ";'>"
-        
-        "<form id='produce-form' action='/produce' method='post'>"
-        "<input type='hidden' name='edit_id' value='" + edit_id + "'>"
         "<label style='font-weight: bold; display: block; margin-bottom: 6px; font-size: 13px; color: #cbd5e1;'>Tiêu đề dự án:</label>"
-        "<input type='text' id='title-input' name='title' placeholder='Nhập tiêu đề dự án...' value='" + escaped_title + "' required>"
-        "<label style='font-weight: bold; display: block; margin-bottom: 6px; font-size: 13px; color: #cbd5e1;'>Cốt truyện / Ý tưởng phim ngắn (Tầng 7 & 8):</label>"
-        "<textarea id='story-textarea' name='story' placeholder='Nhập nội dung chi tiết kịch bản...'>" + story + "</textarea>"
+        "<input type='text' id='project-title' placeholder='Nhập tiêu đề dự án...' value='" + escaped_title + "'>"
         
-        "<button type='button' class='stream-btn' onclick='generateScriptStream()'>⚡ Kích Hoạt Đạo Diễn Ảo (Streaming Tầng 7 & 8)</button>"
-        "<button type='submit'>🚀 Chạy 12 Tầng Đầy Đủ (Truyền Thống)</button>"
-        "</form>"
-        
-        "<form id='save-form' action='/project/save' method='post' onsubmit='return confirmSave();' style='margin-top: 5px;'>"
-        "<input type='hidden' name='edit_id' value='" + edit_id + "'>"
-        "<input type='hidden' id='save-title-input' name='title' value=''>"
-        "<input type='hidden' id='save-story-input' name='story' value=''>"
-        "<input type='hidden' id='save-result-input' name='result_html' value='" + safe_result + "'>"
-        "<button type='submit' class='save-btn' onclick='prepareSave()'>💾 Lưu / Cập Nhật Dự Án Bản Mới Nhất</button>"
-        "</form>"
-        
-        "<div id='result-output-area'>" + result_html + "</div>"
+        "<label style='font-weight: bold; display: block; margin-bottom: 6px; font-size: 13px; color: #cbd5e1;'>💬 Phòng Trò Chuyện Trực Tiếp Với Đạo Diễn Ảo (Tầng 7 & 8):</label>"
+        "<div id='chat-box' style='height: 350px; overflow-y: auto; background: #0f172a; padding: 15px; border-radius: 12px; border: 1px solid #475569; margin-bottom: 15px; display: flex; flex-direction: column; gap: 12px;'>"
+        + chat_html +
         "</div>"
+        
+        "<textarea id='chat-input' placeholder='Nhập ý tưởng hoặc trao đổi trực tiếp với Đạo diễn ảo...' style='height: 90px;'></textarea>"
+        "<button type='button' onclick='sendChatMessage()' style='background: #8b5cf6; margin-top: 0;'>💬 Gửi Trao Đổi (Real-time Chat)</button>"
+        
+        "<form action='/project/save' method='post' onsubmit='prepareSaveData()' style='margin-top: 15px;'>"
+        "<input type='hidden' name='edit_id' value='" + edit_id + "'>"
+        "<input type='hidden' id='save-title' name='title' value=''>"
+        "<input type='hidden' id='save-chat-html' name='chat_html' value=''>"
+        "<button type='submit' class='save-btn'>💾 Lưu Toàn Bộ Phòng Chat Vào Thư Viện Supabase</button>"
+        "</form>"
+        "</div>"
+        
+        # --- TAB THƯ VIỆN ---
         "<div id='tab-library' style='display: " + library_display + ";'>"
         "<h3 style='color: #38bdf8; font-size: 16px; margin-top: 0; margin-bottom: 15px;'>📚 Kho Dự Án Nháp Của Bạn</h3>"
         + proj_html +
         "</div>"
+        
         "</div>"
         "</div>"
+        
+        # --- JAVASCRIPT XỬ LÝ CHAT STREAMING 2 CHIỀU ---
         "<script>"
-        "async function generateScriptStream() {"
-        "  var promptText = document.getElementById('story-textarea').value.trim();"
-        "  var outputArea = document.getElementById('result-output-area');"
-        "  if (!promptText) {"
-        "    alert('Vui lòng nhập ý tưởng kịch bản trước khi kích hoạt Đạo diễn ảo!');"
-        "    return;"
-        "  }"
-        "  outputArea.innerHTML = \"<div style='background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #8b5cf6; margin-top: 20px;'><h3 style='color: #8b5cf6; margin-top: 0; font-size: 18px;'>⚡ Đang stream kịch bản (Tầng 7 & 8)...</h3><div id='stream-content' style='color: #f8fafc; line-height: 1.7; font-size: 15px; white-space: pre-wrap;'></div></div>\";"
-        "  var contentDiv = document.getElementById('stream-content');"
+        "async function sendChatMessage() {"
+        "  var inputField = document.getElementById('chat-input');"
+        "  var message = inputField.value.trim();"
+        "  var chatBox = document.getElementById('chat-box');"
+        "  if (!message) return;"
+        "  "
+        "  chatBox.innerHTML += '<div style=\"background: #0d9488; color: white; padding: 10px 14px; border-radius: 10px; max-width: 85%; align-self: flex-end; font-size: 14px;\">' + message + '</div>';"
+        "  inputField.value = '';"
+        "  chatBox.scrollTop = chatBox.scrollHeight;"
+        "  "
+        "  var aiMsgId = 'ai-msg-' + Date.now();"
+        "  chatBox.innerHTML += '<div id=\"' + aiMsgId + '\" style=\"background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; max-width: 85%; align-self: flex-start; font-size: 14px;\">⏳ Đạo diễn ảo đang trả lời...</div>';"
+        "  chatBox.scrollTop = chatBox.scrollHeight;"
+        "  "
         "  try {"
-        "    var response = await fetch('/api/cineai/stream-script', {"
+        "    var response = await fetch('/api/cineai/stream-chat', {"
         "      method: 'POST',"
         "      headers: { 'Content-Type': 'application/json' },"
-        "      body: JSON.stringify({ prompt: promptText })"
+        "      body: JSON.stringify({ message: message })"
         "    });"
-        "    if (!response.ok) throw new Error('Lỗi kết nối tới máy chủ.');"
+        "    if (!response.ok) throw new Error('Lỗi kết nối.');"
         "    var reader = response.body.getReader();"
         "    var decoder = new TextDecoder();"
+        "    var aiBubble = document.getElementById(aiMsgId);"
+        "    aiBubble.innerText = '';"
+        "    "
         "    while (true) {"
         "      var res = await reader.read();"
         "      if (res.done) break;"
-        "      contentDiv.innerText += decoder.decode(res.value, { stream: true });"
+        "      aiBubble.innerText += decoder.decode(res.value, { stream: true });"
+        "      chatBox.scrollTop = chatBox.scrollHeight;"
         "    }"
-        "    document.getElementById('save-result-input').value = outputArea.innerHTML;"
         "  } catch (err) {"
-        "    contentDiv.innerHTML += \"\\n❌ Lỗi: \" + err.message;"
+        "    document.getElementById(aiMsgId).innerText = '❌ Lỗi: ' + err.message;"
         "  }"
         "}"
-        "function prepareSave() {"
-        "  var tVal = document.getElementById('title-input').value;"
-        "  var sVal = document.getElementById('story-textarea').value;"
-        "  document.getElementById('save-title-input').value = tVal;"
-        "  document.getElementById('save-story-input').value = sVal;"
-        "  var currentRes = document.getElementById('result-output-area').innerHTML;"
-        "  document.getElementById('save-result-input').value = currentRes;"
-        "}"
-        "function confirmSave() {"
-        "  return confirm('💾 Bạn có chắc chắn muốn lưu đè hoặc cập nhật dự án theo phiên bản mới nhất này không?');"
+        "function prepareSaveData() {"
+        "  var tVal = document.getElementById('project-title').value;"
+        "  var cVal = document.getElementById('chat-box').innerHTML;"
+        "  document.getElementById('save-title').value = tVal;"
+        "  document.getElementById('save-chat-html').value = cVal;"
         "}"
         "</script>"
         "</body>"
