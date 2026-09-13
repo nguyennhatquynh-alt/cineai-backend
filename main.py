@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.2")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.3")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -25,14 +25,14 @@ def get_supabase_headers():
 
 def load_users():
     if not SUPABASE_KEY:
-        print("⚠️ Chưa cấu hình SUPABASE_KEY, dùng bộ nhớ tạm!")
+        print("⚠️ Chưa cấu hình SUPABASE_KEY!")
         return {}
     try:
         url = f"{SUPABASE_URL}/rest/v1/cineai_store?id=eq.1&select=payload"
         response = requests.get(url, headers=get_supabase_headers(), timeout=10)
         if response.status_code == 200:
             data = response.json()
-            if data and len(data) > 0:
+            if data and len(data) > 0 and data[0].get("payload"):
                 return data[0].get("payload", {})
     except Exception as e:
         print("Lỗi tải từ Supabase:", e)
@@ -46,9 +46,11 @@ def save_users():
         payload = {"id": 1, "payload": USERS_DB}
         headers = get_supabase_headers()
         headers["Prefer"] = "resolution=merge-duplicates"
-        requests.post(url, json=payload, headers=headers, timeout=10)
+        res = requests.post(url, json=payload, headers=headers, timeout=10)
+        if res.status_code not in [200, 201, 204]:
+            print("⚠️ Lỗi lưu Supabase status:", res.status_code, res.text)
     except Exception as e:
-        print("Lỗi lưu lên Supabase:", e)
+        print("Lỗi ngoại lệ khi lưu Supabase:", e)
 
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {} # {session_token: username}
@@ -91,6 +93,9 @@ def hash_password(password: str, salt: str = None):
 # --- 3. ĐIỀU HƯỚNG & XỬ LÝ NGHIỆP VỤ ---
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, session_token: str = Cookie(None), view: str = "studio", edit_id: str = None):
+    global USERS_DB
+    USERS_DB = load_users() # Luôn đồng bộ dữ liệu mới nhất từ Supabase
+    
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return render_auth_page(error="")
@@ -115,6 +120,8 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
 
 @app.post("/auth/register", response_class=HTMLResponse)
 async def register(username: str = Form(...), password: str = Form(...)):
+    global USERS_DB
+    USERS_DB = load_users()
     username = username.strip()
     if not username or not password:
         return render_auth_page(error="Vui lòng điền đầy đủ thông tin!")
@@ -123,11 +130,13 @@ async def register(username: str = Form(...), password: str = Form(...)):
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
-    save_users() # Lưu vĩnh viễn lên Supabase
+    save_users()
     return render_auth_page(error="", success="✨ Đăng ký thành công! Bạn có thể đăng nhập ngay bên dưới.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
 async def login(response: Response, username: str = Form(...), password: str = Form(...)):
+    global USERS_DB
+    USERS_DB = load_users()
     username = username.strip()
     user_data = USERS_DB.get(username)
     if not user_data:
@@ -183,6 +192,9 @@ async def produce_film(request: Request, story: str = Form(""), session_token: s
 
 @app.post("/project/save", response_class=HTMLResponse)
 async def save_project(story: str = Form(""), result_html: str = Form(""), session_token: str = Cookie(None)):
+    global USERS_DB
+    USERS_DB = load_users() # Đồng bộ trước khi ghi
+    
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return RedirectResponse(url="/", status_code=303)
@@ -209,7 +221,7 @@ async def save_project(story: str = Form(""), result_html: str = Form(""), sessi
         USERS_DB[username] = {"password_hash": "", "salt": "", "projects": []}
     
     USERS_DB[username]["projects"].insert(0, new_proj)
-    save_users() # Lưu vĩnh viễn lên Supabase
+    save_users() # Lưu lập tức lên Supabase
     return RedirectResponse(url="/?view=library", status_code=303)
 
 # --- 4. GIAO DIỆN HTML ---
@@ -355,10 +367,4 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
                     <div id="tab-library" style="display: {library_display};">
                         <h3 style="color: #38bdf8; font-size: 16px; margin-top: 0; margin-bottom: 15px;">📚 Kho Dự Án Nháp Của Bạn</h3>
                         {proj_html}
-                    </div>
-                </div>
-            </div>
-        </body>
-    </html>
-    """)
-    
+                 
