@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.8")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.0")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -98,22 +98,26 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
         return render_auth_page(error="")
     
     user_projects = USERS_DB.get(username, {}).get("projects", [])
+    current_title = ""
     current_story = ""
-    result_html = "<div style='color: #94a3b8; font-size: 15px; padding: 10px;'>👋 Chào mừng bạn đến với Cine AI Studio Pro 3.0. Nhập ý tưởng kịch bản bên dưới để Đạo diễn ảo bắt đầu vận hành 12 tầng...</div>"
+    current_edit_id = ""
+    result_html = "<div style='color: #94a3b8; font-size: 15px; padding: 10px;'>👋 Chào mừng bạn đến với Cine AI Studio Pro 3.0. Nhập tiêu đề và ý tưởng kịch bản bên dưới để Đạo diễn ảo vận hành 12 tầng...</div>"
     
     if edit_id:
         for p in user_projects:
             if p["id"] == edit_id:
+                current_edit_id = p["id"]
+                current_title = p["title"]
                 current_story = p["story"]
                 result_html = (
                     "<div style='background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #22c55e; margin-top: 20px;'>"
-                    f"<h3 style='color: #22c55e; margin-top: 0; font-size: 18px;'>📂 Đang tải dự án nháp: {html.escape(p['title'])}</h3>"
+                    f"<h3 style='color: #22c55e; margin-top: 0; font-size: 18px;'>📂 Đang chỉnh sửa dự án: {html.escape(p['title'])}</h3>"
                     f"<div style='color: #f8fafc; line-height: 1.7; font-size: 15px;'>{p['result']}</div>"
                     "</div>"
                 )
                 break
 
-    return render_studio_dashboard(username, current_story, result_html, user_projects, active_tab=view)
+    return render_studio_dashboard(username, current_edit_id, current_title, current_story, result_html, user_projects, active_tab=view)
 
 @app.post("/auth/register", response_class=HTMLResponse)
 async def register(username: str = Form(...), password: str = Form(...)):
@@ -159,13 +163,13 @@ async def logout(session_token: str = Cookie(None)):
     return resp
 
 @app.post("/produce", response_class=HTMLResponse)
-async def produce_film(request: Request, story: str = Form(""), session_token: str = Cookie(None)):
+async def produce_film(request: Request, title: str = Form(""), story: str = Form(""), session_token: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return RedirectResponse(url="/", status_code=303)
 
     if not story.strip():
-        return render_studio_dashboard(username, "", "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>", USERS_DB.get(username, {}).get("projects", []))
+        return render_studio_dashboard(username, "", title, "", "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>", USERS_DB.get(username, {}).get("projects", []))
 
     director_prompt = (
         f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 3.0. Dựa trên cốt truyện: \"{story}\", "
@@ -185,10 +189,10 @@ async def produce_film(request: Request, story: str = Form(""), session_token: s
             "</div>"
         )
 
-    return render_studio_dashboard(username, story, output_html, USERS_DB.get(username, {}).get("projects", []))
+    return render_studio_dashboard(username, "", title, story, output_html, USERS_DB.get(username, {}).get("projects", []))
 
 @app.post("/project/save", response_class=HTMLResponse)
-async def save_project(story: str = Form(""), result_html: str = Form(""), session_token: str = Cookie(None)):
+async def save_project(edit_id: str = Form(""), title: str = Form(""), story: str = Form(""), result_html: str = Form(""), session_token: str = Cookie(None)):
     global USERS_DB
     USERS_DB = load_users()
     
@@ -196,35 +200,58 @@ async def save_project(story: str = Form(""), result_html: str = Form(""), sessi
     if not username:
         return RedirectResponse(url="/", status_code=303)
     
+    clean_title = title.strip() if title.strip() else "Dự án phim ngắn không tên"
     clean_story = story.strip()
-    if not clean_story:
-        clean_story = "Dự án nháp không tên"
-
-    # Lấy dòng đầu tiên làm tiêu đề (nếu user xuống dòng) hoặc lấy tối đa 40 ký tự đầu
-    first_line = clean_story.split("\n")[0].strip()
-    title = first_line[:40] + ("..." if len(first_line) > 40 else "")
-    if not title:
-        title = "Dự án nháp không tên"
-
-    project_id = secrets.token_hex(4)
     time_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     if not result_html or "HỒ SƠ 12 TẦNG" not in result_html:
-        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Ý tưởng thô:</b> {html.escape(clean_story)}</div>"
+        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Cốt truyện thô:</b> {html.escape(clean_story)}</div>"
 
-    new_proj = {
-        "id": project_id,
-        "title": title,
-        "story": clean_story,
-        "result": result_html,
-        "time": time_str
-    }
-    
     if username not in USERS_DB:
         USERS_DB[username] = {"password_hash": "", "salt": "", "projects": []}
-    
-    USERS_DB[username]["projects"].insert(0, new_proj)
+
+    user_projects = USERS_DB[username]["projects"]
+
+    # Kiểm tra nếu là cập nhật lưu đè (Edit existing)
+    updated = False
+    if edit_id:
+        for p in user_projects:
+            if p["id"] == edit_id:
+                p["title"] = clean_title
+                p["story"] = clean_story
+                p["result"] = result_html
+                p["time"] = time_str
+                updated = True
+                break
+
+    # Nếu không phải edit_id hoặc không tìm thấy -> Tạo mới
+    if not updated:
+        project_id = secrets.token_hex(4)
+        new_proj = {
+            "id": project_id,
+            "title": clean_title,
+            "story": clean_story,
+            "result": result_html,
+            "time": time_str
+        }
+        user_projects.insert(0, new_proj)
+
     save_users()
+    return RedirectResponse(url="/?view=library", status_code=303)
+
+@app.post("/project/delete", response_class=HTMLResponse)
+async def delete_project(project_id: str = Form(...), session_token: str = Cookie(None)):
+    global USERS_DB
+    USERS_DB = load_users()
+    username = ACTIVE_SESSIONS.get(session_token)
+    if not username:
+        return RedirectResponse(url="/", status_code=303)
+    
+    if username in USERS_DB:
+        projects = USERS_DB[username].get("projects", [])
+        USERS_DB[username]["projects"] = [p for p in projects if p["id"] != project_id]
+        save_users()
+        
     return RedirectResponse(url="/?view=library", status_code=303)
 
 # --- 4. GIAO DIỆN HTML ---
@@ -290,10 +317,10 @@ def render_auth_page(error="", success=""):
     )
     return HTMLResponse(content=html_content)
 
-def render_studio_dashboard(username: str, story: str, result_html: str, projects: list, active_tab: str = "studio"):
+def render_studio_dashboard(username: str, edit_id: str, title: str, story: str, result_html: str, projects: list, active_tab: str = "studio"):
     proj_html = ""
     if not projects:
-        proj_html = "<p style='color: #94a3b8; text-align: center; padding: 30px; font-size: 14px;'>Chưa có dự án nháp nào. Hãy nhập ý tưởng và bấm lưu nhé!</p>"
+        proj_html = "<p style='color: #94a3b8; text-align: center; padding: 30px; font-size: 14px;'>Chưa có dự án nào. Hãy nhập ý tưởng và bấm lưu nhé!</p>"
     else:
         for p in projects:
             proj_html += (
@@ -302,7 +329,13 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
                 f"<div style='color: #38bdf8; font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{html.escape(p['title'])}</div>"
                 f"<div style='color: #94a3b8; font-size: 12px; margin-top: 4px;'>🕒 {p['time']}</div>"
                 "</div>"
-                f"<a href='/?view=studio&edit_id={p['id']}' style='background: #0284c7; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: bold; white-space: nowrap;'>📂 Mở Xem</a>"
+                "<div style='display: flex; gap: 8px; flex-shrink: 0;'>"
+                f"<a href='/?view=studio&edit_id={p['id']}' style='background: #0284c7; color: white; padding: 8px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold;'>📂 Mở</a>"
+                f"<form action='/project/delete' method='post' onsubmit=\"return confirm('⚠️ Bạn có chắc chắn muốn XÓA vĩnh viễn dự án này không?');\" style='margin:0;'>"
+                f"<input type='hidden' name='project_id' value='{p['id']}'>"
+                "<button type='submit' style='background: #ef4444; color: white; border: none; padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; margin-top:0; width: auto; box-shadow: none;'>🗑️ Xóa</button>"
+                "</form>"
+                "</div>"
                 "</div>"
             )
 
@@ -328,9 +361,10 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
         ".nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; }"
         ".nav-tab { flex: 1; text-align: center; padding: 12px; background: #0f172a; border-radius: 10px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 14px; border: 1px solid #334155; }"
         ".nav-tab.active { background: #0284c7; color: white; border-color: #0284c7; }"
-        "textarea { width: 100%; height: 140px; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 14px; font-size: 15px; box-sizing: border-box; resize: vertical; }"
-        "textarea:focus { border-color: #38bdf8; outline: none; }"
-        "button { background: #0284c7; color: white; border: none; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 12px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }"
+        "input[type='text'], textarea { width: 100%; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 12px; font-size: 15px; box-sizing: border-box; margin-bottom: 12px; }"
+        "input[type='text']:focus, textarea:focus { border-color: #38bdf8; outline: none; }"
+        "textarea { height: 130px; resize: vertical; }"
+        "button { background: #0284c7; color: white; border: none; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 10px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }"
         "button:hover { background: #0369a1; }"
         ".save-btn { background: #10b981 !important; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }"
         ".save-btn:hover { background: #059669 !important; }"
@@ -351,32 +385,4 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
         f"<a href='/?view=library' class='nav-tab {library_active}'>📂 Thư Viện Nháp ({len(projects)})</a>"
         "</div>"
         f"<div id='tab-studio' style='display: {studio_display};'>"
-        "<form id='produce-form' action='/produce' method='post'>"
-        "<label style='font-weight: bold; display: block; margin-bottom: 8px; font-size: 14px; color: #cbd5e1;'>Nhập cốt truyện / Ý tưởng phim ngắn (12 Tầng):</label>"
-        f"<textarea id='story-textarea' name='story' placeholder='Nhập ý tưởng của bạn tại đây...'>{story}</textarea>"
-        "<button type='submit'>🚀 Kích Hoạt Đạo Diễn Ảo & 12 Tầng</button>"
-        "</form>"
-        "<form id='save-form' action='/project/save' method='post' style='margin-top: 5px;'>"
-        "<input type='hidden' id='save-story-input' name='story' value=''>"
-        f"<input type='hidden' name='result_html' value='{safe_result}'>"
-        "<button type='submit' class='save-btn' onclick='prepareSave()'>💾 Lưu Ý Tưởng / Dự Án Nháp Ngay</button>"
-        "</form>"
-        f"{result_html}"
-        "</div>"
-        f"<div id='tab-library' style='display: {library_display};'>"
-        "<h3 style='color: #38bdf8; font-size: 16px; margin-top: 0; margin-bottom: 15px;'>📚 Kho Dự Án Nháp Của Bạn</h3>"
-        f"{proj_html}"
-        "</div>"
-        "</div>"
-        "</div>"
-        "<script>"
-        "function prepareSave() {"
-        "  var val = document.getElementById('story-textarea').value;"
-        "  document.getElementById('save-story-input').value = val;"
-        "}"
-        "</script>"
-        "</body>"
-        "</html>"
-    )
-    return HTMLResponse(content=html_content)
-    
+        "<form id='produce-form' action='/produce' method='po
