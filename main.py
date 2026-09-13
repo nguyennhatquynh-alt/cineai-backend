@@ -8,7 +8,6 @@ import html
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-import google.generativeai as genai
 
 app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.9")
 
@@ -53,41 +52,52 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
-# --- 2. CÀI ĐẶT API KEYS & GEMINI CHAT STREAM ---
+# --- 2. CÀI ĐẶT API KEYS & HÀM GỌI GEMINI CHUẨN ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
+
+def call_gemini_direct(prompt_text):
+    if not GEMINI_KEYS:
+        return None, "Chưa cấu hình GEMINI_API_KEYS!"
+    selected_key = random.choice(GEMINI_KEYS)
+    models_to_try = ['gemini-1.5-flash', 'gemini-pro']
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
+                data = response.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"], model_name
+        except Exception:
+            pass
+    return None, "Lỗi kết nối Gemini API"
 
 @app.post("/api/cineai/stream-chat")
 async def stream_chat(data: dict):
     user_message = data.get("message", "")
     if not user_message:
-        raise HTTPException(status_code=400, detail="Tin nhắn không được để trống")
+        raise HTTPException(status_code=400, detail="Tin nhắn trống")
     
-    system_instruction = (
+    prompt = (
         "Bạn là Đạo diễn ảo chuyên nghiệp của hệ thống Cine AI Studio Pro 3.0. "
-        "Hãy trò chuyện trực tiếp, tư vấn và cùng người dùng thảo luận, bồi đắp ý tưởng, "
-        "kịch bản phim ngắn tại Tầng 7 & 8 một cách gần gũi, chuyên nghiệp và chi tiết."
+        "Hãy phản hồi trực tiếp, tư vấn và cùng người dùng thảo luận kịch bản phim ngắn "
+        "tại Tầng 7 & 8 một cách ngắn gọn, súc tích và chuyên nghiệp.\n\n"
+        f"Yêu cầu từ người dùng: {user_message}"
     )
     
-    try:
-        selected_key = random.choice(GEMINI_KEYS) if GEMINI_KEYS else os.getenv("GEMINI_API_KEY", "")
-        genai.configure(api_key=selected_key)
-        
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            system_instruction=system_instruction
-        )
-        
-        response = model.generate_content(user_message, stream=True)
-        
-        def generate():
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-                    
-        return StreamingResponse(generate(), media_type="text/plain")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    text_result, _ = call_gemini_direct(prompt)
+    if not text_result:
+        text_result = "⚠️ Đạo diễn ảo đang bận, không thể phản hồi lúc này. Vui lòng thử lại!"
+    
+    def generate():
+        # Giả lập streaming mượt mà từng cụm từ từ kết quả trả về
+        chunk_size = 10
+        for i in range(0, len(text_result), chunk_size):
+            yield text_result[i:i+chunk_size]
+            
+    return StreamingResponse(generate(), media_type="text/plain")
 
 def hash_password(password: str, salt: str = None):
     if not salt:
@@ -107,7 +117,6 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
     
     user_projects = USERS_DB.get(username, {}).get("projects", [])
     current_title = ""
-    current_edit_id = ""
     chat_initial_html = (
         "<div style='background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; max-width: 85%; align-self: flex-start; font-size: 14px;'>"
         "🎬 Chào anh! Em là Đạo diễn ảo đây. Chúng ta hãy cùng trò chuyện, bàn về ý tưởng hoặc gọt giũa kịch bản trực tiếp tại Tầng 7 & 8 nhé. Anh muốn bắt đầu câu chuyện thế nào ạ?"
@@ -123,7 +132,7 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
                     chat_initial_html = p["result"]
                 break
 
-    return render_studio_dashboard(username, current_edit_id, current_title, chat_initial_html, user_projects, active_tab=view)
+    return render_studio_dashboard(username, edit_id if 'edit_id' in locals() else "", current_title, chat_initial_html, user_projects, active_tab=view)
 
 @app.post("/auth/register", response_class=HTMLResponse)
 async def register(username: str = Form(...), password: str = Form(...)):
@@ -310,7 +319,6 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, chat_html: 
     library_active = "active" if active_tab == "library" else ""
 
     escaped_title = html.escape(title, quote=True)
-    safe_chat_html = html.escape(chat_html, quote=True)
     len_proj_str = str(len(projects))
 
     html_content = (
@@ -351,7 +359,7 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, chat_html: 
         "<a href='/?view=library' class='nav-tab " + library_active + "'>📂 Thư Viện Nháp (" + len_proj_str + ")</a>"
         "</div>"
         
-        # --- TAB STUDIO & PHÒNG CHAT TRỰC TIẾP TẦNG 7 & 8 ---
+        # --- TAB STUDIO & PHÒNG CHAT ---
         "<div id='tab-studio' style='display: " + studio_display + ";'>"
         "<label style='font-weight: bold; display: block; margin-bottom: 6px; font-size: 13px; color: #cbd5e1;'>Tiêu đề dự án:</label>"
         "<input type='text' id='project-title' placeholder='Nhập tiêu đề dự án...' value='" + escaped_title + "'>"
@@ -381,7 +389,7 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, chat_html: 
         "</div>"
         "</div>"
         
-        # --- JAVASCRIPT XỬ LÝ CHAT STREAMING 2 CHIỀU ---
+        # --- JAVASCRIPT XỬ LÝ CHAT STREAMING ---
         "<script>"
         "async function sendChatMessage() {"
         "  var inputField = document.getElementById('chat-input');"
@@ -403,7 +411,7 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, chat_html: 
         "      headers: { 'Content-Type': 'application/json' },"
         "      body: JSON.stringify({ message: message })"
         "    });"
-        "    if (!response.ok) throw new Error('Lỗi kết nối.');"
+        "    if (!response.ok) throw new Error('Lỗi kết nối server.');"
         "    var reader = response.body.getReader();"
         "    var decoder = new TextDecoder();"
         "    var aiBubble = document.getElementById(aiMsgId);"
