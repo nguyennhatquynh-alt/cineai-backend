@@ -3,15 +3,33 @@ import random
 import requests
 import hashlib
 import secrets
+import json
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="12.1")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="12.2")
 
-# --- 1. QUẢN LÝ DỮ LIỆU USER & DỰ ÁN NHÁP ---
-# Cấu trúc: {username: {"password_hash": "...", "salt": "...", "projects": [{"id": "...", "title": "...", "story": "...", "result": "...", "time": "..."}]}}
-USERS_DB = {}
+# --- 1. HỆ THỐNG LƯU TRỮ VĨNH VIỄN QUA FILE JSON ---
+USER_FILE = "users_db.json"
+
+def load_users():
+    if os.path.exists(USER_FILE):
+        try:
+            with open(USER_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_users():
+    try:
+        with open(USER_FILE, "w", encoding="utf-8") as f:
+            json.dump(USERS_DB, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print("Lỗi lưu file:", e)
+
+USERS_DB = load_users()
 ACTIVE_SESSIONS = {} # {session_token: username}
 
 # --- 2. CÀI ĐẶT API KEYS ---
@@ -84,6 +102,7 @@ async def register(username: str = Form(...), password: str = Form(...)):
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
+    save_users() # Lưu vĩnh viễn vào file JSON
     return render_auth_page(error="", success="✨ Đăng ký thành công! Vui lòng đăng nhập.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
@@ -162,10 +181,11 @@ async def save_project(story: str = Form(...), result_html: str = Form(...), ses
         "time": time_str
     }
     
-    USERS_DB[username]["projects"].insert(0, new_proj) # Đưa lên đầu danh sách
+    USERS_DB[username]["projects"].insert(0, new_proj)
+    save_users() # Lưu vĩnh viễn vào file JSON
     return RedirectResponse(url="/?view=library", status_code=303)
 
-# --- 4. GIAO DIỆN HTML (MOBILE-FRIENDLY, CÓ THƯ VIỆN NHÁP) ---
+# --- 4. GIAO DIỆN HTML ---
 def render_auth_page(error="", success=""):
     err_div = f"<div style='color: #ef4444; margin-bottom: 15px; font-size: 14px;'>{error}</div>" if error else ""
     suc_div = f"<div style='color: #22c55e; margin-bottom: 15px; font-size: 14px;'>{success}</div>" if success else ""
@@ -303,3 +323,4 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
         </body>
     </html>
     """)
+    
