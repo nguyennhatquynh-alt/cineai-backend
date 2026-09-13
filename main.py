@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.1")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.2")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -279,7 +279,7 @@ def render_auth_page(error="", success=""):
         "<div class='auth-card'>"
         "<h2>🎬 Cine AI Studio Pro</h2>"
         "<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-top: -5px; margin-bottom: 20px;'>Hệ thống sản xuất phim ngắn 12 tầng tự động</p>"
-        f"{err_div}{suc_div}"
+        + err_div + suc_div +
         "<div class='tabs'>"
         "<div id='tab-login' class='tab active' onclick=\"switchTab('login')\">Đăng Nhập</div>"
         "<div id='tab-reg' class='tab' onclick=\"switchTab('reg')\">Đăng Ký</div>"
@@ -343,6 +343,7 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
     library_active = "active" if active_tab == "library" else ""
 
     safe_result = html.escape(result_html, quote=True)
+    escaped_title = html.escape(title, quote=True)
 
     html_content = (
         "<html>"
@@ -384,5 +385,4 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
         "</div>"
         f"<div id='tab-studio' style='display: {studio_display};'>"
         "<form id='produce-form' action='/produce' method='post'>"
-        f"<input type='hidden' name='edit_id' value='{edit_id}'>"
-       
+        f"<input type=
