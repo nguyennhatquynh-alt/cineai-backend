@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.4")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.5")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
