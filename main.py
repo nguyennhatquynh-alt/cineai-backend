@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.0")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.1")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -163,13 +163,13 @@ async def logout(session_token: str = Cookie(None)):
     return resp
 
 @app.post("/produce", response_class=HTMLResponse)
-async def produce_film(request: Request, title: str = Form(""), story: str = Form(""), session_token: str = Cookie(None)):
+async def produce_film(request: Request, edit_id: str = Form(""), title: str = Form(""), story: str = Form(""), session_token: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return RedirectResponse(url="/", status_code=303)
 
     if not story.strip():
-        return render_studio_dashboard(username, "", title, "", "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>", USERS_DB.get(username, {}).get("projects", []))
+        return render_studio_dashboard(username, edit_id, title, "", "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>", USERS_DB.get(username, {}).get("projects", []))
 
     director_prompt = (
         f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 3.0. Dựa trên cốt truyện: \"{story}\", "
@@ -189,7 +189,7 @@ async def produce_film(request: Request, title: str = Form(""), story: str = For
             "</div>"
         )
 
-    return render_studio_dashboard(username, "", title, story, output_html, USERS_DB.get(username, {}).get("projects", []))
+    return render_studio_dashboard(username, edit_id, title, story, output_html, USERS_DB.get(username, {}).get("projects", []))
 
 @app.post("/project/save", response_class=HTMLResponse)
 async def save_project(edit_id: str = Form(""), title: str = Form(""), story: str = Form(""), result_html: str = Form(""), session_token: str = Cookie(None)):
@@ -212,7 +212,6 @@ async def save_project(edit_id: str = Form(""), title: str = Form(""), story: st
 
     user_projects = USERS_DB[username]["projects"]
 
-    # Kiểm tra nếu là cập nhật lưu đè (Edit existing)
     updated = False
     if edit_id:
         for p in user_projects:
@@ -224,7 +223,6 @@ async def save_project(edit_id: str = Form(""), title: str = Form(""), story: st
                 updated = True
                 break
 
-    # Nếu không phải edit_id hoặc không tìm thấy -> Tạo mới
     if not updated:
         project_id = secrets.token_hex(4)
         new_proj = {
@@ -385,4 +383,6 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
         f"<a href='/?view=library' class='nav-tab {library_active}'>📂 Thư Viện Nháp ({len(projects)})</a>"
         "</div>"
         f"<div id='tab-studio' style='display: {studio_display};'>"
-        "<form id='produce-form' action='/produce' method='po
+        "<form id='produce-form' action='/produce' method='post'>"
+        f"<input type='hidden' name='edit_id' value='{edit_id}'>"
+       
