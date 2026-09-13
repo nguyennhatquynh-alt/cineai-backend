@@ -52,15 +52,19 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
-# --- 2. CÀI ĐẶT API KEYS & HÀM GỌI GEMINI TRỰC TIẾP CHUẨN XÁC ---
-GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEYS", "")
-GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
+# --- 2. TỰ ĐỘNG QUÉT ĐA BIẾN MÔI TRƯỜNG API KEY TRÊN RENDER ---
+def get_active_gemini_key():
+    raw_keys = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
+    keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+    if not keys:
+        return None
+    return random.choice(keys)
 
 def call_gemini_direct(prompt_text):
-    if not GEMINI_KEYS:
-        return None, "Chưa cấu hình GEMINI_API_KEY!"
-    selected_key = random.choice(GEMINI_KEYS)
-    # Thử danh sách các model chuẩn hiện hành
+    selected_key = get_active_gemini_key()
+    if not selected_key:
+        return None, "Chưa thiết lập GEMINI_API_KEY trên Render!"
+    
     models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
     for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
@@ -89,9 +93,9 @@ async def chat_with_director(data: dict):
         f"Yêu cầu từ người dùng: {user_message}"
     )
     
-    reply_text, _ = call_gemini_direct(prompt)
+    reply_text, err_hint = call_gemini_direct(prompt)
     if not reply_text:
-        reply_text = "⚠️ Đạo diễn ảo đang bận hoặc chưa nhận diện được API Key. Vui lòng kiểm tra lại cấu hình trên Render!"
+        reply_text = f"⚠️ Lỗi API Key: {err_hint}. Hãy kiểm tra lại biến môi trường trên Render."
         
     return JSONResponse({"reply": reply_text})
 
