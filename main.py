@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.5")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.6")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -118,7 +118,7 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
 @app.post("/auth/register", response_class=HTMLResponse)
 async def register(username: str = Form(...), password: str = Form(...)):
     global USERS_DB
-    USERS_DB = load_users() # Đồng bộ mới nhất từ Supabase
+    USERS_DB = load_users()
     username = username.strip()
     if not username or not password:
         return render_auth_page(error="Vui lòng điền đầy đủ thông tin!")
@@ -127,13 +127,13 @@ async def register(username: str = Form(...), password: str = Form(...)):
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
-    save_users() # LƯU TRỰC TIẾP LÊN SUPABASE (ĐÃ BỔ SUNG)
+    save_users()
     return render_auth_page(error="", success="✨ Đăng ký thành công! Bạn có thể đăng nhập ngay bên dưới.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
 async def login(response: Response, username: str = Form(...), password: str = Form(...)):
     global USERS_DB
-    USERS_DB = load_users() # Tải dữ liệu mới nhất từ Supabase
+    USERS_DB = load_users()
     username = username.strip()
     user_data = USERS_DB.get(username)
     if not user_data:
@@ -196,20 +196,22 @@ async def save_project(story: str = Form(""), result_html: str = Form(""), sessi
     if not username:
         return RedirectResponse(url="/", status_code=303)
     
-    if not story.strip():
-        return RedirectResponse(url="/?view=studio", status_code=303)
-    
+    # Nếu nội dung trống hoặc giữ nguyên chữ placeholder thì gán tên mặc định
+    clean_story = story.strip()
+    if not clean_story or "Nhập ý tưởng" in clean_story:
+        clean_story = "Dự án nháp không tên - " + datetime.now().strftime("%d/%m/%Y %H:%M")
+
     project_id = secrets.token_hex(4)
-    title = story[:35] + "..." if len(story) > 35 else story
+    title = clean_story[:35] + "..." if len(clean_story) > 35 else clean_story
     time_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     if not result_html or "HỒ SƠ 12 TẦNG" not in result_html:
-        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Ý tưởng thô:</b> {html.escape(story)}</div>"
+        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Ý tưởng thô:</b> {html.escape(clean_story)}</div>"
 
     new_proj = {
         "id": project_id,
         "title": title,
-        "story": story,
+        "story": clean_story,
         "result": result_html,
         "time": time_str
     }
@@ -218,7 +220,7 @@ async def save_project(story: str = Form(""), result_html: str = Form(""), sessi
         USERS_DB[username] = {"password_hash": "", "salt": "", "projects": []}
     
     USERS_DB[username]["projects"].insert(0, new_proj)
-    save_users()
+    save_users() # Lưu trực tiếp lên Supabase
     return RedirectResponse(url="/?view=library", status_code=303)
 
 # --- 4. GIAO DIỆN HTML ---
