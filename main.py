@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.4")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.5")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -118,7 +118,7 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
 @app.post("/auth/register", response_class=HTMLResponse)
 async def register(username: str = Form(...), password: str = Form(...)):
     global USERS_DB
-    USERS_DB = load_users()
+    USERS_DB = load_users() # Đồng bộ mới nhất từ Supabase
     username = username.strip()
     if not username or not password:
         return render_auth_page(error="Vui lòng điền đầy đủ thông tin!")
@@ -127,13 +127,13 @@ async def register(username: str = Form(...), password: str = Form(...)):
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
-    save_users()
+    save_users() # LƯU TRỰC TIẾP LÊN SUPABASE (ĐÃ BỔ SUNG)
     return render_auth_page(error="", success="✨ Đăng ký thành công! Bạn có thể đăng nhập ngay bên dưới.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
 async def login(response: Response, username: str = Form(...), password: str = Form(...)):
     global USERS_DB
-    USERS_DB = load_users()
+    USERS_DB = load_users() # Tải dữ liệu mới nhất từ Supabase
     username = username.strip()
     user_data = USERS_DB.get(username)
     if not user_data:
