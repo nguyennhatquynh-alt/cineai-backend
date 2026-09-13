@@ -53,7 +53,7 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
-# --- 2. CÀI ĐẶT API KEYS & ENDPOINT CHAT JSON ---
+# --- 2. CÀI ĐẶT API KEYS & ENDPOINT CHAT FIX MODEL ---
 GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEYS", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
 
@@ -73,8 +73,9 @@ async def chat_with_director(data: dict):
         api_key = random.choice(GEMINI_KEYS) if GEMINI_KEYS else os.getenv("GEMINI_API_KEY", "")
         genai.configure(api_key=api_key)
         
+        # Đổi sang model 'gemini-pro' chuẩn tương thích tuyệt đối
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-pro",
             system_instruction=system_instruction
         )
         
@@ -82,7 +83,7 @@ async def chat_with_director(data: dict):
         reply_text = response.text if response and response.text else "Đạo diễn ảo đã ghi nhận ý tưởng."
         return JSONResponse({"reply": reply_text})
     except Exception as e:
-        return JSONResponse({"reply": f"⚠️ Lỗi kết nối Gemini API: chồng lệnh hoặc thiếu Key ({str(e)})"})
+        return JSONResponse({"reply": f"⚠️ Lỗi kết nối Gemini API: {str(e)}"})
 
 def hash_password(password: str, salt: str = None):
     if not salt:
