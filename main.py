@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="12.2")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="12.3")
 
 # --- 1. HỆ THỐNG LƯU TRỮ VĨNH VIỄN QUA FILE JSON ---
 USER_FILE = "users_db.json"
@@ -102,7 +102,7 @@ async def register(username: str = Form(...), password: str = Form(...)):
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
-    save_users() # Lưu vĩnh viễn vào file JSON
+    save_users()
     return render_auth_page(error="", success="✨ Đăng ký thành công! Vui lòng đăng nhập.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
@@ -182,7 +182,7 @@ async def save_project(story: str = Form(...), result_html: str = Form(...), ses
     }
     
     USERS_DB[username]["projects"].insert(0, new_proj)
-    save_users() # Lưu vĩnh viễn vào file JSON
+    save_users()
     return RedirectResponse(url="/?view=library", status_code=303)
 
 # --- 4. GIAO DIỆN HTML ---
@@ -264,6 +264,15 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
     studio_active = "active" if active_tab == "studio" else ""
     library_active = "active" if active_tab == "library" else ""
 
+    # Cho phép hiển thị nút Lưu nháp ngay cả khi chưa chạy kích hoạt đạo diễn
+    save_html = f"""
+    <form action='/project/save' method='post' style='margin-top: 15px;'>
+        <input type='hidden' name='story' value='{story}'>
+        <input type='hidden' name='result_html' value='{result_html.replace('"', '&quot;')}'>
+        <button type='submit' class='save-btn'>💾 Lưu Ý Tưởng / Dự Án Nháp Này</button>
+    </form>
+    """ if story.strip() else ""
+
     return HTMLResponse(content=f"""
     <html>
         <head>
@@ -280,6 +289,7 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
                 .nav-tab {{ flex: 1; text-align: center; padding: 10px; background: #0f172a; border-radius: 8px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 14px; border: 1px solid #334155; }}
                 .nav-tab.active {{ background: #0284c7; color: white; border-color: #0284c7; }}
                 textarea {{ width: 100%; height: 130px; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 14px; font-size: 15px; box-sizing: border-box; resize: vertical; }}
+                textarea:focus {{ border-color: #38bdf8; outline: none; }}
                 button {{ background: #0284c7; color: white; border: none; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 12px; }}
                 button:hover {{ background: #0369a1; }}
                 .save-btn {{ background: #10b981 !important; }}
@@ -309,12 +319,12 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
                             <button type="submit">🚀 Kích Hoạt Đạo Diễn Ảo & 12 Tầng</button>
                         </form>
 
-                        {result_html}
+                        {save_html}
 
-                        {"<form action='/project/save' method='post' style='margin-top: 15px;'><input type='hidden' name='story' value='" + story + "'><input type='hidden' name='result_html' value='" + result_html.replace('"', '&quot;') + "'><button type='submit' class='save-btn'>💾 Lưu Dự Án Nháp Này</button></form>" if "HỒ SƠ 12 TẦNG" in result_html else ""}
+                        {result_html}
                     </div>
 
-                    <div id="tab-library" style="display: {library_display};">
+                    <div id="tab-library" style="display: {library_library if 'library_library' in locals() else library_display};">
                         <h3 style="color: #38bdf8; font-size: 16px; margin-top: 0;">📚 Kho Dự Án Nháp Của Bạn</h3>
                         {proj_html}
                     </div>
@@ -323,4 +333,3 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
         </body>
     </html>
     """)
-    
