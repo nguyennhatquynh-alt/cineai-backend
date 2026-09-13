@@ -73,26 +73,17 @@ def call_gemini_direct(prompt_text):
     
     try:
         client = genai.Client(api_key=selected_key)
+        # Sử dụng đúng chuẩn model gemini-1.5-flash
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt_text,
+        )
+        if response and response.text:
+            return response.text, 'gemini-1.5-flash'
     except Exception as e:
-        return None, f"Lỗi khởi tạo genai.Client: {str(e)}"
-    
-    # Sử dụng đúng tên model chuẩn được hỗ trợ bởi google-genai SDK
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro']
-    last_error = ""
-    
-    for model_name in models_to_try:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt_text,
-            )
-            if response and response.text:
-                return response.text, model_name
-        except Exception as e:
-            last_error = str(e)
-            continue
+        return None, f"Lỗi gọi Gemini: {str(e)}"
             
-    return None, f"SDK Error chi tiết: {last_error}"
+    return None, "Không nhận được phản hồi từ Gemini API"
 
 
 @app.post("/api/cineai/chat")
