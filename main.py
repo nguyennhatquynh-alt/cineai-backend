@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.6")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.7")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -111,8 +111,8 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
                 current_story = p["story"]
                 result_html = (
                     "<div style='background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #22c55e; margin-top: 20px;'>"
-                    f"<h3 style='color: #22c55e; margin-top: 0; font-size: 18px;'>📂 Đang chỉnh sửa dự án: {html.escape(p['title'])}</h3>"
-                    f"<div style='color: #f8fafc; line-height: 1.7; font-size: 15px;'>{p['result']}</div>"
+                    "<h3 style='color: #22c55e; margin-top: 0; font-size: 18px;'>📂 Đang chỉnh sửa dự án: " + html.escape(p['title']) + "</h3>"
+                    "<div style='color: #f8fafc; line-height: 1.7; font-size: 15px;'>" + p['result'] + "</div>"
                     "</div>"
                 )
                 break
@@ -179,13 +179,13 @@ async def produce_film(request: Request, edit_id: str = Form(""), title: str = F
 
     raw_text, info_hint = call_gemini_direct(director_prompt)
     if not raw_text:
-        output_html = f"<p style='color: #ef4444; font-size: 16px;'>❌ {info_hint}</p>"
+        output_html = "<p style='color: #ef4444; font-size: 16px;'>❌ " + info_hint + "</p>"
     else:
         formatted_text = raw_text.replace("\n", "<br>")
         output_html = (
             "<div style='background: #0f172a; padding: 20px; border-radius: 12px; border-left: 5px solid #38bdf8; margin-top: 20px;'>"
-            f"<h3 style='color: #38bdf8; margin-top: 0; font-size: 18px;'>✨ HỒ SƠ 12 TẦNG SẢN XUẤT (Model: {info_hint}):</h3>"
-            f"<div style='color: #f8fafc; line-height: 1.7; font-size: 15px;'>{formatted_text}</div>"
+            "<h3 style='color: #38bdf8; margin-top: 0; font-size: 18px;'>✨ HỒ SƠ 12 TẦNG SẢN XUẤT (Model: " + info_hint + "):</h3>"
+            "<div style='color: #f8fafc; line-height: 1.7; font-size: 15px;'>" + formatted_text + "</div>"
             "</div>"
         )
 
@@ -205,7 +205,7 @@ async def save_project(edit_id: str = Form(""), title: str = Form(""), story: st
     time_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     if not result_html or "HỒ SƠ 12 TẦNG" not in result_html:
-        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Cốt truyện thô:</b> {html.escape(clean_story)}</div>"
+        result_html = "<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Cốt truyện thô:</b> " + html.escape(clean_story) + "</div>"
 
     if username not in USERS_DB:
         USERS_DB[username] = {"password_hash": "", "salt": "", "projects": []}
@@ -254,8 +254,8 @@ async def delete_project(project_id: str = Form(...), session_token: str = Cooki
 
 # --- 4. GIAO DIỆN HTML ---
 def render_auth_page(error="", success=""):
-    err_div = f"<div style='background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>{error}</div>" if error else ""
-    suc_div = f"<div style='background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #86efac; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>{success}</div>" if success else ""
+    err_div = "<div style='background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>" + error + "</div>" if error else ""
+    suc_div = "<div style='background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #86efac; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>" + success + "</div>" if success else ""
     
     html_content = (
         "<html>"
@@ -346,45 +346,42 @@ def render_studio_dashboard(username: str, edit_id: str, title: str, story: str,
     escaped_title = html.escape(title, quote=True)
     len_proj_str = str(len(projects))
 
-    html_content = f"""
-    <html>
-    <head>
-    <title>Cine AI Studio Pro 3.0</title>
-    <meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; padding: 15px; margin: 0; }}
-    .container {{ max-width: 900px; margin: auto; }}
-    .card {{ background: #1e293b; padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); margin-bottom: 20px; border: 1px solid #334155; }}
-    .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 12px; }}
-    h2 {{ color: #38bdf8; margin: 0; font-size: 18px; }}
-    .logout-btn {{ background: #ef4444; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold; }}
-    .nav-tabs {{ display: flex; gap: 10px; margin-bottom: 20px; }}
-    .nav-tab {{ flex: 1; text-align: center; padding: 12px; background: #0f172a; border-radius: 10px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 14px; border: 1px solid #334155; }}
-    .nav-tab.active {{ background: #0284c7; color: white; border-color: #0284c7; }}
-    input[type='text'], textarea {{ width: 100%; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 12px; font-size: 15px; box-sizing: border-box; margin-bottom: 12px; }}
-    input[type='text']:focus, textarea:focus {{ border-color: #38bdf8; outline: none; }}
-    textarea {{ height: 130px; resize: vertical; }}
-    button {{ background: #0284c7; color: white; border: none; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 10px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }}
-    button:hover {{ background: #0369a1; }}
-    .save-btn {{ background: #10b981 !important; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }}
-    .save-btn:hover {{ background: #059669 !important; }}
-    </style>
-    </head>
-    <body>
-    <div class='container'>
-    <div class='card'>
-    <div class='header'>
-    <h2>🎬 Cine AI Pro 3.0</h2>
-    <div>
-    <span style='color: #cbd5e1; font-size: 13px; margin-right: 8px;'>👤 {username}</span>
-    <a href='/auth/logout' class='logout-btn'>Thoát</a>
-    </div>
-    </div>
-    <div class='nav-tabs'>
-    <a href='/?view=studio' class='nav-tab {studio_active}'>⚡ Studio Sản Xuất</a>
-    <a href='/?view=library' class='nav-tab {library_active}'>📂 Thư Viện Nháp ({len_proj_str})</a>
-    </div>
-    <div id='tab-studio' style='display: {studio_display};'>
-    <form id='produce-form' action='/produce' method='post'>
-    <input type='hidden' name='edit_id' value='{edit_id}'>
-    <label style='font-weight: bold; display: block; margin-bottom: 6px; font-size: 13px; color: #cbd5e1;'>Tiê
+    parts = [
+        "<html>",
+        "<head>",
+        "<title>Cine AI Studio Pro 3.0</title>",
+        "<meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>",
+        "<style>",
+        "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; padding: 15px; margin: 0; }",
+        ".container { max-width: 900px; margin: auto; }",
+        ".card { background: #1e293b; padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); margin-bottom: 20px; border: 1px solid #334155; }",
+        ".header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 12px; }",
+        "h2 { color: #38bdf8; margin: 0; font-size: 18px; }",
+        ".logout-btn { background: #ef4444; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold; }",
+        ".nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; }",
+        ".nav-tab { flex: 1; text-align: center; padding: 12px; background: #0f172a; border-radius: 10px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 14px; border: 1px solid #334155; }",
+        ".nav-tab.active { background: #0284c7; color: white; border-color: #0284c7; }",
+        "input[type='text'], textarea { width: 100%; background: #0f172a; color: #fff; border: 2px solid #475569; border-radius: 10px; padding: 12px; font-size: 15px; box-sizing: border-box; margin-bottom: 12px; }",
+        "input[type='text']:focus, textarea:focus { border-color: #38bdf8; outline: none; }",
+        "textarea { height: 130px; resize: vertical; }",
+        "button { background: #0284c7; color: white; border: none; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 10px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }",
+        "button:hover { background: #0369a1; }",
+        ".save-btn { background: #10b981 !important; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }",
+        ".save-btn:hover { background: #059669 !important; }",
+        "</style>",
+        "</head>",
+        "<body>",
+        "<div class='container'>",
+        "<div class='card'>",
+        "<div class='header'>",
+        "<h2>🎬 Cine AI Pro 3.0</h2>",
+        "<div>",
+        "<span style='color: #cbd5e1; font-size: 13px; margin-right: 8px;'>👤 " + username + "</span>",
+        "<a href='/auth/logout' class='logout-btn'>Thoát</a>",
+        "</div>",
+        "</div>",
+        "<div class='nav-tabs'>",
+        "<a href='/?view=studio' class='nav-tab " + studio_active + "'>⚡ Studio Sản Xuất</a>",
+        "<a href='/?view=library' class='nav-tab " + library_active + "'>📂 Thư Viện Nháp (" + len_proj_str + ")</a>",
+        "</div>",
+        "<
