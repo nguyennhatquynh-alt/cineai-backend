@@ -1,21 +1,16 @@
-﻿import os
+import os
 import random
 import requests
 import hashlib
 import secrets
-import json
-import html
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
+from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
-
-app = FastAPI(title="CineAI Studio Pro 3.0 - Full Production Backend", version="16.0")
-
+app = FastAPI(title="CineAI Studio Pro 3.0 - Full Production", version="17.0")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-
 
 def get_supabase_headers():
     return {
@@ -25,10 +20,9 @@ def get_supabase_headers():
         "Prefer": "return=representation"
     }
 
-
 def load_users():
     if not SUPABASE_KEY:
-        return {"admin": {"password_hash": hashlib.sha256("admin123".encode()).hexdigest(), "salt": "", "projects": []}}
+        return {"admin": {"password_hash": hashlib.sha256("admin123".encode()).hexdigest(), "projects": []}}
     try:
         url = f"{SUPABASE_URL}/rest/v1/cineai_store?id=eq.1&select=payload"
         response = requests.get(url, headers=get_supabase_headers(), timeout=10)
@@ -37,9 +31,8 @@ def load_users():
             if data and len(data) > 0 and data[0].get("payload"):
                 return data[0].get("payload", {})
     except Exception as e:
-        print("Lỗi tải từ Supabase:", e)
-    return {"admin": {"password_hash": hashlib.sha256("admin123".encode()).hexdigest(), "salt": "", "projects": []}}
-
+        print("Lỗi tải Supabase:", e)
+    return {"admin": {"password_hash": hashlib.sha256("admin123".encode()).hexdigest(), "projects": []}}
 
 def save_users():
     if not SUPABASE_KEY:
@@ -53,15 +46,12 @@ def save_users():
     except Exception as e:
         print("Lỗi lưu Supabase:", e)
 
-
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
-
 
 def get_gemini_keys():
     raw = os.getenv("GEMINI_API_KEYS", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
-
 
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
@@ -81,17 +71,11 @@ def call_gemini_direct(prompt_text):
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         if response.status_code == 200:
             data = response.json()
-            text_result = data["candidates"][0]["content"]["parts"][0]["text"]
-            return text_result, "gemini-1.5-flash"
+            return data["candidates"][0]["content"]["parts"][0]["text"], "gemini-1.5-flash"
         else:
-            try:
-                err_detail = response.json().get("error", {}).get("message", response.text)
-                return None, f"Lỗi Google ({response.status_code}): {err_detail}"
-            except:
-                return None, f"Lỗi HTTP {response.status_code}: {response.text}"
+            return None, f"Lỗi Google API ({response.status_code})"
     except Exception as e:
         return None, f"Lỗi kết nối: {str(e)}"
-
 
 @app.post("/api/cineai/chat")
 async def chat_with_director(request: Request, session_id: str = Cookie(None)):
@@ -118,123 +102,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         reply_text = f"⚠️ {err_msg}"
         
     return JSONResponse({"reply": reply_text, "project": project_title})
-@app.get("/", response_class=HTMLResponse)
-async def home(session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 3.0 - Production Suite</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-slate-950 text-slate-100 min-h-screen p-4">
-        <div class="max-w-4xl mx-auto space-y-4">
-            <div class="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-lg">
-                <div>
-                    <h1 class="text-xl font-bold text-amber-400">🎬 Cine AI Studio Pro 3.0</h1>
-                    <p class="text-xs text-slate-400">Hệ thống sản xuất Kịch bản & Đạo diễn ảo đa tầng</p>
-                </div>
-                <div class="flex items-center space-x-3">
-                    <span class="text-sm text-slate-300 font-medium">👤 {username}</span>
-                    <a href="/logout" class="bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg text-sm font-medium transition shadow">Đăng xuất</a>
-                </div>
-            </div>
 
-
-            <div class="flex flex-wrap gap-2">
-                <a href="/" class="bg-amber-500 text-slate-950 px-4 py-2 rounded-lg font-semibold text-sm shadow">⚡ Phòng Chat Studio</a>
-                <a href="/library" class="bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded-lg font-semibold text-sm transition">📁 Thư Viện Nhớp & Quản Lý Dự Án</a>
-            </div>
-
-
-            <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-4 shadow-xl">
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Tiêu đề dự án / Phân cảnh:</label>
-                    <input type="text" id="project-title" placeholder="Nhập tiêu đề dự án hoặc tên phân cảnh nghệ thuật..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-amber-500 transition">
-                </div>
-                
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">💬 Phòng Trò Chuyện Trực Tiếp Với Đạo Diễn Âo (Tầng 7 & 8)</span>
-                    <span class="text-xs text-slate-500">Cloud DB: Supabase Synced</span>
-                </div>
-
-
-                <div id="chat-box" class="bg-slate-950 h-96 rounded-lg p-4 overflow-y-auto border border-slate-800 space-y-3 text-sm">
-                    <div class="bg-blue-950/60 border border-blue-800/50 p-3.5 rounded-xl text-blue-200 shadow-sm">
-                        🎬 Chào anh! Em là Đạo diễn ảo đây. Chúng ta hãy cùng trò chuyện, bàn về ý tưởng, thiết kế soundstage hoặc gọt giũa kịch bản trực tiếp tại Tầng 7 & 8 nhé. Anh muốn bắt đầu câu chuyện thế nào ạ?
-                    </div>
-                </div>
-
-
-                <div class="flex gap-2">
-                    <input type="text" id="user-input" placeholder="Nhập ý tưởng, trao đổi hoặc yêu cầu đạo diễn gọt giũa kịch bản..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition" onkeypress="if(event.key==='Enter') sendMessage()">
-                    <button onclick="sendMessage()" class="bg-indigo-600 hover:bg-indigo-700 px-6 py-3.5 rounded-lg font-semibold text-sm transition shadow">Gửi</button>
-                </div>
-
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                    <button onclick="sendMessage()" class="bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-semibold text-sm transition text-center shadow">💬 Gửi Trao Đổi (Real-time Chat)</button>
-                    <button onclick="saveLibrary()" class="bg-emerald-600 hover:bg-emerald-700 py-3 rounded-lg font-semibold text-sm transition text-center shadow">💾 Lưu Dự Án Vào Thư Viện Supabase</button>
-                </div>
-            </div>
-        </div>
-
-
-        <script>
-            async function sendMessage() {
-                const input = document.getElementById('user-input');
-                const chatBox = document.getElementById('chat-box');
-                const titleInput = document.getElementById('project-title');
-                const text = input.value.trim();
-                if(!text) return;
-
-
-                chatBox.innerHTML += `<div class="text-right"><span class="bg-slate-800 p-3.5 rounded-xl inline-block text-slate-100 max-w-[85%] text-left shadow-sm">${text}</span></div>`;
-                input.value = '';
-                chatBox.scrollTop = chatBox.scrollHeight;
-
-
-                try {
-                    const res = await fetch('/api/cineai/chat', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({message: text, title: titleInput.value})
-                    });
-                    const data = await res.json();
-                    chatBox.innerHTML += `<div class="bg-blue-950/60 border border-blue-800/50 p-3.5 rounded-xl text-blue-200 max-w-[85%] shadow-sm">${data.reply}</div>`;
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                } catch(e) {
-                    chatBox.innerHTML += `<div class="bg-rose-950/60 border border-rose-800/50 p-3.5 rounded-xl text-rose-200 shadow-sm">⚠️ Lỗi kết nối máy chủ!</div>`;
-                }
-            }
-
-
-            async function saveLibrary() {
-                const title = document.getElementById('project-title').value || "Dự án không tên";
-                const chatContent = document.getElementById('chat-box').innerHTML;
-                try {
-                    const res = await fetch('/api/cineai/save', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({title: title, content: chatContent})
-                    });
-                    const data = await res.json();
-                    alert(data.message || "Đã lưu dự án vào Supabase thành công!");
-                } catch(e) {
-                    alert("⚠️ Lỗi lưu dự án vào cơ sở dữ liệu!");
-                }
-            }
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
 @app.post("/api/cineai/save")
 async def save_project_api(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -257,18 +125,122 @@ async def save_project_api(request: Request, session_id: str = Cookie(None)):
     })
     save_users()
     return JSONResponse({"message": f"💾 Đã lưu dự án '{title}' lên Supabase Cloud thành công!"})
-
-
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(error: str = None):
-    err_html = '<div class="text-rose-400 text-xs text-center font-medium">⚠️ Sai tên đăng nhập hoặc mật khẩu!</div>' if error else ''
-    return HTMLResponse(content=f"""
+    @app.get("/", response_class=HTMLResponse)
+async def home(session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    return HTMLResponse(content="""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Đăng nhập - Cine AI Studio Pro 3.0</title>
+        <title>Cine AI Studio Pro 3.0</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 min-h-screen p-4">
+        <div class="max-w-4xl mx-auto space-y-4">
+            <div class="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-lg">
+                <div>
+                    <h1 class="text-xl font-bold text-amber-400">🎬 Cine AI Studio Pro 3.0</h1>
+                    <p class="text-xs text-slate-400">Hệ thống sản xuất Kịch bản & Đạo diễn ảo đa tầng</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-xs text-amber-300 font-medium">👤 User</span>
+                    <a href="/logout" class="bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg text-sm font-medium transition shadow">Đăng xuất</a>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                <a href="/" class="bg-amber-500 text-slate-950 px-4 py-2 rounded-lg font-semibold text-sm shadow">⚡ Phòng Chat Studio</a>
+                <a href="/library" class="bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded-lg font-semibold text-sm transition">📁 Thư Viện Nhớp & Quản Lý Dự Án</a>
+            </div>
+
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-4 shadow-xl">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Tiêu đề dự án / Phân cảnh:</label>
+                    <input type="text" id="project-title" placeholder="Nhập tiêu đề dự án hoặc tên phân cảnh nghệ thuật..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-amber-500 transition">
+                </div>
+                
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">💬 Phòng Trò Chuyện Trực Tiếp Với Đạo Diễn Âo (Tầng 7 & 8)</span>
+                    <span class="text-xs text-slate-500">Cloud DB: Supabase Synced</span>
+                </div>
+
+                <div id="chat-box" class="bg-slate-950 h-96 rounded-lg p-4 overflow-y-auto border border-slate-800 space-y-3 text-sm">
+                    <div class="bg-blue-950/60 border border-blue-800/50 p-3.5 rounded-xl text-blue-200 shadow-sm">
+                        🎬 Chào anh! Em là Đạo diễn ảo đây. Chúng ta hãy cùng trò chuyện, bàn về ý tưởng, thiết kế soundstage hoặc gọt giũa kịch bản trực tiếp tại Tầng 7 & 8 nhé. Anh muốn bắt đầu câu chuyện thế nào ạ?
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <input type="text" id="user-input" placeholder="Nhập ý tưởng, trao đổi hoặc yêu cầu đạo diễn gọt giũa kịch bản..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition" onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()" class="bg-indigo-600 hover:bg-indigo-700 px-6 py-3.5 rounded-lg font-semibold text-sm transition shadow">Gửi</button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                    <button onclick="sendMessage()" class="bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-semibold text-sm transition text-center shadow">💬 Gửi Trao Đổi (Real-time Chat)</button>
+                    <button onclick="saveLibrary()" class="bg-emerald-600 hover:bg-emerald-700 py-3 rounded-lg font-semibold text-sm transition text-center shadow">💾 Lưu Dự Án Vào Thư Viện Supabase</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            async function sendMessage() {
+                const input = document.getElementById('user-input');
+                const chatBox = document.getElementById('chat-box');
+                const titleInput = document.getElementById('project-title');
+                const text = input.value.trim();
+                if(!text) return;
+
+                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3.5 rounded-xl inline-block text-slate-100 max-w-[85%] text-left shadow-sm">' + text + '</span></div>';
+                input.value = '';
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+                try {
+                    const res = await fetch('/api/cineai/chat', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({message: text, title: titleInput.value})
+                    });
+                    const data = await res.json();
+                    chatBox.innerHTML += '<div class="bg-blue-950/60 border border-blue-800/50 p-3.5 rounded-xl text-blue-200 max-w-[85%] shadow-sm">' + data.reply + '</div>';
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } catch(e) {
+                    chatBox.innerHTML += '<div class="bg-rose-950/60 border border-rose-800/50 p-3.5 rounded-xl text-rose-200 shadow-sm">⚠️ Lỗi kết nối máy chủ!</div>';
+                }
+            }
+
+            async function saveLibrary() {
+                const title = document.getElementById('project-title').value || "Dự án không tên";
+                const chatContent = document.getElementById('chat-box').innerHTML;
+                try {
+                    const res = await fetch('/api/cineai/save', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({title: title, content: chatContent})
+                    });
+                    const data = await res.json();
+                    alert(data.message || "Đã lưu dự án vào Supabase thành công!");
+                } catch(e) {
+                    alert("⚠️ Lỗi lưu dự án vào cơ sở dữ liệu!");
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """)
+    @app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    return HTMLResponse(content="""
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Đăng nhập - Cine AI Studio Pro</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4">
@@ -277,7 +249,6 @@ async def login_page(error: str = None):
                 <h2 class="text-2xl font-bold text-amber-400">🔐 Cine AI Studio Pro</h2>
                 <p class="text-xs text-slate-400">Đăng nhập không gian sáng tạo độc lập</p>
             </div>
-            {err_html}
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Tên đăng nhập:</label>
                 <input type="text" name="username" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition">
@@ -295,7 +266,6 @@ async def login_page(error: str = None):
     </html>
     """)
 
-
 @app.post("/login")
 async def login_post(username: str = Form(...), password: str = Form(...)):
     user_info = USERS_DB.get(username)
@@ -306,19 +276,17 @@ async def login_post(username: str = Form(...), password: str = Form(...)):
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(key="session_id", value=session_id)
         return response
-    return RedirectResponse(url="/login?error=1", status_code=303)
-
+    return RedirectResponse(url="/login", status_code=303)
 
 @app.get("/register", response_class=HTMLResponse)
-async def register_page(error: str = None):
-    err_html = '<div class="text-rose-400 text-xs text-center font-medium">⚠️ Tên đăng nhập đã tồn tại!</div>' if error else ''
-    return HTMLResponse(content=f"""
+async def register_page():
+    return HTMLResponse(content="""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Đăng ký - Cine AI Studio Pro 3.0</title>
+        <title>Đăng ký - Cine AI Studio Pro</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4">
@@ -327,7 +295,6 @@ async def register_page(error: str = None):
                 <h2 class="text-2xl font-bold text-amber-400">📝 Đăng Ký Tài Khoản</h2>
                 <p class="text-xs text-slate-400">Tạo không gian lưu trữ kịch bản độc lập</p>
             </div>
-            {err_html}
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Tên đăng nhập:</label>
                 <input type="text" name="username" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition">
@@ -345,16 +312,14 @@ async def register_page(error: str = None):
     </html>
     """)
 
-
 @app.post("/register")
 async def register_post(username: str = Form(...), password: str = Form(...)):
     if username in USERS_DB:
-        return RedirectResponse(url="/register?error=1", status_code=303)
+        return RedirectResponse(url="/register", status_code=303)
     
     pwd_hash = hashlib.sha256(password.encode()).hexdigest()
     USERS_DB[username] = {
         "password_hash": pwd_hash,
-        "salt": "",
         "projects": []
     }
     save_users()
@@ -365,7 +330,6 @@ async def register_post(username: str = Form(...), password: str = Form(...)):
     response.set_cookie(key="session_id", value=session_id)
     return response
 
-
 @app.get("/logout")
 async def logout(session_id: str = Cookie(None)):
     if session_id in ACTIVE_SESSIONS:
@@ -373,7 +337,6 @@ async def logout(session_id: str = Cookie(None)):
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key="session_id")
     return response
-
 
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
@@ -397,8 +360,7 @@ async def library_page(session_id: str = Cookie(None)):
             </div>
             """
 
-
-    return HTMLResponse(content=f"""
+    return HTMLResponse(content="""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -417,9 +379,9 @@ async def library_page(session_id: str = Cookie(None)):
                 <a href="/" class="bg-amber-500 text-slate-950 px-4 py-2 rounded-lg font-semibold text-sm shadow">⚡ Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4 shadow-xl">
-                <h2 class="text-sm font-semibold uppercase tracking-wider text-amber-400">Danh sách dự án đã lưu của {username}:</h2>
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-amber-400">Danh sách dự án đã lưu:</h2>
                 <div class="space-y-3">
-                    {projects_html}
+                    """ + projects_html + """
                 </div>
             </div>
         </div>
@@ -427,7 +389,7 @@ async def library_page(session_id: str = Cookie(None)):
     </html>
     """)
 
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
