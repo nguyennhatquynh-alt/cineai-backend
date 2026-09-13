@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.6")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.8")
 
 # --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -196,13 +196,17 @@ async def save_project(story: str = Form(""), result_html: str = Form(""), sessi
     if not username:
         return RedirectResponse(url="/", status_code=303)
     
-    # Nếu nội dung trống hoặc giữ nguyên chữ placeholder thì gán tên mặc định
     clean_story = story.strip()
-    if not clean_story or "Nhập ý tưởng" in clean_story:
-        clean_story = "Dự án nháp không tên - " + datetime.now().strftime("%d/%m/%Y %H:%M")
+    if not clean_story:
+        clean_story = "Dự án nháp không tên"
+
+    # Lấy dòng đầu tiên làm tiêu đề (nếu user xuống dòng) hoặc lấy tối đa 40 ký tự đầu
+    first_line = clean_story.split("\n")[0].strip()
+    title = first_line[:40] + ("..." if len(first_line) > 40 else "")
+    if not title:
+        title = "Dự án nháp không tên"
 
     project_id = secrets.token_hex(4)
-    title = clean_story[:35] + "..." if len(clean_story) > 35 else clean_story
     time_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     if not result_html or "HỒ SƠ 12 TẦNG" not in result_html:
@@ -220,7 +224,7 @@ async def save_project(story: str = Form(""), result_html: str = Form(""), sessi
         USERS_DB[username] = {"password_hash": "", "salt": "", "projects": []}
     
     USERS_DB[username]["projects"].insert(0, new_proj)
-    save_users() # Lưu trực tiếp lên Supabase
+    save_users()
     return RedirectResponse(url="/?view=library", status_code=303)
 
 # --- 4. GIAO DIỆN HTML ---
@@ -307,7 +311,6 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
     studio_active = "active" if active_tab == "studio" else ""
     library_active = "active" if active_tab == "library" else ""
 
-    safe_story = html.escape(story, quote=True)
     safe_result = html.escape(result_html, quote=True)
 
     html_content = (
@@ -348,15 +351,15 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
         f"<a href='/?view=library' class='nav-tab {library_active}'>📂 Thư Viện Nháp ({len(projects)})</a>"
         "</div>"
         f"<div id='tab-studio' style='display: {studio_display};'>"
-        "<form action='/produce' method='post'>"
+        "<form id='produce-form' action='/produce' method='post'>"
         "<label style='font-weight: bold; display: block; margin-bottom: 8px; font-size: 14px; color: #cbd5e1;'>Nhập cốt truyện / Ý tưởng phim ngắn (12 Tầng):</label>"
-        f"<textarea name='story' placeholder='Nhập ý tưởng của bạn tại đây...'>{story}</textarea>"
+        f"<textarea id='story-textarea' name='story' placeholder='Nhập ý tưởng của bạn tại đây...'>{story}</textarea>"
         "<button type='submit'>🚀 Kích Hoạt Đạo Diễn Ảo & 12 Tầng</button>"
         "</form>"
-        "<form action='/project/save' method='post' style='margin-top: 5px;'>"
-        f"<input type='hidden' name='story' value='{safe_story}'>"
+        "<form id='save-form' action='/project/save' method='post' style='margin-top: 5px;'>"
+        "<input type='hidden' id='save-story-input' name='story' value=''>"
         f"<input type='hidden' name='result_html' value='{safe_result}'>"
-        "<button type='submit' class='save-btn'>💾 Lưu Ý Tưởng / Dự Án Nháp Ngay</button>"
+        "<button type='submit' class='save-btn' onclick='prepareSave()'>💾 Lưu Ý Tưởng / Dự Án Nháp Ngay</button>"
         "</form>"
         f"{result_html}"
         "</div>"
@@ -366,6 +369,12 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
         "</div>"
         "</div>"
         "</div>"
+        "<script>"
+        "function prepareSave() {"
+        "  var val = document.getElementById('story-textarea').value;"
+        "  document.getElementById('save-story-input').value = val;"
+        "}"
+        "</script>"
         "</body>"
         "</html>"
     )
