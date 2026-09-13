@@ -9,26 +9,46 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.1")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.2")
 
-# --- 1. HỆ THỐNG LƯU TRỮ VĨNH VIỄN QUA FILE JSON ---
-USER_FILE = "users_db.json"
+# --- 1. KẾT NỐI SUPABASE CLOUD DATABASE VĨNH VIỄN ---
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+def get_supabase_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
 
 def load_users():
-    if os.path.exists(USER_FILE):
-        try:
-            with open(USER_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return {}
+    if not SUPABASE_KEY:
+        print("⚠️ Chưa cấu hình SUPABASE_KEY, dùng bộ nhớ tạm!")
+        return {}
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/cineai_store?id=eq.1&select=payload"
+        response = requests.get(url, headers=get_supabase_headers(), timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                return data[0].get("payload", {})
+    except Exception as e:
+        print("Lỗi tải từ Supabase:", e)
     return {}
 
 def save_users():
+    if not SUPABASE_KEY:
+        return
     try:
-        with open(USER_FILE, "w", encoding="utf-8") as f:
-            json.dump(USERS_DB, f, ensure_ascii=False, indent=4)
+        url = f"{SUPABASE_URL}/rest/v1/cineai_store"
+        payload = {"id": 1, "payload": USERS_DB}
+        headers = get_supabase_headers()
+        headers["Prefer"] = "resolution=merge-duplicates"
+        requests.post(url, json=payload, headers=headers, timeout=10)
     except Exception as e:
-        print("Lỗi lưu file:", e)
+        print("Lỗi lưu lên Supabase:", e)
 
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {} # {session_token: username}
@@ -75,7 +95,7 @@ async def home(request: Request, session_token: str = Cookie(None), view: str = 
     if not username:
         return render_auth_page(error="")
     
-    user_projects = USERS_DB[username]["projects"]
+    user_projects = USERS_DB.get(username, {}).get("projects", [])
     current_story = ""
     result_html = "<div style='color: #94a3b8; font-size: 15px; padding: 10px;'>👋 Chào mừng bạn đến với Cine AI Studio Pro 3.0. Nhập ý tưởng kịch bản bên dưới để Đạo diễn ảo bắt đầu vận hành 12 tầng...</div>"
     
@@ -103,7 +123,7 @@ async def register(username: str = Form(...), password: str = Form(...)):
     
     pwd_hash, salt = hash_password(password)
     USERS_DB[username] = {"password_hash": pwd_hash, "salt": salt, "projects": []}
-    save_users()
+    save_users() # Lưu vĩnh viễn lên Supabase
     return render_auth_page(error="", success="✨ Đăng ký thành công! Bạn có thể đăng nhập ngay bên dưới.")
 
 @app.post("/auth/login", response_class=HTMLResponse)
@@ -139,7 +159,7 @@ async def produce_film(request: Request, story: str = Form(""), session_token: s
         return RedirectResponse(url="/", status_code=303)
 
     if not story.strip():
-        return render_studio_dashboard(username, "", "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>", USERS_DB[username]["projects"])
+        return render_studio_dashboard(username, "", "<p style='color: #ef4444; font-size: 16px;'>❌ Vui lòng nhập nội dung cốt truyện!</p>", USERS_DB.get(username, {}).get("projects", []))
 
     director_prompt = f"""
     Bạn là Đạo diễn ảo của Cine AI Studio Pro 3.0. Dựa trên cốt truyện: "{story}", 
@@ -159,7 +179,7 @@ async def produce_film(request: Request, story: str = Form(""), session_token: s
         </div>
         """
 
-    return render_studio_dashboard(username, story, output_html, USERS_DB[username]["projects"])
+    return render_studio_dashboard(username, story, output_html, USERS_DB.get(username, {}).get("projects", []))
 
 @app.post("/project/save", response_class=HTMLResponse)
 async def save_project(story: str = Form(""), result_html: str = Form(""), session_token: str = Cookie(None)):
@@ -185,11 +205,14 @@ async def save_project(story: str = Form(""), result_html: str = Form(""), sessi
         "time": time_str
     }
     
+    if username not in USERS_DB:
+        USERS_DB[username] = {"password_hash": "", "salt": "", "projects": []}
+    
     USERS_DB[username]["projects"].insert(0, new_proj)
-    save_users()
+    save_users() # Lưu vĩnh viễn lên Supabase
     return RedirectResponse(url="/?view=library", status_code=303)
 
-# --- 4. GIAO DIỆN HTML (MOBILE-FRIENDLY & UX HOÀN HẢO) ---
+# --- 4. GIAO DIỆN HTML ---
 def render_auth_page(error="", success=""):
     err_div = f"<div style='background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>{error}</div>" if error else ""
     suc_div = f"<div style='background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #86efac; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px;'>{success}</div>" if success else ""
