@@ -58,17 +58,14 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 
-# --- HÀM ĐỌC KEY SIÊU LINH HOẠT, CHẤP MỌI ĐỊNH DẠNG ---
+# --- HÀM ĐỌC KEY VÀ XỬ LÝ TOKEN THÔNG MINH (HỖ TRỢ CẢ AIza VÀ AQ.) ---
 def get_gemini_keys():
     keys = []
-    # Quét toàn bộ biến môi trường trên Render, tìm biến nào có chữ GEMINI
     for name, val in os.environ.items():
         if "GEMINI" in name.upper() and val:
-            # Thay thế mọi ký tự phân tách có thể xảy ra (dấu phẩy, chấm phẩy, khoảng trắng thừa) thành dấu phẩy
             normalized = val.replace(";", ",").replace(" ", ",")
             for k in normalized.split(","):
                 clean_k = k.strip()
-                # Key chuẩn của Gemini bắt đầu bằng AIza hoặc AQ...
                 if len(clean_k) > 10 and clean_k not in keys:
                     keys.append(clean_k)
     return keys
@@ -81,9 +78,19 @@ def call_gemini_direct(prompt_text):
     
     selected_key = random.choice(keys)
     models_to_try = ['gemini-1.5-flash', 'gemini-pro']
+    
     for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
-        headers = {"Content-Type": "application/json"}
+        # Kiểm tra định dạng token: nếu bắt đầu bằng AQ. dùng Bearer, ngược lại dùng ?key=
+        if selected_key.startswith("AQ."):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {selected_key}"
+            }
+        else:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
+            headers = {"Content-Type": "application/json"}
+            
         payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=30)
@@ -91,9 +98,11 @@ def call_gemini_direct(prompt_text):
                 data = response.json()
                 text_result = data["candidates"][0]["content"]["parts"][0]["text"]
                 return text_result, model_name
-        except Exception:
+        except Exception as e:
+            print("Lỗi request Gemini:", e)
             pass
-    return None, "Lỗi gọi Gemini API"
+            
+    return None, "Lỗi gọi Gemini API (Kiểm tra lại quyền của token AQ.)"
 
 
 @app.post("/api/cineai/chat")
