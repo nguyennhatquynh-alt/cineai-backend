@@ -58,18 +58,16 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 
-def get_gemini_keys():
-    raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "") or os.getenv("GEMINI_KEY", "")
-    keys = [k.strip() for k in raw.split(",") if k.strip()]
-    return keys
+# --- HÀM GỌI GEMINI CHUẨN XÁC CỦA HÔM QUA ---
+GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
+GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
 
 
 def call_gemini_direct(prompt_text):
-    keys = get_gemini_keys()
-    if not keys:
-        return None, "Chưa tìm thấy API Key!"
+    if not GEMINI_KEYS:
+        return None, "Chưa cấu hình GEMINI_API_KEYS trong biến môi trường!"
     
-    selected_key = random.choice(keys)
+    selected_key = random.choice(GEMINI_KEYS)
     models_to_try = ['gemini-1.5-flash', 'gemini-pro']
     for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
@@ -101,7 +99,7 @@ async def chat_with_director(data: dict):
     
     reply_text, _ = call_gemini_direct(prompt)
     if not reply_text:
-        reply_text = "⚠️ Chưa cấu hình hoặc lỗi kết nối API Key trên Render."
+        reply_text = "⚠️ Chưa cấu hình hoặc lỗi kết nối GEMINI_API_KEYS trên Render."
         
     return JSONResponse({"reply": reply_text})
 
