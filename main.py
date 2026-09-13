@@ -58,7 +58,6 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 
-# --- HÀM ĐỌC KEY VÀ GỌI GEMINI CHUẨN XÁC NHƯ HÔM QUA ---
 def get_gemini_keys():
     raw = os.getenv("GEMINI_API_KEYS", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
@@ -73,8 +72,13 @@ def call_gemini_direct(prompt_text):
     models_to_try = ['gemini-1.5-flash', 'gemini-pro']
     
     for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
         headers = {"Content-Type": "application/json"}
+        if selected_key.startswith("AQ."):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+            headers["Authorization"] = f"Bearer {selected_key}"
+        else:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
+            
         payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=30)
@@ -82,10 +86,13 @@ def call_gemini_direct(prompt_text):
                 data = response.json()
                 text_result = data["candidates"][0]["content"]["parts"][0]["text"]
                 return text_result, model_name
-        except Exception:
+            else:
+                print(f"Render Log - API Error {response.status_code}: {response.text}")
+        except Exception as e:
+            print("Render Log - Exception:", e)
             pass
             
-    return None, "Lỗi gọi Gemini API"
+    return None, "Lỗi kết nối Gemini API (Token AQ. có thể đã hết hạn)"
 
 
 @app.post("/api/cineai/chat")
@@ -101,9 +108,9 @@ async def chat_with_director(data: dict):
         f"Yêu cầu từ người dùng: {user_message}"
     )
     
-    reply_text, _ = call_gemini_direct(prompt)
+    reply_text, err_msg = call_gemini_direct(prompt)
     if not reply_text:
-        reply_text = "⚠️ Lỗi kết nối Gemini API. Vui lòng thử lại."
+        reply_text = f"⚠️ {err_msg}"
         
     return JSONResponse({"reply": reply_text})
 
