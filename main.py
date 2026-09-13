@@ -59,7 +59,6 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 
-# --- HÀM GỌI GEMINI SỬ DỤNG SDK GOOGLE-GENAI MỚI NHẤT CHO KEY AQ. ---
 def get_gemini_keys():
     raw = os.getenv("GEMINI_API_KEYS", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
@@ -72,11 +71,17 @@ def call_gemini_direct(prompt_text):
     
     selected_key = random.choice(keys)
     
-    # Thử gọi các model phù hợp với SDK mới
-    models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash']
+    # Bắt lỗi chi tiết từng bước SDK
+    try:
+        client = genai.Client(api_key=selected_key)
+    except Exception as e:
+        return None, f"Lỗi khởi tạo genai.Client: {str(e)}"
+    
+    models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-pro']
+    last_error = ""
+    
     for model_name in models_to_try:
         try:
-            client = genai.Client(api_key=selected_key)
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt_text,
@@ -84,10 +89,10 @@ def call_gemini_direct(prompt_text):
             if response and response.text:
                 return response.text, model_name
         except Exception as e:
-            print(f"Lỗi với model {model_name}:", e)
+            last_error = str(e)
             continue
             
-    return None, "Lỗi gọi Gemini API qua google-genai SDK"
+    return None, f"SDK Error chi tiết: {last_error}"
 
 
 @app.post("/api/cineai/chat")
