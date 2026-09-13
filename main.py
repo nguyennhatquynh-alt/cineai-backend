@@ -4,11 +4,12 @@ import requests
 import hashlib
 import secrets
 import json
+import html
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.0")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="13.1")
 
 # --- 1. HỆ THỐNG LƯU TRỮ VĨNH VIỄN QUA FILE JSON ---
 USER_FILE = "users_db.json"
@@ -132,7 +133,7 @@ async def logout(session_token: str = Cookie(None)):
     return resp
 
 @app.post("/produce", response_class=HTMLResponse)
-async def produce_film(request: Request, story: str = Form(...), session_token: str = Cookie(None)):
+async def produce_film(request: Request, story: str = Form(""), session_token: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return RedirectResponse(url="/", status_code=303)
@@ -161,20 +162,20 @@ async def produce_film(request: Request, story: str = Form(...), session_token: 
     return render_studio_dashboard(username, story, output_html, USERS_DB[username]["projects"])
 
 @app.post("/project/save", response_class=HTMLResponse)
-async def save_project(story: str = Form(...), result_html: str = Form(""), session_token: str = Cookie(None)):
+async def save_project(story: str = Form(""), result_html: str = Form(""), session_token: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_token)
     if not username:
         return RedirectResponse(url="/", status_code=303)
     
     if not story.strip():
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/?view=studio", status_code=303)
     
     project_id = secrets.token_hex(4)
     title = story[:35] + "..." if len(story) > 35 else story
     time_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     if not result_html or "HỒ SƠ 12 TẦNG" not in result_html:
-        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Ý tưởng thô:</b> {story}</div>"
+        result_html = f"<div style='color: #94a3b8; font-size: 15px;'>📝 <b>Ý tưởng thô:</b> {html.escape(story)}</div>"
 
     new_proj = {
         "id": project_id,
@@ -258,7 +259,7 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
             proj_html += f"""
             <div style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
                 <div style="overflow: hidden; padding-right: 10px;">
-                    <div style="color: #38bdf8; font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p['title']}</div>
+                    <div style="color: #38bdf8; font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{html.escape(p['title'])}</div>
                     <div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">🕒 {p['time']}</div>
                 </div>
                 <a href="/?view=studio&edit_id={p['id']}" style="background: #0284c7; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: bold; white-space: nowrap;">📂 Mở Xem</a>
@@ -269,6 +270,9 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
     library_display = "block" if active_tab == "library" else "none"
     studio_active = "active" if active_tab == "studio" else ""
     library_active = "active" if active_tab == "library" else ""
+
+    safe_story = html.escape(story, quote=True)
+    safe_result = html.escape(result_html, quote=True)
 
     return HTMLResponse(content=f"""
     <html>
@@ -317,9 +321,9 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
                         </form>
 
                         <form action="/project/save" method="post" style="margin-top: 5px;">
-                            <input type='hidden' name='story' value='{story}'>
-                            <input type='hidden' name='result_html' value='{result_html.replace('"', '&quot;')}'>
-                            <button type='submit' class='save-btn'>💾 Lưu Ý Tưởng / Dự Án Nháp Ngay</button>
+                            <input type="hidden" name="story" value="{safe_story}">
+                            <input type="hidden" name="result_html" value="{safe_result}">
+                            <button type="submit" class="save-btn">💾 Lưu Ý Tưởng / Dự Án Nháp Ngay</button>
                         </form>
 
                         {result_html}
@@ -334,3 +338,4 @@ def render_studio_dashboard(username: str, story: str, result_html: str, project
         </body>
     </html>
     """)
+    
