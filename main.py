@@ -8,6 +8,7 @@ import html
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+import google.generativeai as genai
 
 app = FastAPI(title="CineAI Studio Pro 3.0 - Production Backend", version="14.9")
 
@@ -52,27 +53,9 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
-# --- 2. CÀI ĐẶT API KEYS & HÀM GỌI GEMINI CHUẨN ---
-GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEYS", "")
+# --- 2. CÀI ĐẶT API KEYS & ENDPOINT CHAT STREAMING CHUẨN ---
+GEMINI_KEYS_RAW = os.getenv("GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEYS", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_RAW.split(",") if k.strip()]
-
-def call_gemini_direct(prompt_text):
-    if not GEMINI_KEYS:
-        return None, "Chưa cấu hình GEMINI_API_KEYS!"
-    selected_key = random.choice(GEMINI_KEYS)
-    models_to_try = ['gemini-1.5-flash', 'gemini-pro']
-    for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
-        headers = {"Content-Type": "application/json"}
-        payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"], model_name
-        except Exception:
-            pass
-    return None, "Lỗi kết nối Gemini API"
 
 @app.post("/api/cineai/stream-chat")
 async def stream_chat(data: dict):
@@ -80,23 +63,33 @@ async def stream_chat(data: dict):
     if not user_message:
         raise HTTPException(status_code=400, detail="Tin nhắn trống")
     
-    prompt = (
+    system_instruction = (
         "Bạn là Đạo diễn ảo chuyên nghiệp của hệ thống Cine AI Studio Pro 3.0. "
         "Hãy phản hồi trực tiếp, tư vấn và cùng người dùng thảo luận kịch bản phim ngắn "
-        "tại Tầng 7 & 8 một cách ngắn gọn, súc tích và chuyên nghiệp.\n\n"
-        f"Yêu cầu từ người dùng: {user_message}"
+        "tại Tầng 7 & 8 một cách ngắn gọn, súc tích và chuyên nghiệp."
     )
     
-    text_result, _ = call_gemini_direct(prompt)
-    if not text_result:
-        text_result = "⚠️ Đạo diễn ảo đang bận, không thể phản hồi lúc này. Vui lòng thử lại!"
-    
-    def generate():
-        chunk_size = 10
-        for i in range(0, len(text_result), chunk_size):
-            yield text_result[i:i+chunk_size]
-            
-    return StreamingResponse(generate(), media_type="text/plain")
+    try:
+        api_key = random.choice(GEMINI_KEYS) if GEMINI_KEYS else os.getenv("GEMINI_API_KEY", "")
+        genai.configure(api_key=api_key)
+        
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            system_instruction=system_instruction
+        )
+        
+        response = model.generate_content(user_message, stream=True)
+        
+        def generate():
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+                    
+        return StreamingResponse(generate(), media_type="text/plain")
+    except Exception as e:
+        def generate_error():
+            yield f"⚠️ Lỗi kết nối Gemini API: {str(e)}"
+        return StreamingResponse(generate_error(), media_type="text/plain")
 
 def hash_password(password: str, salt: str = None):
     if not salt:
