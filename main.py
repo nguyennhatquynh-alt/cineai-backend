@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
-app = FastAPI(title="CineAI Studio Pro 3.0 - Full Production Backend", version="15.5")
+app = FastAPI(title="CineAI Studio Pro 3.0 - Full Production Backend", version="16.0")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -69,26 +69,28 @@ def call_gemini_direct(prompt_text):
         return None, "Chưa cấu hình GEMINI_API_KEYS trên Render!"
     
     selected_key = random.choice(keys)
-    models_to_try = ['gemini-1.5-flash', 'gemini-pro']
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
     
-    for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt_text}]
-            }]
-        }
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                text_result = data["candidates"][0]["content"]["parts"][0]["text"]
-                return text_result, model_name
-        except Exception:
-            pass
-            
-    return None, "Lỗi kết nối Gemini API. Vui lòng kiểm tra lại key AQ."
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            text_result = data["candidates"][0]["content"]["parts"][0]["text"]
+            return text_result, "gemini-1.5-flash"
+        else:
+            try:
+                err_detail = response.json().get("error", {}).get("message", response.text)
+                return None, f"Lỗi Google ({response.status_code}): {err_detail}"
+            except:
+                return None, f"Lỗi HTTP {response.status_code}: {response.text}"
+    except Exception as e:
+        return None, f"Lỗi kết nối: {str(e)}"
 
 
 @app.post("/api/cineai/chat")
@@ -122,7 +124,7 @@ async def home(session_id: str = Cookie(None)):
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     
-    html_content = """
+    html_content = f"""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -139,7 +141,7 @@ async def home(session_id: str = Cookie(None)):
                     <p class="text-xs text-slate-400">Hệ thống sản xuất Kịch bản & Đạo diễn ảo đa tầng</p>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <span class="text-sm text-slate-300 font-medium">👤 Chị Cún</span>
+                    <span class="text-sm text-slate-300 font-medium">👤 {username}</span>
                     <a href="/logout" class="bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg text-sm font-medium transition shadow">Đăng xuất</a>
                 </div>
             </div>
@@ -258,8 +260,9 @@ async def save_project_api(request: Request, session_id: str = Cookie(None)):
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page():
-    return HTMLResponse(content="""
+async def login_page(error: str = None):
+    err_html = '<div class="text-rose-400 text-xs text-center font-medium">⚠️ Sai tên đăng nhập hoặc mật khẩu!</div>' if error else ''
+    return HTMLResponse(content=f"""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -274,6 +277,7 @@ async def login_page():
                 <h2 class="text-2xl font-bold text-amber-400">🔐 Cine AI Studio Pro</h2>
                 <p class="text-xs text-slate-400">Đăng nhập không gian sáng tạo độc lập</p>
             </div>
+            {err_html}
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Tên đăng nhập:</label>
                 <input type="text" name="username" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition">
@@ -283,6 +287,9 @@ async def login_page():
                 <input type="password" name="password" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition">
             </div>
             <button type="submit" class="w-full bg-amber-500 text-slate-950 font-bold py-3.5 rounded-lg hover:bg-amber-400 transition shadow-lg">Đăng Nhập Hệ Thống</button>
+            <div class="text-center text-xs text-slate-400 pt-2">
+                Chưa có tài khoản? <a href="/register" class="text-amber-400 font-semibold hover:underline">Đăng ký ngay</a>
+            </div>
         </form>
     </body>
     </html>
@@ -292,14 +299,71 @@ async def login_page():
 @app.post("/login")
 async def login_post(username: str = Form(...), password: str = Form(...)):
     user_info = USERS_DB.get(username)
-    # Tài khoản mặc định admin/admin123 hoặc kiểm tra trong DB
-    if (username == "admin" and password == "admin123") or (user_info and user_info.get("password_hash") == hashlib.sha256(password.encode()).hexdigest()):
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    if (username == "admin" and password == "admin123") or (user_info and user_info.get("password_hash") == pwd_hash):
         session_id = secrets.token_hex(16)
         ACTIVE_SESSIONS[session_id] = username
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(key="session_id", value=session_id)
         return response
     return RedirectResponse(url="/login?error=1", status_code=303)
+
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(error: str = None):
+    err_html = '<div class="text-rose-400 text-xs text-center font-medium">⚠️ Tên đăng nhập đã tồn tại!</div>' if error else ''
+    return HTMLResponse(content=f"""
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Đăng ký - Cine AI Studio Pro 3.0</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4">
+        <form method="POST" action="/register" class="bg-slate-900 p-8 rounded-2xl border border-slate-800 w-full max-w-md space-y-5 shadow-2xl">
+            <div class="text-center space-y-1">
+                <h2 class="text-2xl font-bold text-amber-400">📝 Đăng Ký Tài Khoản</h2>
+                <p class="text-xs text-slate-400">Tạo không gian lưu trữ kịch bản độc lập</p>
+            </div>
+            {err_html}
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Tên đăng nhập:</label>
+                <input type="text" name="username" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Mật khẩu:</label>
+                <input type="password" name="password" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-sm focus:outline-none focus:border-amber-500 transition">
+            </div>
+            <button type="submit" class="w-full bg-amber-500 text-slate-950 font-bold py-3.5 rounded-lg hover:bg-amber-400 transition shadow-lg">Đăng Ký Tài Khoản</button>
+            <div class="text-center text-xs text-slate-400 pt-2">
+                Đã có tài khoản? <a href="/login" class="text-amber-400 font-semibold hover:underline">Đăng nhập ngay</a>
+            </div>
+        </form>
+    </body>
+    </html>
+    """)
+
+
+@app.post("/register")
+async def register_post(username: str = Form(...), password: str = Form(...)):
+    if username in USERS_DB:
+        return RedirectResponse(url="/register?error=1", status_code=303)
+    
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    USERS_DB[username] = {
+        "password_hash": pwd_hash,
+        "salt": "",
+        "projects": []
+    }
+    save_users()
+    
+    session_id = secrets.token_hex(16)
+    ACTIVE_SESSIONS[session_id] = username
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(key="session_id", value=session_id)
+    return response
 
 
 @app.get("/logout")
