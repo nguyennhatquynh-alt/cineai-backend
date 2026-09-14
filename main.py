@@ -1244,14 +1244,16 @@ def get_studio_javascript():
                 const dur = document.getElementById('film-duration') ? document.getElementById('film-duration').value : "45p";
                 
                 try {
-                    await fetch('/api/cineai/save-draft', {
+                    const res = await fetch('/api/cineai/save-draft', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({old_title: currentProjectTitle, title: title, header: header, story: story, aspect_ratio: ratio, target_duration: dur, tier: targetTier})
                     });
+                    const data = await res.json();
+                    if (data.saved_title) currentProjectTitle = data.saved_title;
                 } catch(e) {}
                 
-                window.location.href = '/?load_project=' + encodeURIComponent(title) + '&tier=' + targetTier;
+                window.location.href = '/?load_project=' + encodeURIComponent(currentProjectTitle) + '&tier=' + targetTier;
             }
 
 
@@ -1464,13 +1466,13 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
         save_users()
 
 
-    if tier and tier > target_project.get("highest_tier", 1):
-        target_project["highest_tier"] = tier
+    if tier:
+        target_project["highest_tier"] = max(target_project.get("highest_tier", 1), tier)
+        active_tier = tier
         save_users()
-
-
+    else:
+        active_tier = target_project.get("highest_tier", 1)
     highest_tier = target_project.get("highest_tier", 1)
-    active_tier = tier if tier else highest_tier
 
 
     tokens_html = ""
