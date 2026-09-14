@@ -72,7 +72,7 @@ def call_gemini_direct(prompt_text):
     if not keys:
         return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
     selected_key = random.choice(keys)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={selected_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={selected_key}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
     try:
