@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
-app = FastAPI(title="Cine AI Studio Pro 6.5 - Full Enterprise Commercial Progressive Suite", version="6.5")
+app = FastAPI(title="Cine AI Studio Pro 6.6 - Dynamic Ideation & Multi-Tier Suite", version="6.6")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -156,6 +156,7 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
             "project_raw_story": project_story,
             "token_registry": {"visual_tokens": [], "audio_tokens": []},
             "scene_matrix": {},
+            "ideation_slots": {},
             "highest_tier": target_tier,
             "current_tier": target_tier,
             "tierProgress": f"Tầng {target_tier} (Mới tạo)",
@@ -214,7 +215,6 @@ async def upload_asset_explicit(
     except Exception as e:
         extracted_text = f"Lỗi đọc tệp: {str(e)}"
     
-    # Tự động lưu ngay kịch bản thô vào database Supabase
     if username in USERS_DB and "projects" in USERS_DB[username]:
         for p in USERS_DB[username]["projects"]:
             if p.get("title") == project_title:
@@ -317,27 +317,127 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     if not user_message:
         return JSONResponse({"reply": "Vui lòng nhập nội dung trao đổi với Đạo diễn ảo!"})
     
-    mode_instructions = {
-        1: "Tầng 7 & 8: Khai thác qua 10 câu hỏi phỏng vấn cốt lõi, tự động điền thông tin, xây dựng cốt truyện và kiểm soát nhịp điệu (Pacing Graph) cho phim 45 phút.",
-        2: "Tầng 9 & 10: Bóc tách kịch bản thành thước phim 30s-150s, áp dụng mã khóa cứng (FaceID, Costume & Prop Token, Landscape Token, Cinematic Color Grading Token) chống lỗi AI.",
-        3: "Tầng 11 & 12: Niêm phong dữ liệu gốc, điều phối AI render tích hợp mã lệnh Stereo 3D spatial audio và quản lý kho lưu trữ biến thể (Alternate Takes).",
-        4: "Tầng 13 đến 16: Render toàn tập, quản lý hạn mức dung lượng/thời lượng, xuất file HD/2K/4K (9:16 hoặc 16:9) và phát triển/tiếp nối dự án."
-    }
-    
-    system_persona = (
-        "Bạn là Đạo diễn ảo thấu cảm và chuyên gia sản xuất phim thương mại cấp cao của Cine AI Studio Pro 6.5. "
-        f"Trạng thái vận hành hiện tại: {mode_instructions.get(tier, mode_instructions[1])} "
-        "Hãy đóng vai trò người dẫn dắt thông minh, tự động phân tích ý tưởng, đưa ra prompt chuyên sâu chống lỗi trôi nhân vật, đạo cụ ma và lệch màu sắc.\n\n"
-        f"Dự án hiện tại: {project_title}\n"
-    )
-    prompt = system_persona + f"Yêu cầu từ nhà sáng tạo: {user_message}"
-    reply_text, err_msg = call_gemini_direct(prompt)
-    if not reply_text:
-        reply_text = f"⚠️ {err_msg}"
+    if tier == 1:
+        target_project = None
+        if username in USERS_DB and "projects" in USERS_DB[username]:
+            for p in USERS_DB[username]["projects"]:
+                if p.get("title") == project_title:
+                    target_project = p
+                    break
         
-    return JSONResponse({"reply": reply_text, "project": project_title})
+        current_slots = target_project.get("ideation_slots", {}) if target_project else {}
+        
+        system_persona = (
+            "Bạn là Đạo diễn ảo thấu cảm và Chuyên gia tâm lý sáng tạo của Cine AI Studio Pro 6.6. "
+            "Nhiệm vụ: Trò chuyện tâm tình hoặc dẫn dắt trò chơi 'Nếu như...' để khơi mở cảm xúc và khai thác 5 biến số điện ảnh cho phim 45 phút:\n"
+            "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh)\n"
+            "2. CORE_WOUND (Nỗi đau, vết thương lòng, điều giằng xé của nhân vật)\n"
+            "3. TRIGGER_PROP (Đạo cụ định mệnh, vật kích hoạt biến cố)\n"
+            "4. DILEMMA (Điểm xoay giữa phim, lựa chọn đánh đổi sinh tử)\n"
+            "5. CATHARSIS (Hồi kết mong muốn: Chữa lành, Day dứt, hay Bi tráng)\n\n"
+            f"Các Slots đã thu thập được: {json.dumps(current_slots, ensure_ascii=False)}\n"
+            "Quy tắc phản hồi: Trả về DUY NHẤT một chuỗi JSON hợp lệ theo định dạng:\n"
+            "{\n"
+            '  "message": "Câu nói tâm tình ngắn gọn, chạm cảm xúc (1-2 câu)",\n'
+            '  "extracted_slots": {"TÊN_SLOT": "Giá trị trích xuất từ câu trả lời của user"},\n'
+            '  "quick_chips": ["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3"],\n'
+            '  "is_ready_for_script": true/false (true nếu đã thu thập được ít nhất 3 slots)\n'
+            "}"
+        )
+        prompt = system_persona + f"\nUser vừa chia sẻ: {user_message}"
+        raw_res, err_msg = call_gemini_direct(prompt)
+        
+        parsed = None
+        if raw_res:
+            try:
+                clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
+                parsed = json.loads(clean_json)
+            except Exception:
+                parsed = None
+                
+        if parsed and isinstance(parsed, dict):
+            new_slots = parsed.get("extracted_slots", {})
+            if target_project and new_slots:
+                if "ideation_slots" not in target_project:
+                    target_project["ideation_slots"] = {}
+                target_project["ideation_slots"].update(new_slots)
+                save_users()
+            return JSONResponse({
+                "reply": parsed.get("message", "Tôi rất đồng cảm với điều bạn vừa chia sẻ."),
+                "chips": parsed.get("quick_chips", ["Một người sẽ biến mất", "Bí mật bị chôn giấu", "Tha thứ cho quá khứ"]),
+                "ready": parsed.get("is_ready_for_script", False)
+            })
+        else:
+            return JSONResponse({
+                "reply": raw_res or f"⚠️ {err_msg}",
+                "chips": ["Tiếng mưa rơi trên mái tôn", "Bức ảnh cũ phai màu", "Một lời xin lỗi muộn màng"],
+                "ready": False
+            })
 
 
+    mode_instructions = {
+        2: "Tầng 9 & 10: Khóa cứng FaceID nhân vật, phục trang, bối cảnh và phong cách âm thanh Audiophile 3D chống lỗi AI.",
+        3: "Tầng 11 & 12: Bóc tách kịch bản thành các Scene 30s-150s, ma trận 3 Hồi và kiểm soát nhịp điệu Pacing Graph.",
+        4: "Tầng 13 đến 16: Render toàn tập, Alternate Takes, Timeline Rough-Cut và xuất file phụ đề .SRT."
+    }
+    system_persona = (
+        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.6. Trạng thái vận hành: {mode_instructions.get(tier, '')} "
+        "Hãy phản hồi ngắn gọn, sắc sảo, chuyên nghiệp.\n"
+        f"Dự án: {project_title}\n"
+    )
+    reply_text, err_msg = call_gemini_direct(system_persona + f"Ý kiến: {user_message}")
+    return JSONResponse({"reply": reply_text or f"⚠️ {err_msg}", "chips": []})
+
+
+@app.post("/api/cineai/generate-script-from-slots")
+async def generate_script_from_slots(request: Request, session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    data = await request.json()
+    project_title = data.get("title", "Dự án mới")
+    
+    target_project = None
+    if username in USERS_DB and "projects" in USERS_DB[username]:
+        for p in USERS_DB[username]["projects"]:
+            if p.get("title") == project_title:
+                target_project = p
+                break
+                
+    slots = target_project.get("ideation_slots", {}) if target_project else {}
+    slots_text = json.dumps(slots, ensure_ascii=False) if slots else "Ý tưởng tự do về tình cảm và chia ly dưới mưa."
+    
+    prompt = (
+        "Bạn là Nhà biên kịch bậc thầy của Cine AI Studio Pro 6.6. Dựa vào các biến số tâm lý sau:\n"
+        f"{slots_text}\n"
+        "Hãy tạo ra một kịch bản phim 45 phút hoàn chỉnh theo cấu trúc 3 Hồi chuẩn mực. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
+        "{\n"
+        '  "title": "Tên phim gợi ý đầy chất thơ",\n'
+        '  "header": "Thể loại: ... • Logline: ...",\n'
+        '  "story": "Nội dung câu chuyện 3 Hồi hoàn chỉnh (khoảng 800 - 1500 từ), nêu rõ tên nhân vật chính, đạo cụ then chốt, bối cảnh và xung đột cao trào."\n'
+        "}"
+    )
+    raw_res, err = call_gemini_direct(prompt)
+    if not raw_res:
+        return JSONResponse({"status": "error", "message": f"⚠️ {err}"}, status_code=500)
+        
+    try:
+        clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
+        res_data = json.loads(clean_json)
+    except Exception:
+        res_data = {
+            "title": project_title,
+            "header": "Thể loại: Tâm lý tình cảm • Khởi tạo tự động",
+            "story": raw_res
+        }
+        
+    if target_project:
+        target_project["title"] = res_data.get("title", project_title)
+        target_project["header"] = res_data.get("header", "")
+        target_project["project_raw_story"] = res_data.get("story", "")
+        save_users()
+        
+    return JSONResponse({"status": "success", "data": res_data})
 @app.post("/api/cineai/breakdown-scenes-enterprise")
 async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -355,7 +455,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
                 break
                     
     if not raw_story:
-        return JSONResponse({"reply": "⚠️ Chưa có nội dung kịch bản thô. Vui lòng nhập hoặc tải lên kịch bản tại Tầng 1!"}, status_code=400)
+        return JSONResponse({"reply": "⚠️ Chưa có nội dung kịch bản thô. Vui lòng hoàn thiện kịch bản tại Tầng 1!"}, status_code=400)
     
     keys = get_gemini_keys()
     if not keys:
@@ -366,35 +466,13 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
     url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={selected_key}"
     
     pro_prompt = (
-        "Bạn là Tổng đạo diễn và Kiến trúc sư thuật toán của Cine AI Studio Pro 6.5. "
-        "Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm văn bản ngoài), "
+        "Bạn là Tổng đạo diễn và Kiến trúc sư thuật toán của Cine AI Studio Pro 6.6. "
+        "Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
         "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III) cho phim 45 phút. "
-        "Mỗi cảnh (Scene) phải có thời lượng từ 30 đến 150 giây và gắn Global Lock-in Tokens.\n\n"
-        "Định dạng JSON yêu cầu:\n"
-        "{\n"
-        '  "acts": [\n'
-        "    {\n"
-        '      "act_name": "Act I",\n'
-        '      "scenes": [\n'
-        "        {\n"
-        '          "scene_id": 1,\n'
-        '          "title": "Tên cảnh",\n'
-        '          "duration_sec": 60,\n'
-        '          "summary": "Nội dung ngắn gọn",\n'
-        '          "lock_tokens": {\n'
-        '            "face_id": "CHAR_A_TOKEN",\n'
-        '            "costume": "COSTUME_A_TOKEN",\n'
-        '            "landscape": "LOC_A_TOKEN",\n'
-        '            "color_grading": "CINEMATIC_WARM_LUT"\n'
-        "          }\n"
-        "        }\n"
-        "      ]\n"
-        "    }\n"
-        "  ]\n"
-        "}\n\n"
-        f"Nội dung kịch bản gốc:\n{raw_story}"
+        "Mỗi cảnh (Scene) có thời lượng 30s-150s và gắn Global Lock-in Tokens.\n\n"
+        f"Kịch bản gốc:\n{raw_story}"
     )
-    payload = {"contents": [{"parts": [{"text": pro_prompt}]}], "systemInstruction": {"parts": [{"text": "Luôn luôn trả về định dạng JSON thuần túy chuẩn xác 100%, không giải thích dài dòng."}]}}
+    payload = {"contents": [{"parts": [{"text": pro_prompt}]}], "systemInstruction": {"parts": [{"text": "Luôn luôn trả về định dạng JSON thuần túy chuẩn xác 100%."}]}}
     headers = {"Content-Type": "application/json"}
     
     parsed_scenes = None
@@ -402,8 +480,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=40)
             data_res = response.json()
-            raw_response = data_res["candidates"][0]["content"]["parts"][0]["text"]
-            clean_json_str = re.sub(r"^```json\s*|\s*```$", "", raw_response.strip(), flags=re.IGNORECASE)
+            clean_json_str = re.sub(r"^```json\s*|\s*```$", "", data_res["candidates"][0]["content"]["parts"][0]["text"].strip(), flags=re.IGNORECASE)
             parsed_scenes = json.loads(clean_json_str)
             break
         except Exception:
@@ -423,7 +500,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
 
 
     structured_data = {
-        "schema_version": "6.5-Enterprise",
+        "schema_version": "6.6-Enterprise",
         "routing_model": model_name,
         "self_healing_applied": True,
         "pacing_metrics": {"total_duration_sec": total_duration, "act_breakdown": act_durations},
@@ -444,7 +521,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         
     return JSONResponse({
         "status": "success",
-        "message": "🌟 Đã bóc tách phân cảnh kịch bản cấp độ Enterprise 6.5!",
+        "message": "🌟 Đã bóc tách phân cảnh kịch bản cấp độ Enterprise 6.6!",
         "metrics": structured_data["pacing_metrics"],
         "data": parsed_scenes
     })
@@ -703,6 +780,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             "header": "Thể loại: Cổ phong huyền huyễn • Tình cảm tâm lý",
             "project_raw_story": "",
             "token_registry": {"visual_tokens": [], "audio_tokens": []},
+            "ideation_slots": {},
             "highest_tier": 1,
             "current_tier": 1
         }
@@ -711,7 +789,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
         save_users()
 
 
-    # Mở khóa: nếu user chủ động bấm sang tier mới, cho phép cập nhật highest_tier ngay
     if tier and tier > target_project.get("highest_tier", 1):
         target_project["highest_tier"] = tier
         save_users()
@@ -736,7 +813,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.5 - Progressive Suite</title>
+        <title>Cine AI Studio Pro 6.6 - Dynamic Ideation Suite</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans">
@@ -744,7 +821,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             
             <div class="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
                 <div>
-                    <h1 class="text-base sm:text-lg font-bold text-amber-400">🎬 Cine AI Studio Pro 6.5</h1>
+                    <h1 class="text-base sm:text-lg font-bold text-amber-400">🎬 Cine AI Studio Pro 6.6</h1>
                     <p class="text-xs text-slate-400">Dự án: <b class="text-slate-200">PROJECT_TITLE_VAL</b></p>
                 </div>
                 <div class="flex items-center gap-2">
@@ -755,7 +832,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             </div>
 
 
-            <!-- THANH TIẾN TRÌNH TUẦN TỰ (BREADCRUMB) -->
+            <!-- THANH TIẾN TRÌNH TUẦN TỰ -->
             <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-xs font-bold">
                 <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=1" class="py-2.5 rounded-xl transition TIER_1_CLASS">1. Kịch Bản</a>
                 <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=2" class="py-2.5 rounded-xl transition TIER_2_CLASS">2. Khóa Token</a>
@@ -764,31 +841,39 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             </div>
 
 
-            <!-- MÀN HÌNH TẦNG 1: KỊCH BẢN GỐC -->
+            <!-- MÀN HÌNH TẦNG 1: KỊCH BẢN GỐC & KHỞI MỞ Ý TƯỞNG -->
             <div id="screen-tier-1" class="TIER_1_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">📝 Tầng 1: Khai Mở Ý Tưởng & Kịch Bản Gốc</h2>
-                    <span class="text-xs bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20">Bước 1/4</span>
+                    <span class="text-xs bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 font-bold">Bước 1/4</span>
                 </div>
+                
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 mb-1">Tên Dự Án Phim:</label>
                     <input type="text" id="project-title" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-amber-300 font-bold">
                 </div>
+                
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 mb-1">Đề Mục / Logline & Thể Loại:</label>
                     <input type="text" id="project-header" value="PROJECT_HEADER_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200">
                 </div>
+                
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Nội Dung Kịch Bản Thô (Text):</label>
-                    <textarea id="project-story" rows="5" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500">PROJECT_STORY_VAL</textarea>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs font-semibold text-slate-400">Nội Dung Kịch Bản Thô (Text):</label>
+                        <span id="word-count-badge" class="text-[11px] text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-800/60">0 từ</span>
+                    </div>
+                    <textarea id="project-story" rows="6" oninput="updateWordCount()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed">PROJECT_STORY_VAL</textarea>
                 </div>
+                
                 <div class="space-y-2 p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
-                    <span class="text-xs text-slate-400">Hoặc tải tệp kịch bản (.txt, .md):</span>
+                    <span class="text-xs text-slate-400">Hoặc nạp file kịch bản có sẵn (.txt, .md):</span>
                     <div class="flex gap-2">
                         <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400 cursor-pointer">
                         <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition">Nạp File</button>
                     </div>
                 </div>
+                
                 <div class="flex gap-2 pt-2">
                     <button onclick="saveDraftCurrent(1)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition shadow">💾 Lưu Nháp</button>
                     <button onclick="proceedToTier(2)" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp tục (hoặc Bỏ qua) ➔</button>
@@ -800,7 +885,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             <div id="screen-tier-2" class="TIER_2_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🖼️ Tầng 2: Khóa Mẫu Hình Ảnh & Âm Thanh</h2>
-                    <span class="text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20">Bước 2/4</span>
+                    <span class="text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20 font-bold">Bước 2/4</span>
                 </div>
                 <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
                     <label class="block text-xs font-bold text-slate-300">1. Khóa Token Hình Ảnh (Nhân vật, Trang phục, Bối cảnh):</label>
@@ -841,7 +926,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             <div id="screen-tier-3" class="TIER_3_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🎬 Tầng 3: Bóc Tách Phân Cảnh & Ma Trận 3 Hồi</h2>
-                    <span class="text-xs bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full border border-purple-500/20">Bước 3/4</span>
+                    <span class="text-xs bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full border border-purple-500/20 font-bold">Bước 3/4</span>
                 </div>
                 <button onclick="runBreakdown()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3.5 rounded-2xl text-xs shadow-lg transition">🚀 Kích Hoạt AI Bóc Tách Phân Cảnh</button>
                 <div id="breakdown-result" class="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs space-y-2 text-slate-300 max-h-44 overflow-y-auto">
@@ -859,7 +944,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             <div id="screen-tier-4" class="TIER_4_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🎞️ Tầng 4: Phòng Dựng, Render & Xuất Bản</h2>
-                    <span class="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-800/20">Bước 4/4</span>
+                    <span class="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-800/20 font-bold">Bước 4/4</span>
                 </div>
                 <div class="space-y-2.5">
                     <button onclick="renderScene(1)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-3.5 rounded-2xl text-xs shadow-lg transition">🎬 Render Phân Cảnh Mẫu (5 Credit)</button>
@@ -873,15 +958,28 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             </div>
 
 
-            <!-- CỬA SỔ CHAT ĐẠO DIỄN ẢO TƯƠNG TÁC TỪNG CHẶNG -->
-            <div class="bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">💬 Đạo Diễn Ảo Đồng Hành (Tầng ACTIVE_TIER_VAL)</span>
-                <div id="chat-box" class="bg-slate-950 h-32 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2">
-                    <p class="text-blue-200">Chào bạn! Tôi đang đồng hành cùng bạn tại Tầng ACTIVE_TIER_VAL. Bạn có thể trao đổi ý tưởng hoặc bấm Skip để đi tiếp.</p>
+            <!-- CỬA SỔ ĐẠO DIỄN ẢO TƯƠNG TÁC TÂM LÝ & QUICK-REPLY CHIPS -->
+            <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">💬 Đạo Diễn Ảo Khơi Mở Ý Tưởng (Tầng ACTIVE_TIER_VAL)</span>
+                    <button id="btn-generate-script" onclick="autoGenerateScriptFromSlots()" class="hidden bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-[11px] shadow-lg transition animate-pulse">✨ Khởi Tạo Kịch Bản 45 Phút</button>
                 </div>
-                <div class="flex gap-2">
-                    <input type="text" id="chat-input" placeholder="Trao đổi với Đạo diễn ảo..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs focus:outline-none focus:border-amber-500">
-                    <button onclick="sendChat()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-3 rounded-xl font-bold text-xs text-white transition">Gửi</button>
+                
+                <div id="chat-box" class="bg-slate-950 h-44 rounded-2xl p-3.5 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2.5 leading-relaxed">
+                    <p class="text-blue-200">Chào bạn! Tôi là Đạo diễn ảo đồng hành. Giờ này bạn đang ngồi ở đâu, và âm thanh rõ nhất bạn nghe thấy lúc này là gì?</p>
+                </div>
+                
+                <!-- KHAY QUICK-REPLY CHIPS -->
+                <div id="quick-chips-tray" class="flex flex-wrap gap-2 pt-1">
+                    <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Tiếng mưa rơi trên mái tôn</button>
+                    <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Quán cà phê đông đúc ồn ã</button>
+                    <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Căn phòng đêm tĩnh mịch</button>
+                    <button onclick="focusCustomInput()" class="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm">✍️ Lựa chọn khác...</button>
+                </div>
+                
+                <div class="flex gap-2 pt-1">
+                    <input type="text" id="chat-input" placeholder="Nhập tâm sự hoặc chọn gợi ý bên trên..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 transition" onkeypress="if(event.key==='Enter') sendChat()">
+                    <button onclick="sendChat()" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-3.5 rounded-xl font-bold text-xs text-white transition shadow-lg">Gửi</button>
                 </div>
             </div>
 
@@ -893,13 +991,32 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             let currentProjectTitle = "PROJECT_TITLE_VAL";
 
 
-            // Hàm chuyển tầng mượt mà và tự động nâng tiến độ cao nhất
+            function updateWordCount() {
+                const story = document.getElementById('project-story').value.trim();
+                const words = story ? story.split(/\s+/).length : 0;
+                document.getElementById('word-count-badge').innerText = words + ' từ';
+            }
+            updateWordCount();
+
+
+            function selectChip(text) {
+                document.getElementById('chat-input').value = text;
+                sendChat();
+            }
+
+
+            function focusCustomInput() {
+                const input = document.getElementById('chat-input');
+                input.placeholder = "Nhập ý tưởng riêng của bạn...";
+                input.focus();
+            }
+
+
             async function proceedToTier(targetTier) {
                 const title = document.getElementById('project-title') ? document.getElementById('project-title').value : currentProjectTitle;
                 const header = document.getElementById('project-header') ? document.getElementById('project-header').value : "";
                 const story = document.getElementById('project-story') ? document.getElementById('project-story').value : "";
                 
-                // Tự động lưu nháp dữ liệu hiện tại trước khi chuyển
                 try {
                     await fetch('/api/cineai/save-draft', {
                         method: 'POST',
@@ -946,8 +1063,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     const data = await res.json();
                     if(data.status === 'success') {
                         document.getElementById('project-story').value = data.extracted_content;
+                        updateWordCount();
                         alert(data.message);
-                        // Tự động lưu nháp ngay lập tức vào database
                         saveDraftCurrent(1);
                     } else {
                         alert(data.message);
@@ -1036,18 +1153,73 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             async function sendChat() {
                 const input = document.getElementById('chat-input');
                 const box = document.getElementById('chat-box');
+                const chipsTray = document.getElementById('quick-chips-tray');
+                const btnGen = document.getElementById('btn-generate-script');
                 const text = input.value.trim();
                 if(!text) return;
-                box.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-2.5 rounded-xl inline-block text-slate-100">' + text + '</span></div>';
+
+
+                box.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-2.5 rounded-xl inline-block text-slate-100 max-w-[85%] text-left">' + text + '</span></div>';
                 input.value = '';
-                const res = await fetch('/api/cineai/chat', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: text, title: currentProjectTitle, tier: currentActiveTier})
-                });
-                const data = await res.json();
-                box.innerHTML += '<div class="bg-blue-950/60 p-2.5 rounded-xl text-blue-200">' + data.reply + '</div>';
                 box.scrollTop = box.scrollHeight;
+
+
+                try {
+                    const res = await fetch('/api/cineai/chat', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({message: text, title: currentProjectTitle, tier: currentActiveTier})
+                    });
+                    const data = await res.json();
+                    box.innerHTML += '<div class="bg-blue-950/60 border border-blue-800/50 p-3 rounded-xl text-blue-200 leading-relaxed max-w-[85%]">' + data.reply + '</div>';
+                    box.scrollTop = box.scrollHeight;
+
+
+                    if (data.chips && data.chips.length > 0) {
+                        let chipHtml = '';
+                        data.chips.forEach(c => {
+                            chipHtml += '<button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">' + c + '</button>';
+                        });
+                        chipHtml += '<button onclick="focusCustomInput()" class="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm">✍️ Lựa chọn khác...</button>';
+                        chipsTray.innerHTML = chipHtml;
+                    }
+
+
+                    if (data.ready) {
+                        btnGen.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    box.innerHTML += '<div class="bg-rose-950/60 p-2.5 rounded-xl text-rose-200">⚠️ Lỗi kết nối Đạo diễn ảo!</div>';
+                }
+            }
+
+
+            async function autoGenerateScriptFromSlots() {
+                const box = document.getElementById('chat-box');
+                box.innerHTML += '<div class="text-amber-300 font-bold">✨ Đang tổng hợp các biến số tâm lý để tạo kịch bản 45 phút hoàn chỉnh...</div>';
+                box.scrollTop = box.scrollHeight;
+                
+                try {
+                    const res = await fetch('/api/cineai/generate-script-from-slots', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({title: currentProjectTitle})
+                    });
+                    const resData = await res.json();
+                    if (resData.status === 'success') {
+                        document.getElementById('project-title').value = resData.data.title;
+                        document.getElementById('project-header').value = resData.data.header;
+                        document.getElementById('project-story').value = resData.data.story;
+                        currentProjectTitle = resData.data.title;
+                        updateWordCount();
+                        box.innerHTML += '<div class="bg-emerald-950/60 p-3 rounded-xl text-emerald-200 font-bold">🎉 Kịch bản 45 phút đã được sinh thành công và điền vào Tầng 1! Bạn có thể xem lại hoặc bấm Tiếp tục sang Tầng 2.</div>';
+                        box.scrollTop = box.scrollHeight;
+                    } else {
+                        alert(resData.message);
+                    }
+                } catch(e) {
+                    alert('Lỗi tạo kịch bản tự động!');
+                }
             }
         </script>
     </body>
@@ -1108,7 +1280,7 @@ async def library_page(session_id: str = Cookie(None)):
 
 
     library_template = """
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.5</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.6</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-4 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
@@ -1149,20 +1321,19 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
 
 
-    # Tối ưu kích thước Full-Card to rõ trên điện thoại di động
     login_template = """
     <!DOCTYPE html><html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI 6.5</title>
+        <title>Xác Thực - Cine AI 6.6</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
         <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
             <div class="text-center space-y-1">
                 <h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2>
-                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.5 Enterprise</p>
+                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.6 Enterprise</p>
             </div>
             ALERT_ERR_VAL ALERT_SUCC_VAL
             <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
@@ -1241,11 +1412,11 @@ async def community_page(session_id: str = Cookie(None)):
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI 6.5</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI 6.6</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-5 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
-                <h1 class="text-lg font-bold text-amber-400">🌍 Cộng Đồng Phim Public Pro 6.5</h1>
+                <h1 class="text-lg font-bold text-amber-400">🌍 Cộng Đồng Phim Public Pro 6.6</h1>
                 <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs shadow">⚡ Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bảng tin cộng đồng đang kết nối API mạng xã hội...</div>
