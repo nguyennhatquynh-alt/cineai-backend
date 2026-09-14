@@ -146,7 +146,7 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         target_project["current_tier"] = target_tier
         target_project["tierProgress"] = f"Tầng {target_project['highest_tier']} (Tiến độ cao nhất)"
         target_project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg = f"💾 Đã cập nhật thành công nội dung Tầng {target_tier} cho dự án '{new_title}'!"
+        msg = f"💾 Đã lưu thành công dữ liệu cho Tầng {target_tier} của dự án '{new_title}'!"
     else:
         if len(projects) >= 2:
             return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
@@ -214,6 +214,7 @@ async def upload_asset_explicit(
     except Exception as e:
         extracted_text = f"Lỗi đọc tệp: {str(e)}"
     
+    # Tự động lưu ngay kịch bản thô vào database Supabase
     if username in USERS_DB and "projects" in USERS_DB[username]:
         for p in USERS_DB[username]["projects"]:
             if p.get("title") == project_title:
@@ -224,7 +225,7 @@ async def upload_asset_explicit(
     
     return JSONResponse({
         "status": "success",
-        "message": f"✅ Nạp thành công kịch bản từ tệp '{file.filename}'!",
+        "message": f"✅ Nạp và lưu thành công kịch bản từ tệp '{file.filename}'!",
         "extracted_content": extracted_text
     })
 
@@ -613,7 +614,11 @@ async def get_rough_cut(title: str = "Dự án mới", session_id: str = Cookie(
                 total_duration += sc.get("duration_sec", 60)
 
 
-    return JSONResponse({"status": "success", "total_timeline_duration_sec": total_duration, "rough_cut_playlist": rough_cut_timeline})
+    return JSONResponse({
+        "status": "success",
+        "total_timeline_duration_sec": total_duration,
+        "rough_cut_playlist": rough_cut_timeline
+    })
 
 
 @app.get("/api/cineai/export-srt")
@@ -706,8 +711,14 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
         save_users()
 
 
+    # Mở khóa: nếu user chủ động bấm sang tier mới, cho phép cập nhật highest_tier ngay
+    if tier and tier > target_project.get("highest_tier", 1):
+        target_project["highest_tier"] = tier
+        save_users()
+
+
     highest_tier = target_project.get("highest_tier", 1)
-    active_tier = tier if tier and tier <= highest_tier else highest_tier
+    active_tier = tier if tier else highest_tier
 
 
     tokens_html = ""
@@ -769,18 +780,18 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 mb-1">Nội Dung Kịch Bản Thô (Text):</label>
-                    <textarea id="project-story" rows="5" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200">PROJECT_STORY_VAL</textarea>
+                    <textarea id="project-story" rows="5" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500">PROJECT_STORY_VAL</textarea>
                 </div>
                 <div class="space-y-2 p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
                     <span class="text-xs text-slate-400">Hoặc tải tệp kịch bản (.txt, .md):</span>
                     <div class="flex gap-2">
-                        <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400">
-                        <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-xs font-bold text-white whitespace-nowrap">Nạp File</button>
+                        <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400 cursor-pointer">
+                        <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition">Nạp File</button>
                     </div>
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button onclick="saveDraftCurrent(1)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">💾 Lưu Nháp</button>
-                    <button onclick="goToTier(2)" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp tục (hoặc Bỏ qua) ➔</button>
+                    <button onclick="saveDraftCurrent(1)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition shadow">💾 Lưu Nháp</button>
+                    <button onclick="proceedToTier(2)" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp tục (hoặc Bỏ qua) ➔</button>
                 </div>
             </div>
 
@@ -801,7 +812,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                         </select>
                         <input type="file" id="file-visual" accept=".png,.jpg,.jpeg" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400">
                     </div>
-                    <button onclick="uploadVisualToken()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-xl text-xs font-bold text-white transition">🖼️ Lưu Token Hình Ảnh</button>
+                    <button onclick="uploadVisualToken()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-xl text-xs font-bold text-white transition shadow">🖼️ Lưu Token Hình Ảnh</button>
                 </div>
                 <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
                     <label class="block text-xs font-bold text-slate-300">2. Khóa Token Âm Thanh (BGM / Giọng đọc):</label>
@@ -812,16 +823,16 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                         </select>
                         <input type="file" id="file-audio" accept=".mp3,.wav" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400">
                     </div>
-                    <button onclick="uploadAudioToken()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-xs font-bold text-slate-950 transition">🎵 Lưu Token Âm Thanh</button>
+                    <button onclick="uploadAudioToken()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-xs font-bold text-slate-950 transition shadow">🎵 Lưu Token Âm Thanh</button>
                 </div>
                 <div class="space-y-2">
                     <span class="text-xs font-bold text-slate-400">Kho Token Của Dự Án:</span>
                     <div id="tokens-tray" class="space-y-1.5 max-h-32 overflow-y-auto">TOKENS_HTML_VAL</div>
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button onclick="goToTier(1)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 1</button>
+                    <button onclick="proceedToTier(1)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 1</button>
                     <button onclick="saveDraftCurrent(2)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">💾 Lưu Nháp</button>
-                    <button onclick="goToTier(3)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
+                    <button onclick="proceedToTier(3)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
                 </div>
             </div>
 
@@ -837,9 +848,9 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     Chưa bóc tách kịch bản. Hãy bấm nút phía trên để kích hoạt AI.
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button onclick="goToTier(2)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 2</button>
+                    <button onclick="proceedToTier(2)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 2</button>
                     <button onclick="saveDraftCurrent(3)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">💾 Lưu Nháp</button>
-                    <button onclick="goToTier(4)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
+                    <button onclick="proceedToTier(4)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
                 </div>
             </div>
 
@@ -856,7 +867,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-2xl text-xs transition">📜 Xuất Phụ Đề Chuẩn .SRT</button>
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button onclick="goToTier(3)" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 3</button>
+                    <button onclick="proceedToTier(3)" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 3</button>
                     <button onclick="saveDraftCurrent(4)" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">💾 Lưu Toàn Bộ Dự Án</button>
                 </div>
             </div>
@@ -882,8 +893,22 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             let currentProjectTitle = "PROJECT_TITLE_VAL";
 
 
-            function goToTier(targetTier) {
-                window.location.href = '/?load_project=' + encodeURIComponent(currentProjectTitle) + '&tier=' + targetTier;
+            // Hàm chuyển tầng mượt mà và tự động nâng tiến độ cao nhất
+            async function proceedToTier(targetTier) {
+                const title = document.getElementById('project-title') ? document.getElementById('project-title').value : currentProjectTitle;
+                const header = document.getElementById('project-header') ? document.getElementById('project-header').value : "";
+                const story = document.getElementById('project-story') ? document.getElementById('project-story').value : "";
+                
+                // Tự động lưu nháp dữ liệu hiện tại trước khi chuyển
+                try {
+                    await fetch('/api/cineai/save-draft', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({old_title: currentProjectTitle, title: title, header: header, story: story, tier: targetTier})
+                    });
+                } catch(e) {}
+                
+                window.location.href = '/?load_project=' + encodeURIComponent(title) + '&tier=' + targetTier;
             }
 
 
@@ -915,12 +940,21 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
                 formData.append('project_title', currentProjectTitle);
-                const res = await fetch('/api/cineai/upload-asset-explicit', {method: 'POST', body: formData});
-                const data = await res.json();
-                if(data.status === 'success') {
-                    document.getElementById('project-story').value = data.extracted_content;
-                    alert(data.message);
-                } else alert(data.message);
+                
+                try {
+                    const res = await fetch('/api/cineai/upload-asset-explicit', {method: 'POST', body: formData});
+                    const data = await res.json();
+                    if(data.status === 'success') {
+                        document.getElementById('project-story').value = data.extracted_content;
+                        alert(data.message);
+                        // Tự động lưu nháp ngay lập tức vào database
+                        saveDraftCurrent(1);
+                    } else {
+                        alert(data.message);
+                    }
+                } catch(e) {
+                    alert('Lỗi khi nạp tệp kịch bản!');
+                }
             }
 
 
@@ -1111,23 +1145,39 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
     title_text = "📝 Tạo Tài Khoản Mới" if is_reg else ("🔑 Khôi Phục Mật Khẩu" if is_forgot else "🔐 Đăng Nhập Hệ Thống")
     
-    err_html = f'<div class="bg-rose-950/80 p-3 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
-    succ_html = f'<div class="bg-emerald-950/80 p-3 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
+    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
+    succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
 
 
+    # Tối ưu kích thước Full-Card to rõ trên điện thoại di động
     login_template = """
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Xác Thực - Cine AI 6.5</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 font-sans">
-        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-md space-y-5 shadow-2xl">
-            <h2 class="text-xl font-bold text-amber-400 text-center">PAGE_TITLE_VAL</h2>
+    <!DOCTYPE html><html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Xác Thực - Cine AI 6.5</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
+        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
+            <div class="text-center space-y-1">
+                <h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2>
+                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.5 Enterprise</p>
+            </div>
             ALERT_ERR_VAL ALERT_SUCC_VAL
             <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
-                <input type="text" name="username" required placeholder="Tên tài khoản..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3.5 text-xs text-slate-100">
-                <input type="password" name="password" required placeholder="Mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3.5 text-xs text-slate-100">
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 rounded-2xl text-xs uppercase shadow-xl transition">Xác Nhận</button>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">👤 Tên tài khoản:</label>
+                    <input type="text" name="username" required placeholder="Nhập tên đăng nhập..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">🔑 Mật khẩu:</label>
+                    <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xác Nhận</button>
             </form>
-            <div class="flex justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-                <a href="/login" class="hover:underline text-amber-400">Đăng nhập</a>
+            <div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800">
+                <a href="/login" class="hover:underline text-amber-400 font-semibold">Đăng nhập</a>
                 <a href="/login?tab=register" class="hover:underline">Đăng ký (+10 C)</a>
                 <a href="/login?tab=forgot" class="hover:underline">Quên mật khẩu?</a>
             </div>
@@ -1196,7 +1246,7 @@ async def community_page(session_id: str = Cookie(None)):
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
                 <h1 class="text-lg font-bold text-amber-400">🌍 Cộng Đồng Phim Public Pro 6.5</h1>
-                <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs">⚡ Quay lại Studio</a>
+                <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs shadow">⚡ Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bảng tin cộng đồng đang kết nối API mạng xã hội...</div>
         </div>
