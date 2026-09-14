@@ -791,21 +791,66 @@ async def home(session_id: str = Cookie(None)):
     html_content = html_content.replace("USER_NAME_PLACEHOLDER", username)
     return HTMLResponse(content=html_content)
 @app.get("/login", response_class=HTMLResponse)
-async def login_page():
-    return HTMLResponse(content="""
+async def login_page(tab: str = "login"):
+    is_register = (tab == "register")
+    login_tab_class = "flex-1 py-3 text-center font-bold text-xs rounded-xl transition " + ("bg-amber-500 text-slate-950 shadow-lg" if not is_register else "text-slate-400 hover:text-slate-200")
+    reg_tab_class = "flex-1 py-3 text-center font-bold text-xs rounded-xl transition " + ("bg-amber-500 text-slate-950 shadow-lg" if is_register else "text-slate-400 hover:text-slate-200")
+    
+    form_action = "/login" if not is_register else "/register"
+    title_text = "🔐 Đăng Nhập Hệ Thống" if not is_register else "📝 Tạo Tài Khoản Mới"
+    subtitle_text = "Cine AI Studio Pro 6.0 Enterprise" if not is_register else "Nhận ngay 10 Credit trải nghiệm"
+    btn_text = "Đăng Nhập Ngay" if not is_register else "Đăng Ký Tài Khoản"
+
+
+    return HTMLResponse(content=f"""
     <!DOCTYPE html>
     <html lang="vi">
-    <head><meta charset="UTF-8"><title>Đăng nhập - Cine AI Studio Pro 6.0</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Xác Thực - Cine AI Studio Pro 6.0</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 font-sans">
-        <form method="POST" action="/login" class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-md space-y-5 shadow-2xl">
-            <div class="text-center space-y-1"><h2 class="text-2xl font-bold text-amber-400">🔐 Cine AI Studio Pro 6.0</h2><p class="text-xs text-slate-400">Enterprise Edition</p></div>
-            <div><label class="block text-xs font-semibold text-slate-300 mb-1.5">Tên đăng nhập:</label><input type="text" name="username" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100"></div>
-            <div><label class="block text-xs font-semibold text-slate-300 mb-1.5">Mật khẩu:</label><input type="password" name="password" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100"></div>
-            <button type="submit" class="w-full bg-amber-500 text-slate-950 font-bold py-3.5 rounded-xl hover:bg-amber-400 transition text-xs">Đăng Nhập Hệ Thống</button>
-            <div class="text-center text-xs text-slate-400">Chưa có tài khoản? <a href="/register" class="text-amber-400 font-semibold hover:underline">Đăng ký ngay</a></div>
-        </form>
-    </body></html>
+        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-md space-y-6 shadow-2xl">
+            
+            <div class="text-center space-y-2">
+                <h2 class="text-xl sm:text-2xl font-black text-amber-400 tracking-wide">{title_text}</h2>
+                <p class="text-xs text-slate-400 font-medium">{subtitle_text}</p>
+            </div>
+
+
+            <div class="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+                <a href="/login?tab=login" class="{login_tab_class}">Đăng Nhập</a>
+                <a href="/login?tab=register" class="{reg_tab_class}">Đăng Ký Mới</a>
+            </div>
+
+
+            <form method="POST" action="{form_action}" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-2">👤 Tên đăng nhập:</label>
+                    <input type="text" name="username" required placeholder="Nhập tên tài khoản..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-2">🔑 Mật khẩu bảo mật:</label>
+                    <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-4 rounded-2xl transition text-sm shadow-xl tracking-wider uppercase mt-2">{btn_text}</button>
+            </form>
+
+
+            <div class="text-center pt-2 border-t border-slate-800/80">
+                <p class="text-[11px] text-slate-500">Cine AI Studio Pro 6.0 • Secure Commercial Production Suite</p>
+            </div>
+        </div>
+    </body>
+    </html>
     """)
+
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page_redirect():
+    return RedirectResponse(url="/login?tab=register", status_code=303)
 
 
 @app.post("/login")
@@ -818,31 +863,13 @@ async def login_post(username: str = Form(...), password: str = Form(...)):
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(key="session_id", value=session_id)
         return response
-    return RedirectResponse(url="/login", status_code=303)
-
-
-@app.get("/register", response_class=HTMLResponse)
-async def register_page():
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head><meta charset="UTF-8"><title>Đăng ký - Cine AI Studio Pro 6.0</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 font-sans">
-        <form method="POST" action="/register" class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-md space-y-5 shadow-2xl">
-            <div class="text-center space-y-1"><h2 class="text-2xl font-bold text-amber-400">📝 Đăng Ký Tài Khoản</h2><p class="text-xs text-slate-400">Tặng ngay 10 Credit trải nghiệm</p></div>
-            <div><label class="block text-xs font-semibold text-slate-300 mb-1.5">Tên đăng nhập:</label><input type="text" name="username" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100"></div>
-            <div><label class="block text-xs font-semibold text-slate-300 mb-1.5">Mật khẩu:</label><input type="password" name="password" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100"></div>
-            <button type="submit" class="w-full bg-amber-500 text-slate-950 font-bold py-3.5 rounded-xl hover:bg-amber-400 transition text-xs">Đăng Ký Tài Khoản</button>
-            <div class="text-center text-xs text-slate-400">Đã có tài khoản? <a href="/login" class="text-amber-400 font-semibold hover:underline">Đăng nhập ngay</a></div>
-        </form>
-    </body></html>
-    """)
+    return RedirectResponse(url="/login?tab=login", status_code=303)
 
 
 @app.post("/register")
 async def register_post(username: str = Form(...), password: str = Form(...)):
     if username in USERS_DB:
-        return RedirectResponse(url="/register", status_code=303)
+        return RedirectResponse(url="/login?tab=register", status_code=303)
     USERS_DB[username] = {"password_hash": hashlib.sha256(password.encode()).hexdigest(), "projects": [], "credits": 10}
     save_users()
     session_id = secrets.token_hex(16)
