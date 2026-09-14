@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
 
-app = FastAPI(title="Cine AI Studio Pro 6.3 - Full Enterprise Commercial & Multi-Asset Ecosystem", version="6.3")
+app = FastAPI(title="Cine AI Studio Pro 6.4 - Full Enterprise Commercial & Multi-Asset Ecosystem", version="6.4")
 
 
 
@@ -227,19 +227,17 @@ async def upload_asset_explicit(
     file_name = file.filename.lower()
     file_content = await file.read()
     
-    # Kiểm tra định dạng tệp văn bản kịch bản (.txt, .md)
     if not (file_name.endswith(".txt") or file_name.endswith(".md")):
         return JSONResponse({
             "status": "error",
-            "message": "⚠️ Định dạng tệp không hợp lệ! Vui lòng chọn tệp kịch bản văn bản có đuôi .txt hoặc .md."
+            "message": "⚠️ Vui lòng chọn đúng tệp kịch bản văn bản (.txt hoặc .md)."
         }, status_code=400)
     
     try:
         extracted_text = file_content.decode("utf-8", errors="ignore")
     except Exception as e:
-        extracted_text = f"Không thể đọc mã hóa tệp: {str(e)}"
+        extracted_text = f"Không thể đọc tệp: {str(e)}"
     
-    # Lưu vào cấu trúc dự án chuẩn Bảng Vàng
     if username in USERS_DB and "projects" in USERS_DB[username]:
         for p in USERS_DB[username]["projects"]:
             if p.get("title") == project_title:
@@ -250,8 +248,94 @@ async def upload_asset_explicit(
     
     return JSONResponse({
         "status": "success",
-        "message": f"✅ Tải lên và phân tích thành công tệp '{file.filename}'! Đã nạp dữ liệu vào kịch bản thô.",
+        "message": f"✅ Nạp thành công kịch bản từ tệp '{file.filename}'!",
         "extracted_content": extracted_text
+    })
+
+
+
+
+@app.post("/api/cineai/upload-visual-token")
+async def upload_visual_token(
+    file: UploadFile = File(...),
+    token_category: str = Form("character"),
+    project_title: str = Form("Dự án mới"),
+    session_id: str = Cookie(None)
+):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    
+    file_name = file.filename.lower()
+    if not (file_name.endswith(".png") or file_name.endswith(".jpg") or file_name.endswith(".jpeg")):
+        return JSONResponse({"status": "error", "message": "⚠️ Vui lòng chọn tệp hình ảnh (.png, .jpg)!"}, status_code=400)
+    
+    token_id = f"TOKEN_{token_category.upper()}_{secrets.token_hex(3).upper()}"
+    mock_url = f"https://cdn.cineai.studio/tokens/{username}/{project_title.replace(' ', '_')}/{file.filename}"
+    
+    if username in USERS_DB and "projects" in USERS_DB[username]:
+        for p in USERS_DB[username]["projects"]:
+            if p.get("title") == project_title:
+                if "token_registry" not in p:
+                    p["token_registry"] = {"visual_tokens": [], "audio_tokens": []}
+                p["token_registry"]["visual_tokens"].append({
+                    "token_id": token_id,
+                    "category": token_category,
+                    "file_url": mock_url,
+                    "file_name": file.filename,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                break
+        save_users()
+        
+    return JSONResponse({
+        "status": "success",
+        "message": f"🖼️ Khóa mẫu hình ảnh thành công với mã định danh [{token_id}]!",
+        "token_id": token_id
+    })
+
+
+
+
+@app.post("/api/cineai/upload-audio-token")
+async def upload_audio_token(
+    file: UploadFile = File(...),
+    token_category: str = Form("bgm"),
+    project_title: str = Form("Dự án mới"),
+    session_id: str = Cookie(None)
+):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    
+    file_name = file.filename.lower()
+    if not (file_name.endswith(".mp3") or file_name.endswith(".wav")):
+        return JSONResponse({"status": "error", "message": "⚠️ Vui lòng chọn tệp âm thanh (.mp3, .wav)!"}, status_code=400)
+    
+    token_id = f"TOKEN_AUDIO_{token_category.upper()}_{secrets.token_hex(3).upper()}"
+    mock_url = f"https://cdn.cineai.studio/audio/{username}/{project_title.replace(' ', '_')}/{file.filename}"
+    
+    if username in USERS_DB and "projects" in USERS_DB[username]:
+        for p in USERS_DB[username]["projects"]:
+            if p.get("title") == project_title:
+                if "token_registry" not in p:
+                    p["token_registry"] = {"visual_tokens": [], "audio_tokens": []}
+                p["token_registry"]["audio_tokens"].append({
+                    "token_id": token_id,
+                    "category": token_category,
+                    "file_url": mock_url,
+                    "file_name": file.filename,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                break
+        save_users()
+        
+    return JSONResponse({
+        "status": "success",
+        "message": f"🎵 Khóa mẫu âm thanh thành công với mã định danh [{token_id}]!",
+        "token_id": token_id
     })
 
 
@@ -279,7 +363,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     }
     
     system_persona = (
-        "Bạn là Đạo diễn ảo thấu cảm và chuyên gia sản xuất phim thương mại cấp cao của Cine AI Studio Pro 6.3. "
+        "Bạn là Đạo diễn ảo thấu cảm và chuyên gia sản xuất phim thương mại cấp cao của Cine AI Studio Pro 6.4. "
         f"Trạng thái vận hành: {mode_instructions.get(tier_mode, '')} "
         "Hãy đóng vai trò người dẫn dắt thông minh, tự động phân tích ý tưởng, đưa ra prompt chuyên sâu chống lỗi trôi nhân vật, đạo cụ ma và lệch màu sắc.\n\n"
         f"Dự án hiện tại: {project_title}\n"
@@ -324,7 +408,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
     url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={selected_key}"
     
     pro_prompt = (
-        "Bạn là Tổng đạo diễn và Kiến trúc sư thuật toán của Cine AI Studio Pro 6.3. "
+        "Bạn là Tổng đạo diễn và Kiến trúc sư thuật toán của Cine AI Studio Pro 6.4. "
         "Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm văn bản ngoài), "
         "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III) cho phim 45 phút. "
         "Mỗi cảnh (Scene) phải có thời lượng từ 30 đến 150 giây và gắn Global Lock-in Tokens.\n\n"
@@ -401,7 +485,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
 
 
     structured_data = {
-        "schema_version": "6.3-Enterprise",
+        "schema_version": "6.4-Enterprise",
         "routing_model": model_name,
         "self_healing_applied": True,
         "pacing_metrics": {
@@ -424,7 +508,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         
     return JSONResponse({
         "status": "success",
-        "message": "🌟 Đã vận hành hệ thống cấp độ Enterprise 6.3: Định tuyến Model Pro, Context Caching & JSON Self-Healing!",
+        "message": "🌟 Đã vận hành hệ thống cấp độ Enterprise 6.4: Định tuyến Model Pro, Context Caching & JSON Self-Healing!",
         "metrics": structured_data["pacing_metrics"],
         "data": parsed_scenes
     })
@@ -726,6 +810,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                 "title": current_project_title,
                 "header": current_project_header,
                 "project_raw_story": current_project_story,
+                "token_registry": {"visual_tokens": [], "audio_tokens": []},
                 "tierProgress": "Tầng 7-8 (Đang lưu nháp)",
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }]
@@ -744,7 +829,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.3 - Enterprise Suite</title>
+        <title>Cine AI Studio Pro 6.4 - Enterprise Suite</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans">
@@ -752,8 +837,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
             
             <div class="flex flex-col md:flex-row justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl gap-3">
                 <div>
-                    <h1 class="text-lg sm:text-xl font-bold text-amber-400">🎬 Cine AI Studio Pro 6.3 (Enterprise Commercial Suite)</h1>
-                    <p class="text-xs text-slate-400">Tự động hóa 16 Tầng • Self-Healing JSON • Model Routing • SePay Credit Ledger</p>
+                    <h1 class="text-lg sm:text-xl font-bold text-amber-400">🎬 Cine AI Studio Pro 6.4 (Enterprise Commercial Suite)</h1>
+                    <p class="text-xs text-slate-400">Tự động hóa 16 Tầng • Multi-Asset Tokenization • Model Routing • SePay Credit Ledger</p>
                 </div>
                 <div class="flex items-center space-x-3 flex-wrap gap-2">
                     <span class="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-800">💰 Số dư: <span id="user-credits-val">USER_CREDITS_PLACEHOLDER</span> Credit</span>
@@ -803,7 +888,46 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
                     <div>
                         <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nội Dung Dự Án / Cốt Truyện Thô:</label>
-                        <textarea id="project-story" rows="5" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500">PROJECT_STORY_PLACEHOLDER</textarea>
+                        <textarea id="project-story" rows="4" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500">PROJECT_STORY_PLACEHOLDER</textarea>
+                    </div>
+
+
+
+
+                    <!-- KHU VỰC 1: TẢI LÊN KỊCH BẢN VĂN BẢN (.TXT) -->
+                    <div class="space-y-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                        <label class="block text-[11px] font-bold uppercase tracking-wider text-amber-400">📄 1. Tải Lên Kịch Bản Văn Bản (.txt)</label>
+                        <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-[11px] text-slate-400 cursor-pointer">
+                        <button onclick="uploadAssetFileExplicit()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs transition shadow">📤 Nạp Kịch Bản Thô</button>
+                    </div>
+
+
+
+
+                    <!-- KHU VỰC 2: TẢI LÊN HÌNH MẪU KHÓA CỨNG (VISUAL TOKENS) -->
+                    <div class="space-y-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                        <label class="block text-[11px] font-bold uppercase tracking-wider text-amber-400">🖼️ 2. Khóa Mẫu Hình Ảnh (.png, .jpg)</label>
+                        <select id="visual-category" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-[11px] text-slate-200">
+                            <option value="character">👤 Khóa Mẫu Nhân Vật (Character)</option>
+                            <option value="costume">👘 Khóa Mẫu Trang Phục (Costume)</option>
+                            <option value="landscape">🌄 Khóa Mẫu Bối Cảnh (Landscape)</option>
+                        </select>
+                        <input type="file" id="file-visual" accept=".png,.jpg,.jpeg" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-[11px] text-slate-400 cursor-pointer">
+                        <button onclick="uploadVisualToken()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition shadow">🖼️ Tải Lên Token Hình Ảnh</button>
+                    </div>
+
+
+
+
+                    <!-- KHU VỰC 3: TẢI LÊN MẪU ÂM THANH (AUDIO TOKENS) -->
+                    <div class="space-y-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                        <label class="block text-[11px] font-bold uppercase tracking-wider text-amber-400">🎵 3. Khóa Mẫu Âm Thanh (.mp3, .wav)</label>
+                        <select id="audio-category" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-[11px] text-slate-200">
+                            <option value="bgm">🎶 Mẫu Nhạc Nền / BGM</option>
+                            <option value="voice">🗣️ Mẫu Giọng Đọc / Voice Tone</option>
+                        </select>
+                        <input type="file" id="file-audio" accept=".mp3,.wav" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-[11px] text-slate-400 cursor-pointer">
+                        <button onclick="uploadAudioToken()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow">🎵 Tải Lên Token Âm Thanh</button>
                     </div>
 
 
@@ -817,17 +941,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                             <option value="tầng-11-12">⚙️ Tầng 11 & 12: Niêm phong dữ liệu & Alternate Takes</option>
                             <option value="tầng-13-16">🚀 Tầng 13 đến 16: Xuất bản HD/2K/4K, SRT & Timeline</option>
                         </select>
-                    </div>
-
-
-
-
-                    <div class="space-y-3 pt-2 border-t border-slate-800">
-                        <label class="block text-[11px] font-bold uppercase tracking-wider text-amber-400">📤 Tải Lên Tệp Kịch Bản Gốc (.txt):</label>
-                        <div class="space-y-2">
-                            <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-[11px] text-slate-400 cursor-pointer">
-                            <button onclick="uploadAssetFileExplicit()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1">📤 Tải Tệp Lên Hệ Thống</button>
-                        </div>
                     </div>
 
 
@@ -853,8 +966,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
                     <div id="chat-box" class="bg-slate-950 h-[440px] rounded-xl p-4 overflow-y-auto border border-slate-800 space-y-3 text-xs">
                         <div class="bg-blue-950/60 border border-blue-800/50 p-4 rounded-2xl text-blue-200 shadow-sm space-y-2">
-                            <p class="font-bold text-amber-300">🌟 Điểm danh đầu phiên: Hệ thống Cine AI Studio Pro 6.3 đã sẵn sàng vận hành thương mại.</p>
-                            <p>Đã tích hợp Định tuyến Model Pro, Vòng lặp tự chữa lỗi JSON, Khiên phòng thủ AST và Cơ chế kiểm tra định dạng tệp thông minh.</p>
+                            <p class="font-bold text-amber-300">🌟 Điểm danh đầu phiên: Hệ thống Cine AI Studio Pro 6.4 đã sẵn sàng.</p>
+                            <p>Đã tích hợp 3 cổng tải lên chuyên biệt: Kịch bản văn bản, Khóa mẫu Hình ảnh (Visual Tokens) và Khóa mẫu Âm thanh (Audio Tokens).</p>
                         </div>
                     </div>
 
@@ -921,17 +1034,11 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                 }
                 
                 const file = fileInput.files[0];
-                const fileName = file.name.toLowerCase();
-                if(!fileName.endsWith('.txt') && !fileName.endsWith('.md')) {
-                    alert('⚠️ Định dạng tệp không hợp lệ! Vui lòng chọn tệp văn bản .txt hoặc .md.');
-                    return;
-                }
-                
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('project_title', title);
                 
-                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">📁 Đang tải lên và phân tích tệp kịch bản...</span></div>';
+                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">📁 Đang tải lên tệp kịch bản...</span></div>';
                 
                 try {
                     const res = await fetch('/api/cineai/upload-asset-explicit', {method: 'POST', body: formData});
@@ -952,6 +1059,76 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
 
 
+            async function uploadVisualToken() {
+                const fileInput = document.getElementById('file-visual');
+                const category = document.getElementById('visual-category').value;
+                const title = document.getElementById('project-title').value;
+                const chatBox = document.getElementById('chat-box');
+                
+                if(fileInput.files.length === 0) {
+                    alert('⚠️ Vui lòng chọn tệp hình ảnh (.png, .jpg)!');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('token_category', category);
+                formData.append('project_title', title);
+                
+                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">🖼️ Đang tải lên và sinh mã khóa cứng Visual Token...</span></div>';
+                
+                try {
+                    const res = await fetch('/api/cineai/upload-visual-token', {method: 'POST', body: formData});
+                    const data = await res.json();
+                    if(data.status === 'success') {
+                        chatBox.innerHTML += '<div class="bg-indigo-950/60 border border-indigo-800/50 p-3 rounded-2xl text-indigo-200 text-xs">✨ ' + data.message + '</div>';
+                    } else {
+                        alert(data.message);
+                    }
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } catch(e) {
+                    alert('Lỗi kết nối tải lên ảnh!');
+                }
+            }
+
+
+
+
+            async function uploadAudioToken() {
+                const fileInput = document.getElementById('file-audio');
+                const category = document.getElementById('audio-category').value;
+                const title = document.getElementById('project-title').value;
+                const chatBox = document.getElementById('chat-box');
+                
+                if(fileInput.files.length === 0) {
+                    alert('⚠️ Vui lòng chọn tệp âm thanh (.mp3, .wav)!');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('token_category', category);
+                formData.append('project_title', title);
+                
+                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">🎵 Đang tải lên mẫu âm thanh Audio Token...</span></div>';
+                
+                try {
+                    const res = await fetch('/api/cineai/upload-audio-token', {method: 'POST', body: formData});
+                    const data = await res.json();
+                    if(data.status === 'success') {
+                        chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">🎶 ' + data.message + '</div>';
+                    } else {
+                        alert(data.message);
+                    }
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } catch(e) {
+                    alert('Lỗi kết nối tải lên âm thanh!');
+                }
+            }
+
+
+
+
             async function triggerEnterpriseBreakdown() {
                 const title = document.getElementById('project-title').value;
                 const chatBox = document.getElementById('chat-box');
@@ -960,92 +1137,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                 try {
                     const res = await fetch('/api/cineai/breakdown-scenes-enterprise', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({title: title})
-                    });
-                    const data = await res.json();
-                    chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-4 rounded-2xl text-emerald-200 text-xs leading-relaxed"><strong class="text-amber-300">✅ Thành công:</strong> ' + data.message + '<br>Tổng thời lượng phim: ' + data.metrics.total_duration_sec + ' giây.</div>';
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                } catch(e) {
-                    alert('Lỗi bóc tách phân cảnh!');
-                }
-            }
-
-
-
-
-            async function fetchRoughCut() {
-                const title = document.getElementById('project-title').value;
-                const res = await fetch('/api/cineai/get-rough-cut?title=' + encodeURIComponent(title));
-                const data = await res.json();
-                console.log(data);
-                alert('🎞️ Đã tải Rough-Cut Playlist thành công! Tổng thời lượng timeline: ' + data.total_timeline_duration_sec + ' giây.');
-            }
-
-
-
-
-            async function exportSrt() {
-                const title = document.getElementById('project-title').value;
-                const res = await fetch('/api/cineai/export-srt?title=' + encodeURIComponent(title));
-                const data = await res.json();
-                if(data.srt_format) {
-                    const blob = new Blob([data.srt_format], {type: 'text/plain'});
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = title + '_subtitles.srt';
-                    a.click();
-                } else {
-                    alert('Chưa có dữ liệu phân cảnh để xuất phụ đề!');
-                }
-            }
-
-
-
-
-            async function sendMessage() {
-                const input = document.getElementById('user-input');
-                const chatBox = document.getElementById('chat-box');
-                const titleInput = document.getElementById('project-title');
-                const tierMode = document.getElementById('tier-mode').value;
-                const text = input.value.trim();
-                if(!text) return;
-
-
-
-
-                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3.5 rounded-2xl inline-block text-slate-100 max-w-[85%] text-left shadow-sm">' + text + '</span></div>';
-                input.value = '';
-                chatBox.scrollTop = chatBox.scrollHeight;
-
-
-
-
-                try {
-                    const res = await fetch('/api/cineai/chat', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({message: text, title: titleInput.value, tierMode: tierMode})
-                    });
-                    const data = await res.json();
-                    chatBox.innerHTML += '<div class="bg-blue-950/60 border border-blue-800/50 p-4 rounded-2xl text-blue-200 max-w-[85%] shadow-sm leading-relaxed">' + data.reply + '</div>';
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                } catch(e) {
-                    chatBox.innerHTML += '<div class="bg-rose-950/60 border border-rose-800/50 p-3.5 rounded-2xl text-rose-200 shadow-sm">⚠️ Lỗi kết nối Đạo diễn ảo!</div>';
-                }
-            }
-        </script>
-    </body>
-    </html>
-    """
-    html_content = html_content.replace("USER_CREDITS_PLACEHOLDER", str(user_credits))
-    html_content = html_content.replace("USER_NAME_PLACEHOLDER", username)
-    html_content = html_content.replace("PROJECT_TITLE_PLACEHOLDER", current_project_title)
-    html_content = html_content.replace("PROJECT_HEADER_PLACEHOLDER", current_project_header)
-    html_content = html_content.replace("PROJECT_STORY_PLACEHOLDER", current_project_story)
-    return HTMLResponse(content=html_content)
-@app.get("/library", response_class=HTMLResponse)
+                        headers: {'Content-Type': 'application/json’@app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
@@ -1094,7 +1186,7 @@ async def library_page(session_id: str = Cookie(None)):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Thư Viện Dự Án - Cine AI Studio Pro 6.3</title>
+        <title>Thư Viện Dự Án - Cine AI Studio Pro 6.4</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans">
@@ -1168,7 +1260,7 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     
     form_action = "/login" if not is_register and not is_forgot else ("/register" if is_register else "/forgot-password")
     title_text = "🔐 Đăng Nhập Hệ Thống" if not is_register and not is_forgot else ("📝 Tạo Tài Khoản Mới" if is_register else "🔑 Khôi Phục Mật Khẩu")
-    subtitle_text = "Cine AI Studio Pro 6.3 Enterprise" if not is_register and not is_forgot else ("Nhận ngay 10 Credit trải nghiệm" if is_register else "Cập nhật mật khẩu mới an toàn")
+    subtitle_text = "Cine AI Studio Pro 6.4 Enterprise" if not is_register and not is_forgot else ("Nhận ngay 10 Credit trải nghiệm" if is_register else "Cập nhật mật khẩu mới an toàn")
     btn_text = "Đăng Nhập Ngay" if not is_register and not is_forgot else ("Đăng Ký Tài Khoản" if is_register else "Xác Nhận Đổi Mật Khẩu")
 
 
@@ -1191,7 +1283,7 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI Studio Pro 6.3</title>
+        <title>Xác Thực - Cine AI Studio Pro 6.4</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 font-sans">
@@ -1233,7 +1325,7 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
 
 
             <div class="text-center pt-2 border-t border-slate-800/80">
-                <p class="text-[11px] text-slate-500">Cine AI Studio Pro 6.3 • Secure Commercial Production Suite</p>
+                <p class="text-[11px] text-slate-500">Cine AI Studio Pro 6.4 • Secure Commercial Production Suite</p>
             </div>
         </div>
     </body>
@@ -1309,11 +1401,11 @@ async def community_page(session_id: str = Cookie(None)):
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.3</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.4</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
-                <h1 class="text-xl font-bold text-amber-400">🌍 Cộng Đồng Phim Thương Mại Pro 6.3</h1>
+                <h1 class="text-xl font-bold text-amber-400">🌍 Cộng Đồng Phim Thương Mại Pro 6.4</h1>
                 <a href="/" class="bg-amber-500 text-slate-950 px-4 py-2 rounded-xl font-bold text-xs">⚡ Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800"><p class="text-xs text-slate-500">Bảng tin cộng đồng đang cập nhật...</p></div>
