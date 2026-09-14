@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
 
-app = FastAPI(title="Cine AI Studio Pro 6.0 - Full Enterprise Commercial & Self-Healing Ecosystem", version="6.0")
+app = FastAPI(title="Cine AI Studio Pro 6.3 - Full Enterprise Commercial & Multi-Asset Ecosystem", version="6.3")
 
 
 
@@ -175,6 +175,11 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
             "title": new_title,
             "header": project_header,
             "project_raw_story": project_story,
+            "token_registry": {
+                "visual_tokens": [],
+                "audio_tokens": []
+            },
+            "scene_matrix": {},
             "tierProgress": "Tầng 7-8 (Đang lưu nháp)",
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
@@ -219,15 +224,22 @@ async def upload_asset_explicit(
     if not username:
         return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     
+    file_name = file.filename.lower()
     file_content = await file.read()
-    file_name = file.filename
-    extracted_text = ""
+    
+    # Kiểm tra định dạng tệp văn bản kịch bản (.txt, .md)
+    if not (file_name.endswith(".txt") or file_name.endswith(".md")):
+        return JSONResponse({
+            "status": "error",
+            "message": "⚠️ Định dạng tệp không hợp lệ! Vui lòng chọn tệp kịch bản văn bản có đuôi .txt hoặc .md."
+        }, status_code=400)
     
     try:
         extracted_text = file_content.decode("utf-8", errors="ignore")
     except Exception as e:
-        extracted_text = f"Không thể đọc trực tiếp định dạng tệp: {str(e)}"
+        extracted_text = f"Không thể đọc mã hóa tệp: {str(e)}"
     
+    # Lưu vào cấu trúc dự án chuẩn Bảng Vàng
     if username in USERS_DB and "projects" in USERS_DB[username]:
         for p in USERS_DB[username]["projects"]:
             if p.get("title") == project_title:
@@ -238,7 +250,7 @@ async def upload_asset_explicit(
     
     return JSONResponse({
         "status": "success",
-        "message": f"📤 Đã tải lên và nạp thành công nội dung từ tệp '{file_name}' vào kịch bản thô!",
+        "message": f"✅ Tải lên và phân tích thành công tệp '{file.filename}'! Đã nạp dữ liệu vào kịch bản thô.",
         "extracted_content": extracted_text
     })
 
@@ -267,7 +279,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     }
     
     system_persona = (
-        "Bạn là Đạo diễn ảo thấu cảm và chuyên gia sản xuất phim thương mại cấp cao của Cine AI Studio Pro 6.0. "
+        "Bạn là Đạo diễn ảo thấu cảm và chuyên gia sản xuất phim thương mại cấp cao của Cine AI Studio Pro 6.3. "
         f"Trạng thái vận hành: {mode_instructions.get(tier_mode, '')} "
         "Hãy đóng vai trò người dẫn dắt thông minh, tự động phân tích ý tưởng, đưa ra prompt chuyên sâu chống lỗi trôi nhân vật, đạo cụ ma và lệch màu sắc.\n\n"
         f"Dự án hiện tại: {project_title}\n"
@@ -312,7 +324,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
     url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={selected_key}"
     
     pro_prompt = (
-        "Bạn là Tổng đạo diễn và Kiến trúc sư thuật toán của Cine AI Studio Pro 6.0. "
+        "Bạn là Tổng đạo diễn và Kiến trúc sư thuật toán của Cine AI Studio Pro 6.3. "
         "Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm văn bản ngoài), "
         "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III) cho phim 45 phút. "
         "Mỗi cảnh (Scene) phải có thời lượng từ 30 đến 150 giây và gắn Global Lock-in Tokens.\n\n"
@@ -389,7 +401,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
 
 
     structured_data = {
-        "schema_version": "6.0-Enterprise",
+        "schema_version": "6.3-Enterprise",
         "routing_model": model_name,
         "self_healing_applied": True,
         "pacing_metrics": {
@@ -412,7 +424,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         
     return JSONResponse({
         "status": "success",
-        "message": "🌟 Đã vận hành hệ thống cấp độ Enterprise 6.0: Định tuyến Model Pro, Context Caching & JSON Self-Healing!",
+        "message": "🌟 Đã vận hành hệ thống cấp độ Enterprise 6.3: Định tuyến Model Pro, Context Caching & JSON Self-Healing!",
         "metrics": structured_data["pacing_metrics"],
         "data": parsed_scenes
     })
@@ -732,7 +744,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.0 - Enterprise Suite</title>
+        <title>Cine AI Studio Pro 6.3 - Enterprise Suite</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans">
@@ -740,7 +752,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
             
             <div class="flex flex-col md:flex-row justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl gap-3">
                 <div>
-                    <h1 class="text-lg sm:text-xl font-bold text-amber-400">🎬 Cine AI Studio Pro 6.0 (Enterprise Commercial Suite)</h1>
+                    <h1 class="text-lg sm:text-xl font-bold text-amber-400">🎬 Cine AI Studio Pro 6.3 (Enterprise Commercial Suite)</h1>
                     <p class="text-xs text-slate-400">Tự động hóa 16 Tầng • Self-Healing JSON • Model Routing • SePay Credit Ledger</p>
                 </div>
                 <div class="flex items-center space-x-3 flex-wrap gap-2">
@@ -841,8 +853,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
                     <div id="chat-box" class="bg-slate-950 h-[440px] rounded-xl p-4 overflow-y-auto border border-slate-800 space-y-3 text-xs">
                         <div class="bg-blue-950/60 border border-blue-800/50 p-4 rounded-2xl text-blue-200 shadow-sm space-y-2">
-                            <p class="font-bold text-amber-300">🌟 Điểm danh đầu phiên: Hệ thống Cine AI Studio Pro 6.0 đã sẵn sàng vận hành thương mại.</p>
-                            <p>Đã tích hợp Định tuyến Model Pro, Vòng lặp tự chữa lỗi JSON, Khiên phòng thủ AST và Cơ chế trừ Credit tự động qua SePay.</p>
+                            <p class="font-bold text-amber-300">🌟 Điểm danh đầu phiên: Hệ thống Cine AI Studio Pro 6.3 đã sẵn sàng vận hành thương mại.</p>
+                            <p>Đã tích hợp Định tuyến Model Pro, Vòng lặp tự chữa lỗi JSON, Khiên phòng thủ AST và Cơ chế kiểm tra định dạng tệp thông minh.</p>
                         </div>
                     </div>
 
@@ -908,24 +920,32 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                     return;
                 }
                 
+                const file = fileInput.files[0];
+                const fileName = file.name.toLowerCase();
+                if(!fileName.endsWith('.txt') && !fileName.endsWith('.md')) {
+                    alert('⚠️ Định dạng tệp không hợp lệ! Vui lòng chọn tệp văn bản .txt hoặc .md.');
+                    return;
+                }
+                
                 const formData = new FormData();
-                formData.append('file', fileInput.files[0]);
+                formData.append('file', file);
                 formData.append('project_title', title);
                 
-                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">📁 Đang tải lên và phân tích tệp tài liệu...</span></div>';
+                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">📁 Đang tải lên và phân tích tệp kịch bản...</span></div>';
                 
                 try {
                     const res = await fetch('/api/cineai/upload-asset-explicit', {method: 'POST', body: formData});
                     const data = await res.json();
                     if(data.status === 'success') {
                         document.getElementById('project-story').value = data.extracted_content;
-                        chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">✅ ' + data.message + '</div>';
+                        chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">🎉 ' + data.message + '</div>';
                     } else {
                         alert(data.message);
+                        chatBox.innerHTML += '<div class="bg-rose-950/60 border border-rose-800/50 p-3 rounded-2xl text-rose-200 text-xs">⚠️ ' + data.message + '</div>';
                     }
                     chatBox.scrollTop = chatBox.scrollHeight;
                 } catch(e) {
-                    alert('Lỗi tải lên tệp tài liệu!');
+                    alert('Lỗi kết nối khi tải lên tệp!');
                 }
             }
 
@@ -1074,7 +1094,7 @@ async def library_page(session_id: str = Cookie(None)):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Thư Viện Dự Án - Cine AI Studio Pro 6.0</title>
+        <title>Thư Viện Dự Án - Cine AI Studio Pro 6.3</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans">
@@ -1148,7 +1168,7 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     
     form_action = "/login" if not is_register and not is_forgot else ("/register" if is_register else "/forgot-password")
     title_text = "🔐 Đăng Nhập Hệ Thống" if not is_register and not is_forgot else ("📝 Tạo Tài Khoản Mới" if is_register else "🔑 Khôi Phục Mật Khẩu")
-    subtitle_text = "Cine AI Studio Pro 6.0 Enterprise" if not is_register and not is_forgot else ("Nhận ngay 10 Credit trải nghiệm" if is_register else "Cập nhật mật khẩu mới an toàn")
+    subtitle_text = "Cine AI Studio Pro 6.3 Enterprise" if not is_register and not is_forgot else ("Nhận ngay 10 Credit trải nghiệm" if is_register else "Cập nhật mật khẩu mới an toàn")
     btn_text = "Đăng Nhập Ngay" if not is_register and not is_forgot else ("Đăng Ký Tài Khoản" if is_register else "Xác Nhận Đổi Mật Khẩu")
 
 
@@ -1171,7 +1191,7 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI Studio Pro 6.0</title>
+        <title>Xác Thực - Cine AI Studio Pro 6.3</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 font-sans">
@@ -1213,7 +1233,7 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
 
 
             <div class="text-center pt-2 border-t border-slate-800/80">
-                <p class="text-[11px] text-slate-500">Cine AI Studio Pro 6.0 • Secure Commercial Production Suite</p>
+                <p class="text-[11px] text-slate-500">Cine AI Studio Pro 6.3 • Secure Commercial Production Suite</p>
             </div>
         </div>
     </body>
@@ -1289,11 +1309,11 @@ async def community_page(session_id: str = Cookie(None)):
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.0</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.3</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
-                <h1 class="text-xl font-bold text-amber-400">🌍 Cộng Đồng Phim Thương Mại Pro 6.0</h1>
+                <h1 class="text-xl font-bold text-amber-400">🌍 Cộng Đồng Phim Thương Mại Pro 6.3</h1>
                 <a href="/" class="bg-amber-500 text-slate-950 px-4 py-2 rounded-xl font-bold text-xs">⚡ Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800"><p class="text-xs text-slate-500">Bảng tin cộng đồng đang cập nhật...</p></div>
