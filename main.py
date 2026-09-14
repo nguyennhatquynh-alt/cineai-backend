@@ -71,7 +71,7 @@ def call_gemini_direct(prompt_text):
     if not keys:
         return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
     selected_key = random.choice(keys)
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={selected_key}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
     try:
@@ -120,6 +120,8 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     new_title = data.get("title", "").strip()
     project_header = data.get("header", "").strip()
     project_story = data.get("story", "").strip()
+    aspect_ratio = data.get("aspect_ratio", "16:9")
+    target_duration = data.get("target_duration", "45p")
     target_tier = int(data.get("tier", 1))
     
     if not new_title:
@@ -141,12 +143,14 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         target_project["title"] = new_title
         target_project["header"] = project_header
         target_project["project_raw_story"] = project_story
+        target_project["aspect_ratio"] = aspect_ratio
+        target_project["target_duration"] = target_duration
         current_highest = target_project.get("highest_tier", 1)
         target_project["highest_tier"] = max(current_highest, target_tier)
         target_project["current_tier"] = target_tier
-        target_project["tierProgress"] = f"Tầng {target_project['highest_tier']} (Tiến độ cao nhất)"
+        target_project["tierProgress"] = f"Tầng {target_project['highest_tier']} ({aspect_ratio} • {target_duration})"
         target_project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg = f"💾 Đã lưu thành công dữ liệu cho Tầng {target_tier} của dự án '{new_title}'!"
+        msg = f"💾 Đã lưu thành công Tầng {target_tier} ({aspect_ratio} • {target_duration}) cho dự án '{new_title}'!"
     else:
         if len(projects) >= 2:
             return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
@@ -154,6 +158,8 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
             "title": new_title,
             "header": project_header,
             "project_raw_story": project_story,
+            "aspect_ratio": aspect_ratio,
+            "target_duration": target_duration,
             "token_registry": {"visual_tokens": [], "audio_tokens": []},
             "scene_matrix": {},
             "ideation_slots": {},
@@ -328,20 +334,20 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         current_slots = target_project.get("ideation_slots", {}) if target_project else {}
         
         system_persona = (
-            "Bạn là Đạo diễn ảo thấu cảm và Chuyên gia tâm lý sáng tạo của Cine AI Studio Pro 6.6. "
-            "Nhiệm vụ: Trò chuyện tâm tình hoặc dẫn dắt trò chơi 'Nếu như...' để khơi mở cảm xúc và khai thác 5 biến số điện ảnh cho phim 45 phút:\n"
+            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.6. "
+            "Nhiệm vụ: Trò chuyện tâm tình hoặc trò chơi 'Nếu như...' để khai thác các biến số điện ảnh:\n"
             "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh)\n"
-            "2. CORE_WOUND (Nỗi đau, vết thương lòng, điều giằng xé của nhân vật)\n"
+            "2. CORE_WOUND (Nỗi đau, vết thương lòng nhân vật)\n"
             "3. TRIGGER_PROP (Đạo cụ định mệnh, vật kích hoạt biến cố)\n"
             "4. DILEMMA (Điểm xoay giữa phim, lựa chọn đánh đổi sinh tử)\n"
             "5. CATHARSIS (Hồi kết mong muốn: Chữa lành, Day dứt, hay Bi tráng)\n\n"
-            f"Các Slots đã thu thập được: {json.dumps(current_slots, ensure_ascii=False)}\n"
-            "Quy tắc phản hồi: Trả về DUY NHẤT một chuỗi JSON hợp lệ theo định dạng:\n"
+            f"Các Slots hiện có: {json.dumps(current_slots, ensure_ascii=False)}\n"
+            "Quy tắc phản hồi: Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
             "{\n"
             '  "message": "Câu nói tâm tình ngắn gọn, chạm cảm xúc (1-2 câu)",\n'
-            '  "extracted_slots": {"TÊN_SLOT": "Giá trị trích xuất từ câu trả lời của user"},\n'
+            '  "extracted_slots": {"TÊN_SLOT": "Giá trị trích xuất"},\n'
             '  "quick_chips": ["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3"],\n'
-            '  "is_ready_for_script": true/false (true nếu đã thu thập được ít nhất 3 slots)\n'
+            '  "is_ready_for_script": true/false\n'
             "}"
         )
         prompt = system_persona + f"\nUser vừa chia sẻ: {user_message}"
@@ -363,25 +369,25 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
                 target_project["ideation_slots"].update(new_slots)
                 save_users()
             return JSONResponse({
-                "reply": parsed.get("message", "Tôi rất đồng cảm với điều bạn vừa chia sẻ."),
+                "reply": parsed.get("message", "Tôi rất thấu hiểu cảm xúc bạn gửi gắm."),
                 "chips": parsed.get("quick_chips", ["Một người sẽ biến mất", "Bí mật bị chôn giấu", "Tha thứ cho quá khứ"]),
-                "ready": parsed.get("is_ready_for_script", False)
+                "ready": parsed.get("is_ready_for_script", True)
             })
         else:
             return JSONResponse({
                 "reply": raw_res or f"⚠️ {err_msg}",
                 "chips": ["Tiếng mưa rơi trên mái tôn", "Bức ảnh cũ phai màu", "Một lời xin lỗi muộn màng"],
-                "ready": False
+                "ready": True
             })
 
 
     mode_instructions = {
-        2: "Tầng 9 & 10: Khóa cứng FaceID nhân vật, phục trang, bối cảnh và phong cách âm thanh Audiophile 3D chống lỗi AI.",
-        3: "Tầng 11 & 12: Bóc tách kịch bản thành các Scene 30s-150s, ma trận 3 Hồi và kiểm soát nhịp điệu Pacing Graph.",
+        2: "Tầng 9 & 10: Khóa cứng FaceID nhân vật, phục trang, bối cảnh và âm thanh Audiophile 3D.",
+        3: "Tầng 11 & 12: Bóc tách kịch bản thành các Scene 30s-150s, ma trận 3 Hồi và Pacing Graph.",
         4: "Tầng 13 đến 16: Render toàn tập, Alternate Takes, Timeline Rough-Cut và xuất file phụ đề .SRT."
     }
     system_persona = (
-        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.6. Trạng thái vận hành: {mode_instructions.get(tier, '')} "
+        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.6. Trạng thái: {mode_instructions.get(tier, '')} "
         "Hãy phản hồi ngắn gọn, sắc sảo, chuyên nghiệp.\n"
         f"Dự án: {project_title}\n"
     )
@@ -396,6 +402,8 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
         return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
     project_title = data.get("title", "Dự án mới")
+    aspect_ratio = data.get("aspect_ratio", "16:9")
+    target_duration = data.get("target_duration", "45p")
     
     target_project = None
     if username in USERS_DB and "projects" in USERS_DB[username]:
@@ -408,13 +416,14 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
     slots_text = json.dumps(slots, ensure_ascii=False) if slots else "Ý tưởng tự do về tình cảm và chia ly dưới mưa."
     
     prompt = (
-        "Bạn là Nhà biên kịch bậc thầy của Cine AI Studio Pro 6.6. Dựa vào các biến số tâm lý sau:\n"
+        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.6. Dựa vào các biến số tâm lý:\n"
         f"{slots_text}\n"
-        "Hãy tạo ra một kịch bản phim 45 phút hoàn chỉnh theo cấu trúc 3 Hồi chuẩn mực. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
+        f"Định dạng yêu cầu: Khung hình [{aspect_ratio}], Thời lượng [{target_duration}].\n"
+        "Hãy tạo kịch bản 3 Hồi hoàn chỉnh. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
         "{\n"
         '  "title": "Tên phim gợi ý đầy chất thơ",\n'
-        '  "header": "Thể loại: ... • Logline: ...",\n'
-        '  "story": "Nội dung câu chuyện 3 Hồi hoàn chỉnh (khoảng 800 - 1500 từ), nêu rõ tên nhân vật chính, đạo cụ then chốt, bối cảnh và xung đột cao trào."\n'
+        '  "header": "Thể loại: ... • Khung hình: ' + aspect_ratio + ' • Thời lượng: ' + target_duration + '",\n'
+        '  "story": "Nội dung câu chuyện 3 Hồi hoàn chỉnh (khoảng 600 - 1200 từ), nêu rõ tên nhân vật chính, đạo cụ then chốt, bối cảnh và cao trào."\n'
         "}"
     )
     raw_res, err = call_gemini_direct(prompt)
@@ -427,7 +436,7 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
     except Exception:
         res_data = {
             "title": project_title,
-            "header": "Thể loại: Tâm lý tình cảm • Khởi tạo tự động",
+            "header": f"Thể loại: Tâm lý điện ảnh • {aspect_ratio} • {target_duration}",
             "story": raw_res
         }
         
@@ -435,6 +444,8 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
         target_project["title"] = res_data.get("title", project_title)
         target_project["header"] = res_data.get("header", "")
         target_project["project_raw_story"] = res_data.get("story", "")
+        target_project["aspect_ratio"] = aspect_ratio
+        target_project["target_duration"] = target_duration
         save_users()
         
     return JSONResponse({"status": "success", "data": res_data})
@@ -463,13 +474,11 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
     
     selected_key = random.choice(keys)
     model_name = "gemini-1.5-pro"
-    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={selected_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
     
     pro_prompt = (
-        "Bạn là Tổng đạo diễn và Kiến trúc sư thuật toán của Cine AI Studio Pro 6.6. "
-        "Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
-        "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III) cho phim 45 phút. "
-        "Mỗi cảnh (Scene) có thời lượng 30s-150s và gắn Global Lock-in Tokens.\n\n"
+        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.6. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
+        "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III). Mỗi cảnh 30s-150s và gắn Global Lock-in Tokens.\n\n"
         f"Kịch bản gốc:\n{raw_story}"
     )
     payload = {"contents": [{"parts": [{"text": pro_prompt}]}], "systemInstruction": {"parts": [{"text": "Luôn luôn trả về định dạng JSON thuần túy chuẩn xác 100%."}]}}
@@ -574,9 +583,10 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
     landscape_token = lock_tokens.get("landscape", "LOC_DEFAULT")
     color_lut = lock_tokens.get("color_grading", "CINEMATIC_LUT")
     
+    aspect_ratio = project_data.get("aspect_ratio", "16:9")
     audiophile_tags = "Binaural 3D spatial audio, holographic soundstage, crystal clear 24-bit audiophile, dynamic left-right hard panning."
     final_render_prompt = (
-        f"Masterpiece cinematic shot, 4K resolution. "
+        f"Masterpiece cinematic shot, 4K resolution, Aspect Ratio [{aspect_ratio}]. "
         f"Scene: {target_scene.get('summary', '')}. "
         f"Tokens -> FaceID: [{face_token}], Costume: [{costume_token}], Landscape: [{landscape_token}], Color: [{color_lut}]. "
         f"Audio: {audiophile_tags}. Note: {user_tweak}"
@@ -594,6 +604,7 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
     new_take_object = {
         "take_id": new_take_id,
         "status": "rendered_success",
+        "aspect_ratio": aspect_ratio,
         "render_prompt": final_render_prompt,
         "media_url": f"https://cdn.cineai.studio/renders/{project_title.replace(' ', '_')}_s{scene_id}_take{new_take_id}.mp4",
         "audio_specs": audiophile_tags,
@@ -756,7 +767,7 @@ async def sepay_payment_webhook(request: Request):
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=400)
 @app.get("/", response_class=HTMLResponse)
-async def home(session_id: str = Cookie(None), load_project: str = None, tier: int = None):
+async def home(session_id: str = Cookie(None), load_project: str = None, tier: int = None, new_project: str = None):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
         return RedirectResponse(url="/login", status_code=303)
@@ -766,7 +777,23 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
     projects = user_data.get("projects", [])
     
     target_project = None
-    if load_project:
+    if new_project == "1":
+        new_title = f"Dự án mới #{len(projects) + 1}"
+        target_project = {
+            "title": new_title,
+            "header": "Thể loại: Điện ảnh cảm xúc • Tự do sáng tạo",
+            "project_raw_story": "",
+            "aspect_ratio": "16:9",
+            "target_duration": "45p",
+            "token_registry": {"visual_tokens": [], "audio_tokens": []},
+            "ideation_slots": {},
+            "highest_tier": 1,
+            "current_tier": 1
+        }
+        projects.insert(0, target_project)
+        user_data["projects"] = projects[:2]
+        save_users()
+    elif load_project:
         for p in projects:
             if p.get("title") == load_project:
                 target_project = p
@@ -779,6 +806,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             "title": "Dự án phim mới",
             "header": "Thể loại: Cổ phong huyền huyễn • Tình cảm tâm lý",
             "project_raw_story": "",
+            "aspect_ratio": "16:9",
+            "target_duration": "45p",
             "token_registry": {"visual_tokens": [], "audio_tokens": []},
             "ideation_slots": {},
             "highest_tier": 1,
@@ -807,7 +836,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
         tokens_html += f'<div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-center"><span class="text-emerald-400 font-bold">🎵 {at.get("token_id")}</span><span class="text-slate-400 text-[11px]">{at.get("category")}</span></div>'
 
 
-    html_content = """
+    html_part_1 = """
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -824,10 +853,10 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     <h1 class="text-base sm:text-lg font-bold text-amber-400">🎬 Cine AI Studio Pro 6.6</h1>
                     <p class="text-xs text-slate-400">Dự án: <b class="text-slate-200">PROJECT_TITLE_VAL</b></p>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-800">💰 USER_CREDITS_VAL C</span>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <a href="/?new_project=1" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition shadow-md">➕ Dự Án Mới</a>
+                    <span class="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-800">💰 USER_CREDITS_VAL C</span>
                     <a href="/library" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold transition">📁 Thư Viện</a>
-                    <a href="/community" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold transition">🌍 Public</a>
                 </div>
             </div>
 
@@ -857,13 +886,38 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     <label class="block text-xs font-semibold text-slate-400 mb-1">Đề Mục / Logline & Thể Loại:</label>
                     <input type="text" id="project-header" value="PROJECT_HEADER_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200">
                 </div>
+
+
+                <!-- 2 BỘ CHỐT MỤC TIÊU ĐIỆN ẢNH: KHUNG HÌNH & THỜI LƯỢNG KÈM DỰ TOÁN -->
+                <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-bold text-amber-400 uppercase mb-1">🎬 Khung Hình:</label>
+                            <select id="film-aspect-ratio" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 font-semibold">
+                                <option value="16:9">16:9 • Màn Ảnh Rộng / Điện ảnh</option>
+                                <option value="9:16">9:16 • Dọc (Reels / TikTok / Shorts)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-amber-400 uppercase mb-1">⏱️ Thời Lượng Mục Tiêu:</label>
+                            <select id="film-duration" onchange="updateEstimateBadge()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 font-semibold">
+                                <option value="45p">45 Phút • Phim Hoàn Chỉnh (~30 cảnh)</option>
+                                <option value="15p">10 - 15 Phút • Phim Trung Thiên (~10 cảnh)</option>
+                                <option value="3p">1 - 3 Phút • Phim Ngắn / Viral (~3 cảnh)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="cost-estimate-badge" class="text-[11px] bg-indigo-950/60 border border-indigo-800/60 p-2.5 rounded-xl text-indigo-300 leading-relaxed font-medium">
+                        💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit). Bạn có thể render từng cảnh đơn lẻ (5 C/lần) hoặc xem trước animatic miễn phí!
+                    </div>
+                </div>
                 
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="text-xs font-semibold text-slate-400">Nội Dung Kịch Bản Thô (Text):</label>
                         <span id="word-count-badge" class="text-[11px] text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-800/60">0 từ</span>
                     </div>
-                    <textarea id="project-story" rows="6" oninput="updateWordCount()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed">PROJECT_STORY_VAL</textarea>
+                    <textarea id="project-story" rows="5" oninput="updateWordCount()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed">PROJECT_STORY_VAL</textarea>
                 </div>
                 
                 <div class="space-y-2 p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
@@ -920,8 +974,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     <button onclick="proceedToTier(3)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
                 </div>
             </div>
-
-
+    ""”
+    html_part_2 = """
             <!-- MÀN HÌNH TẦNG 3: BÓC TÁCH PHÂN CẢNH -->
             <div id="screen-tier-3" class="TIER_3_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -962,7 +1016,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
                 <div class="flex justify-between items-center">
                     <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">💬 Đạo Diễn Ảo Khơi Mở Ý Tưởng (Tầng ACTIVE_TIER_VAL)</span>
-                    <button id="btn-generate-script" onclick="autoGenerateScriptFromSlots()" class="hidden bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-[11px] shadow-lg transition animate-pulse">✨ Khởi Tạo Kịch Bản 45 Phút</button>
+                    <button id="btn-generate-script" onclick="autoGenerateScriptFromSlots()" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-[11px] shadow-lg transition animate-pulse">✨ Khởi Tạo Kịch Bản Tự Động</button>
                 </div>
                 
                 <div id="chat-box" class="bg-slate-950 h-44 rounded-2xl p-3.5 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2.5 leading-relaxed">
@@ -985,10 +1039,25 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
 
 
         </div>
+    """
+    html_content = html_part_1 + html_part_2
         <script>
             let currentActiveTier = ACTIVE_TIER_VAL;
             let currentHighestTier = HIGHEST_TIER_VAL;
             let currentProjectTitle = "PROJECT_TITLE_VAL";
+
+
+            function updateEstimateBadge() {
+                const dur = document.getElementById('film-duration').value;
+                const badge = document.getElementById('cost-estimate-badge');
+                if (dur === '45p') {
+                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit). Bạn có thể render từng phân cảnh (5 C/lần) hoặc xem trước animatic miễn phí!';
+                } else if (dur === '15p') {
+                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim trung thiên 10-15 phút cần ~10 phân cảnh (ước tính ~50 Credit). Nhịp phim cô đọng, giàu cảm xúc!';
+                } else {
+                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim ngắn viral 1-3 phút cần ~3 phân cảnh (ước tính ~15 Credit). Nhanh, nhẹ, tối ưu đăng ngay mạng xã hội!';
+                }
+            }
 
 
             function updateWordCount() {
@@ -1016,12 +1085,14 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                 const title = document.getElementById('project-title') ? document.getElementById('project-title').value : currentProjectTitle;
                 const header = document.getElementById('project-header') ? document.getElementById('project-header').value : "";
                 const story = document.getElementById('project-story') ? document.getElementById('project-story').value : "";
+                const ratio = document.getElementById('film-aspect-ratio') ? document.getElementById('film-aspect-ratio').value : "16:9";
+                const dur = document.getElementById('film-duration') ? document.getElementById('film-duration').value : "45p";
                 
                 try {
                     await fetch('/api/cineai/save-draft', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({old_title: currentProjectTitle, title: title, header: header, story: story, tier: targetTier})
+                        body: JSON.stringify({old_title: currentProjectTitle, title: title, header: header, story: story, aspect_ratio: ratio, target_duration: dur, tier: targetTier})
                     });
                 } catch(e) {}
                 
@@ -1033,12 +1104,14 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                 const title = document.getElementById('project-title') ? document.getElementById('project-title').value : currentProjectTitle;
                 const header = document.getElementById('project-header') ? document.getElementById('project-header').value : "";
                 const story = document.getElementById('project-story') ? document.getElementById('project-story').value : "";
+                const ratio = document.getElementById('film-aspect-ratio') ? document.getElementById('film-aspect-ratio').value : "16:9";
+                const dur = document.getElementById('film-duration') ? document.getElementById('film-duration').value : "45p";
                 
                 try {
                     const res = await fetch('/api/cineai/save-draft', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({old_title: currentProjectTitle, title: title, header: header, story: story, tier: tier})
+                        body: JSON.stringify({old_title: currentProjectTitle, title: title, header: header, story: story, aspect_ratio: ratio, target_duration: dur, tier: tier})
                     });
                     const data = await res.json();
                     alert(data.message);
@@ -1154,7 +1227,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                 const input = document.getElementById('chat-input');
                 const box = document.getElementById('chat-box');
                 const chipsTray = document.getElementById('quick-chips-tray');
-                const btnGen = document.getElementById('btn-generate-script');
                 const text = input.value.trim();
                 if(!text) return;
 
@@ -1183,11 +1255,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                         chipHtml += '<button onclick="focusCustomInput()" class="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm">✍️ Lựa chọn khác...</button>';
                         chipsTray.innerHTML = chipHtml;
                     }
-
-
-                    if (data.ready) {
-                        btnGen.classList.remove('hidden');
-                    }
                 } catch(e) {
                     box.innerHTML += '<div class="bg-rose-950/60 p-2.5 rounded-xl text-rose-200">⚠️ Lỗi kết nối Đạo diễn ảo!</div>';
                 }
@@ -1196,14 +1263,17 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
 
             async function autoGenerateScriptFromSlots() {
                 const box = document.getElementById('chat-box');
-                box.innerHTML += '<div class="text-amber-300 font-bold">✨ Đang tổng hợp các biến số tâm lý để tạo kịch bản 45 phút hoàn chỉnh...</div>';
+                const ratio = document.getElementById('film-aspect-ratio').value;
+                const dur = document.getElementById('film-duration').value;
+                
+                box.innerHTML += '<div class="text-amber-300 font-bold">✨ Đang tổng hợp kịch bản [' + ratio + ' • ' + dur + ']...</div>';
                 box.scrollTop = box.scrollHeight;
                 
                 try {
                     const res = await fetch('/api/cineai/generate-script-from-slots', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({title: currentProjectTitle})
+                        body: JSON.stringify({title: currentProjectTitle, aspect_ratio: ratio, target_duration: dur})
                     });
                     const resData = await res.json();
                     if (resData.status === 'success') {
@@ -1212,7 +1282,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                         document.getElementById('project-story').value = resData.data.story;
                         currentProjectTitle = resData.data.title;
                         updateWordCount();
-                        box.innerHTML += '<div class="bg-emerald-950/60 p-3 rounded-xl text-emerald-200 font-bold">🎉 Kịch bản 45 phút đã được sinh thành công và điền vào Tầng 1! Bạn có thể xem lại hoặc bấm Tiếp tục sang Tầng 2.</div>';
+                        box.innerHTML += '<div class="bg-emerald-950/60 p-3 rounded-xl text-emerald-200 font-bold">🎉 Kịch bản chuẩn ' + ratio + ' (' + dur + ') đã tạo thành công và điền vào Tầng 1! Bạn có thể xem lại hoặc bấm Tiếp tục.</div>';
                         box.scrollTop = box.scrollHeight;
                     } else {
                         alert(resData.message);
@@ -1288,7 +1358,10 @@ async def library_page(session_id: str = Cookie(None)):
                     <h1 class="text-lg font-bold text-amber-400">📁 Thư Viện Dự Án</h1>
                     <p class="text-xs text-slate-400">Hạn mức: PROJECT_COUNT_VAL/2 dự án • Ví Credit: USER_CREDITS_VAL C</p>
                 </div>
-                <a href="/" class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl text-xs font-bold transition">⚡ Studio</a>
+                <div class="flex gap-2">
+                    <a href="/?new_project=1" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs transition shadow-md">➕ Tạo Dự Án Mới</a>
+                    <a href="/" class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl text-xs font-bold transition">⚡ Studio</a>
+                </div>
             </div>
             <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3">PROJECTS_LIST_VAL</div>
         </div>
@@ -1306,7 +1379,7 @@ async def library_page(session_id: str = Cookie(None)):
     """
     library_template = library_template.replace("PROJECT_COUNT_VAL", str(len(user_projects)))
     library_template = library_template.replace("USER_CREDITS_VAL", str(user_credits))
-    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào.</p>")
+    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào. Bấm '➕ Tạo Dự Án Mới' để bắt đầu.</p>")
     return HTMLResponse(content=library_template)
 
 
