@@ -110,76 +110,38 @@ def validate_python_code_ast(code_snippet: str) -> bool:
         return False
 
 
-@app.post("/api/cineai/save-draft")
-async def save_project_draft(request: Request, session_id: str = Cookie(None)):
+@app.post("/api/cineai/upload-asset-explicit")
+async def upload_asset_explicit(
+    file: UploadFile = File(...), 
+    project_title: str = Form("Dự án mới"),
+    session_id: str = Cookie(None)
+):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
         return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     
-    data = await request.json()
-    old_title = data.get("old_title", "").strip()
-    new_title = data.get("title", "").strip()
-    project_header = data.get("header", "").strip()
-    project_story = data.get("story", "").strip()
-    aspect_ratio = data.get("aspect_ratio", "16:9")
-    target_duration = data.get("target_duration", "45p")
-    target_tier = int(data.get("tier", 1))
+    file_name = file.filename.lower()
+    file_content = await file.read()
+    if not (file_name.endswith(".txt") or file_name.endswith(".md")):
+        return JSONResponse({"status": "error", "message": "⚠️ Vui lòng chọn đúng tệp kịch bản (.txt hoặc .md)!"}, status_code=400)
     
-    if not new_title:
-        return JSONResponse({"status": "error", "message": "⚠️ Tên dự án không được để trống!"}, status_code=400)
+    try:
+        extracted_text = file_content.decode("utf-8", errors="ignore")
+    except Exception as e:
+        extracted_text = f"Lỗi đọc tệp: {str(e)}"
     
-    user_data = USERS_DB.get(username, {})
-    if "projects" not in user_data:
-        user_data["projects"] = []
+    if username in USERS_DB and "projects" in USERS_DB[username]:
+        for p in USERS_DB[username]["projects"]:
+            if p.get("title") == project_title:
+                p["project_raw_story"] = extracted_text
+                p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                break
+        save_users()
     
-    projects = user_data["projects"]
-    target_project = None
-    
-    for p in projects:
-        if p.get("title") == old_title or p.get("title") == new_title:
-            target_project = p
-            break
-            
-    if target_project:
-        target_project["title"] = new_title
-        target_project["header"] = project_header
-        target_project["project_raw_story"] = project_story
-        target_project["aspect_ratio"] = aspect_ratio
-        target_project["target_duration"] = target_duration
-        current_highest = target_project.get("highest_tier", 1)
-        target_project["highest_tier"] = max(current_highest, target_tier)
-        target_project["current_tier"] = target_tier
-        target_project["tierProgress"] = f"Tầng {target_project['highest_tier']} ({aspect_ratio} • {target_duration})"
-        target_project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg = f"💾 Đã lưu thành công Tầng {target_tier} ({aspect_ratio} • {target_duration}) cho dự án '{new_title}'!"
-    else:
-        if len(projects) >= 2:
-            return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
-        target_project = {
-            "title": new_title,
-            "header": project_header,
-            "project_raw_story": project_story,
-            "aspect_ratio": aspect_ratio,
-            "target_duration": target_duration,
-            "token_registry": {"visual_tokens": [], "audio_tokens": []},
-            "assets_audit": {},
-            "scene_matrix": {},
-            "ideation_slots": {},
-            "highest_tier": target_tier,
-            "current_tier": target_tier,
-            "tierProgress": f"Tầng {target_tier} (Mới tạo)",
-            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        projects.append(target_project)
-        msg = f"💾 Đã tạo và lưu nháp dự án mới '{new_title}' thành công!"
-        
-    save_users()
     return JSONResponse({
-        "status": "success", 
-        "message": msg, 
-        "saved_title": new_title,
-        "highest_tier": target_project.get("highest_tier", 1),
-        "current_tier": target_tier
+        "status": "success",
+        "message": f"✅ Nạp và lưu thành công kịch bản từ tệp '{file.filename}'!",
+        "extracted_content": extracted_text
     })
 @app.post("/api/cineai/audit-script-assets")
 async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
@@ -994,7 +956,10 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                             <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition">Nạp File</button>
                         </div>
                     </div>
-                    <textarea id="project-story" class="hidden">PROJECT_STORY_VAL</textarea>
+                                        <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nội Dung Kịch Bản (Gõ hoặc dán trực tiếp):</label>
+                        <textarea id="project-story" rows="6" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition">PROJECT_STORY_VAL</textarea>
+                    </div>
                 </div>
 
 
