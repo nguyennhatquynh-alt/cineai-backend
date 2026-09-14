@@ -915,14 +915,14 @@ async def library_page(session_id: str = Cookie(None)):
                     <p class="text-[11px] text-slate-500">🕒 Cập nhật: {updated_time}</p>
                 </div>
                 <div class="flex items-center gap-2 w-full sm:w-auto">
-                    <a href="/?load_project={urllib.parse.quote(title)}" class="flex-1 sm:flex-none text-center bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs transition shadow-lg uppercase">📂 Mở Studio</a>
-                    <button onclick="confirmDeleteProject('{title}')" class="bg-rose-900/60 hover:bg-rose-700 text-rose-200 border border-rose-800 font-bold px-4 py-3 rounded-2xl text-xs transition shadow">🗑️ Xóa</button>
+                    <a href="/?load_project={urllib.parse.quote(title)}" class="flex-1 sm:flex-none text-center bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3.5 rounded-2xl text-xs transition shadow-lg uppercase tracking-wider">📂 Mở Studio</a>
+                    <button onclick="confirmDeleteProject('{title}')" class="bg-rose-900/60 hover:bg-rose-700 text-rose-200 border border-rose-800 font-bold px-4 py-3.5 rounded-2xl text-xs transition shadow">🗑️ Xóa</button>
                 </div>
             </div>
             """
 
 
-    return HTMLResponse(content=f"""
+    library_html = """
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -937,7 +937,7 @@ async def library_page(session_id: str = Cookie(None)):
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl gap-4">
                 <div>
                     <h1 class="text-xl sm:text-2xl font-black text-amber-400 tracking-wide">📁 Thư Viện & Quản Lý Dự Án</h1>
-                    <p class="text-xs text-slate-400 mt-1">Đã dùng <b class="text-amber-300">{len(user_projects)}</b> / 2 dự án tiêu chuẩn • Ví Credit: <b class="text-emerald-400">{user_credits} Credit</b></p>
+                    <p class="text-xs text-slate-400 mt-1">Đã dùng <b class="text-amber-300">USER_PROJECTS_COUNT</b> / 2 dự án tiêu chuẩn • Ví Credit: <b class="text-emerald-400">USER_CREDITS_VAL Credit</b></p>
                 </div>
                 <a href="/" class="bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-700 px-5 py-3 rounded-2xl font-bold text-xs transition shadow">⚡ Quay lại Studio 16 Tầng</a>
             </div>
@@ -949,7 +949,7 @@ async def library_page(session_id: str = Cookie(None)):
                     <a href="/" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs transition shadow">➕ Tạo Dự Án Mới</a>
                 </div>
                 <div class="space-y-4 pt-2">
-                    {projects_html}
+                    PROJECTS_HTML_PLACEHOLDER
                 </div>
             </div>
 
@@ -977,7 +977,11 @@ async def library_page(session_id: str = Cookie(None)):
         </script>
     </body>
     </html>
-    """)
+    """
+    library_html = library_html.replace("USER_PROJECTS_COUNT", str(len(user_projects)))
+    library_html = library_html.replace("USER_CREDITS_VAL", str(user_credits))
+    library_html = library_html.replace("PROJECTS_HTML_PLACEHOLDER", projects_html)
+    return HTMLResponse(content=library_html)
 
 
 @app.get("/login", response_class=HTMLResponse)
