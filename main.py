@@ -6,6 +6,7 @@ import requests
 import hashlib
 import secrets
 import ast
+import urllib.parse
 from datetime import datetime
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, HTTPException
@@ -579,13 +580,27 @@ async def export_srt_subtitles(title: str = "Dự án mới", session_id: str = 
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(session_id: str = Cookie(None)):
+async def home(session_id: str = Cookie(None), load_project: str = None):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     
-    user_credits = USERS_DB.get(username, {}).get("credits", 10)
+    user_data = USERS_DB.get(username, {})
+    user_credits = user_data.get("credits", 10)
     
+    current_project_title = "Định Mệnh Địa Cầu - Phim Ngắn 45p"
+    if load_project:
+        current_project_title = load_project
+    else:
+        # Tự động tạo/lưu dự án nháp mặc định nếu user chưa có
+        projects = user_data.get("projects", [])
+        if not projects:
+            user_data["projects"] = [{"title": current_project_title, "tierProgress": "Tầng 7-8 (Đang nháp)", "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]
+            save_users()
+        else:
+            current_project_title = projects[0].get("title", current_project_title)
+
+
     html_content = """
     <!DOCTYPE html>
     <html lang="vi">
@@ -628,7 +643,7 @@ async def home(session_id: str = Cookie(None)):
                     
                     <div>
                         <label class="block text-[11px] font-semibold text-slate-400 mb-1">Tên Dự Án Phim (Tối đa 45 phút):</label>
-                        <input type="text" id="project-title" value="Định Mệnh Địa Cầu - Phim Ngắn 45p" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs font-semibold text-amber-300">
+                        <input type="text" id="project-title" value="PROJECT_TITLE_PLACEHOLDER" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs font-semibold text-amber-300">
                     </div>
 
 
@@ -789,7 +804,81 @@ async def home(session_id: str = Cookie(None)):
     """
     html_content = html_content.replace("USER_CREDITS_PLACEHOLDER", str(user_credits))
     html_content = html_content.replace("USER_NAME_PLACEHOLDER", username)
-    return HTMLResponse(content=html_content)
+    html_content = html_content.replace("PROJECT_TITLE_P@app.get("/library", response_class=HTMLResponse)
+async def library_page(session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    user_data = USERS_DB.get(username, {})
+    user_projects = user_data.get("projects", [])
+    user_credits = user_data.get("credits", 0)
+    
+    projects_html = ""
+    if not user_projects:
+        projects_html = """
+        <div class="text-center py-12 bg-slate-950/60 rounded-3xl border border-dashed border-slate-800 space-y-3">
+            <p class="text-sm text-slate-400">Chưa có dự án phim nào được lưu.</p>
+            <a href="/" class="inline-block bg-amber-500 text-slate-950 font-bold px-6 py-3 rounded-2xl text-xs shadow-lg">⚡ Bắt Đầu Tạo Dự Án Mới</a>
+        </div>
+        """
+    else:
+        for idx, p in enumerate(user_projects):
+            title = p.get("title", f"Dự án #{idx+1}")
+            status = p.get("tierProgress", "Đang lưu nháp (Draft)")
+            updated_time = p.get("updated_at", "Vừa xong")
+            projects_html += f"""
+            <div class="bg-slate-950 p-5 sm:p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition hover:border-amber-500/50">
+                <div class="space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20">🎬 {status}</span>
+                    <h3 class="text-base sm:text-lg font-black text-slate-100 pt-1">{title}</h3>
+                    <p class="text-xs text-slate-400">🕒 Cập nhật lần cuối: {updated_time}</p>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <a href="/?load_project={urllib.parse.quote(title)}" class="flex-1 sm:flex-none text-center bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3.5 rounded-2xl text-xs transition shadow-lg uppercase tracking-wider">📂 Mở Studio</a>
+                </div>
+            </div>
+            """
+
+
+    return HTMLResponse(content=f"""
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Thư Viện Dự Án - Cine AI Studio Pro 6.0</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans">
+        <div class="max-w-4xl mx-auto space-y-6">
+            
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl gap-4">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-black text-amber-400 tracking-wide">📁 Thư Viện & Quản Lý Dự Án</h1>
+                    <p class="text-xs text-slate-400 mt-1">Đã dùng <b class="text-amber-300">{len(user_projects)}</b> / 2 dự án tiêu chuẩn • Ví Credit: <b class="text-emerald-400">{user_credits} Credit</b></p>
+                </div>
+                <a href="/" class="bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-700 px-5 py-3 rounded-2xl font-bold text-xs transition shadow">⚡ Quay lại Studio 16 Tầng</a>
+            </div>
+
+
+            <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-4 shadow-2xl">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400">📋 Danh Sách Dự Án Nháp & Hoàn Thành</h2>
+                    <a href="/" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs transition shadow">➕ Tạo Dự Án Mới</a>
+                </div>
+                <div class="space-y-4 pt-2">
+                    {projects_html}
+                </div>
+            </div>
+
+
+        </div>
+    </body>
+    </html>
+    """)
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(tab: str = "login"):
     is_register = (tab == "register")
@@ -886,32 +975,6 @@ async def logout(session_id: str = Cookie(None)):
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key="session_id")
     return response
-
-
-@app.get("/library", response_class=HTMLResponse)
-async def library_page(session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
-    user_projects = USERS_DB.get(username, {}).get("projects", [])
-    user_credits = USERS_DB.get(username, {}).get("credits", 0)
-    return HTMLResponse(content=f"""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI Studio Pro 6.0</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
-        <div class="max-w-4xl mx-auto space-y-4">
-            <div class="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
-                <div>
-                    <h1 class="text-xl font-bold text-amber-400">📁 Thư Viện Dự Án (Đã dùng {len(user_projects)} / 2 dự án)</h1>
-                    <p class="text-xs text-emerald-400 mt-1">💰 Số dư ví Credit: <b>{user_credits} Credit</b></p>
-                </div>
-                <a href="/" class="bg-amber-500 text-slate-950 px-4 py-2 rounded-xl font-bold text-xs">⚡ Quay lại Studio</a>
-            </div>
-            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-3">
-                {'<p class="text-xs text-slate-500">Chưa có dự án nào.</p>' if not user_projects else ''.join([f'<div class="bg-slate-950 p-4 rounded-xl border border-slate-800"><h3 class="text-amber-400 font-bold text-xs">{p.get("title")}</h3></div>' for p in user_projects])}
-            </div>
-        </div>
-    </body></html>
-    """)
 
 
 @app.get("/community", response_class=HTMLResponse)
