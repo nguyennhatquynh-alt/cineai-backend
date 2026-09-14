@@ -122,11 +122,12 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     
     data = await request.json()
-    project_title = data.get("title", "").strip()
+    old_title = data.get("old_title", "").strip()
+    new_title = data.get("title", "").strip()
     project_header = data.get("header", "").strip()
     project_story = data.get("story", "").strip()
     
-    if not project_title:
+    if not new_title:
         return JSONResponse({"status": "error", "message": "⚠️ Tên dự án không được để trống!"}, status_code=400)
     
     user_data = USERS_DB.get(username, {})
@@ -134,28 +135,34 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         user_data["projects"] = []
     
     projects = user_data["projects"]
-    found = False
+    target_project = None
+    
+    # Tìm theo tên cũ hoặc tên mới để cập nhật đè (Smart Update)
     for p in projects:
-        if p.get("title") == project_title:
-            p["header"] = project_header
-            p["project_raw_story"] = project_story
-            p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            found = True
+        if p.get("title") == old_title or p.get("title") == new_title:
+            target_project = p
             break
             
-    if not found:
+    if target_project:
+        target_project["title"] = new_title
+        target_project["header"] = project_header
+        target_project["project_raw_story"] = project_story
+        target_project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"💾 Đã cập nhật thành công nội dung cho dự án '{new_title}'!"
+    else:
         if len(projects) >= 2:
             return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
         projects.append({
-            "title": project_title,
+            "title": new_title,
             "header": project_header,
             "project_raw_story": project_story,
             "tierProgress": "Tầng 7-8 (Đang lưu nháp)",
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
+        msg = f"💾 Đã tạo và lưu nháp dự án mới '{new_title}' thành công!"
         
     save_users()
-    return JSONResponse({"status": "success", "message": f"💾 Đã lưu nháp thành công cho dự án '{project_title}'!"})
+    return JSONResponse({"status": "success", "message": msg, "saved_title": new_title})
 
 
 @app.post("/api/cineai/delete-project")
@@ -233,7 +240,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
                     break
                     
     if not raw_story:
-        return JSONResponse({"reply": "⚠️ Chưa có nội dung dự án hoặc kịch bản thô. Vui lòng nhập nội dung trước!"}, status_code=400)
+        return JSONResponse({"reply": "⚠️ Chưa có nội dung dự án. Vui lòng nhập nội dung kịch bản trước!"}, status_code=400)
     
     keys = get_gemini_keys()
     if not keys:
@@ -673,8 +680,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                 
                 <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-4 shadow-xl lg:col-span-1">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400">⚙️ Điều khiển 16 Tầng & Quản lý Dự Án</h2>
-                        <button onclick="saveProjectDraft()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition shadow flex items-center gap-1">💾 Lưu Nháp</button>
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400">⚙️ Quản lý Dự Án & 16 Tầng</h2>
+                        <button onclick="saveProjectDraft()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs transition shadow flex items-center gap-1 uppercase tracking-wider">💾 Cập Nhật Nháp</button>
                     </div>
                     
                     <div>
@@ -749,8 +756,12 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
 
         <script>
+            // Lưu giữ lại tên ban đầu để nhận biết khi cập nhật đè (Smart Update)
+            let originalProjectTitle = "PROJECT_TITLE_PLACEHOLDER";
+
+
             async function saveProjectDraft() {
-                const title = document.getElementById('project-title').value;
+                const newTitle = document.getElementById('project-title').value;
                 const header = document.getElementById('project-header').value;
                 const story = document.getElementById('project-story').value;
                 const chatBox = document.getElementById('chat-box');
@@ -759,11 +770,12 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                     const res = await fetch('/api/cineai/save-draft', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({title: title, header: header, story: story})
+                        body: JSON.stringify({old_title: originalProjectTitle, title: newTitle, header: header, story: story})
                     });
                     const data = await res.json();
                     if(data.status === 'success') {
-                        chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">💾 ' + data.message + '</div>';
+                        originalProjectTitle = data.saved_title; // Cập nhật lại tên gốc mới
+                        chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">✅ ' + data.message + '</div>';
                     } else {
                         alert(data.message);
                     }
@@ -985,18 +997,24 @@ async def library_page(session_id: str = Cookie(None)):
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(tab: str = "login", error: str = None):
+async def login_page(tab: str = "login", error: str = None, success: str = None):
     is_register = (tab == "register")
-    login_tab_class = "flex-1 py-3 text-center font-bold text-xs rounded-xl transition " + ("bg-amber-500 text-slate-950 shadow-lg" if not is_register else "text-slate-400 hover:text-slate-200")
+    is_forgot = (tab == "forgot")
+    
+    login_tab_class = "flex-1 py-3 text-center font-bold text-xs rounded-xl transition " + ("bg-amber-500 text-slate-950 shadow-lg" if not is_register and not is_forgot else "text-slate-400 hover:text-slate-200")
     reg_tab_class = "flex-1 py-3 text-center font-bold text-xs rounded-xl transition " + ("bg-amber-500 text-slate-950 shadow-lg" if is_register else "text-slate-400 hover:text-slate-200")
     
-    form_action = "/login" if not is_register else "/register"
-    title_text = "🔐 Đăng Nhập Hệ Thống" if not is_register else "📝 Tạo Tài Khoản Mới"
-    subtitle_text = "Cine AI Studio Pro 6.0 Enterprise" if not is_register else "Nhận ngay 10 Credit trải nghiệm"
-    btn_text = "Đăng Nhập Ngay" if not is_register else "Đăng Ký Tài Khoản"
+    form_action = "/login" if not is_register and not is_forgot else ("/register" if is_register else "/forgot-password")
+    title_text = "🔐 Đăng Nhập Hệ Thống" if not is_register and not is_forgot else ("📝 Tạo Tài Khoản Mới" if is_register else "🔑 Khôi Phục Mật Khẩu")
+    subtitle_text = "Cine AI Studio Pro 6.0 Enterprise" if not is_register and not is_forgot else ("Nhận ngay 10 Credit trải nghiệm" if is_register else "Cập nhật mật khẩu mới an toàn")
+    btn_text = "Đăng Nhập Ngay" if not is_register and not is_forgot else ("Đăng Ký Tài Khoản" if is_register else "Xác Nhận Đổi Mật Khẩu")
 
 
-    error_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3 rounded-xl text-rose-200 text-xs text-center font-bold">{error}</div>' if error else ''
+    error_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3 rounded-2xl text-rose-200 text-xs text-center font-bold">{error}</div>' if error else ''
+    success_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3 rounded-2xl text-emerald-200 text-xs text-center font-bold">{success}</div>' if success else ''
+
+
+    forgot_link = '<div class="text-right"><a href="/login?tab=forgot" class="text-[11px] text-amber-400 hover:underline">Quên mật khẩu?</a></div>' if not is_register and not is_forgot else '<div class="text-left"><a href="/login?tab=login" class="text-[11px] text-amber-400 hover:underline">← Quay lại đăng nhập</a></div>'
 
 
     return HTMLResponse(content=f"""
@@ -1018,12 +1036,10 @@ async def login_page(tab: str = "login", error: str = None):
 
 
             {error_html}
+            {success_html}
 
 
-            <div class="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
-                <a href="/login?tab=login" class="{login_tab_class}">Đăng Nhập</a>
-                <a href="/login?tab=register" class="{reg_tab_class}">Đăng Ký Mới</a>
-            </div>
+            {'<div class="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800"><a href="/login?tab=login" class="' + login_tab_class + '">Đăng Nhập</a><a href="/login?tab=register" class="' + reg_tab_class + '">Đăng Ký Mới</a></div>' if not is_forgot else ''}
 
 
             <form method="POST" action="{form_action}" class="space-y-4">
@@ -1032,9 +1048,10 @@ async def login_page(tab: str = "login", error: str = None):
                     <input type="text" name="username" required placeholder="Nhập tên tài khoản..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-2">🔑 Mật khẩu bảo mật:</label>
+                    <label class="block text-xs font-bold text-slate-300 mb-2">🔑 {'Mật khẩu mới' if is_forgot else 'Mật khẩu bảo mật'}:</label>
                     <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
                 </div>
+                {forgot_link if not is_forgot else ''}
                 <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-4 rounded-2xl transition text-sm shadow-xl tracking-wider uppercase mt-2">{btn_text}</button>
             </form>
 
@@ -1063,7 +1080,7 @@ async def login_post(username: str = Form(...), password: str = Form(...)):
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(key="session_id", value=session_id)
         return response
-    return RedirectResponse(url="/login?tab=login&error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu!"), status_code=303)
+    return RedirectResponse(url="/login?tab=login&error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu, vui lòng kiểm tra lại!"), status_code=303)
 
 
 @app.post("/register")
@@ -1077,6 +1094,16 @@ async def register_post(username: str = Form(...), password: str = Form(...)):
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(key="session_id", value=session_id)
     return response
+
+
+@app.post("/forgot-password")
+async def forgot_password_post(username: str = Form(...), password: str = Form(...)):
+    if username not in USERS_DB:
+        return RedirectResponse(url="/login?tab=forgot&error=" + urllib.parse.quote("⚠️ Tên tài khoản này không tồn tại trong hệ thống!"), status_code=303)
+    
+    USERS_DB[username]["password_hash"] = hashlib.sha256(password.encode()).hexdigest()
+    save_users()
+    return RedirectResponse(url="/login?tab=login&success=" + urllib.parse.quote("🎉 Đổi mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới."), status_code=303)
 
 
 @app.get("/logout")
