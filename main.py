@@ -115,6 +115,70 @@ def validate_python_code_ast(code_snippet: str) -> bool:
         return True
     except SyntaxError:
         return False
+@app.post("/api/cineai/save-draft")
+async def save_project_draft(request: Request, session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    
+    data = await request.json()
+    project_title = data.get("title", "").strip()
+    project_header = data.get("header", "").strip()
+    project_story = data.get("story", "").strip()
+    
+    if not project_title:
+        return JSONResponse({"status": "error", "message": "⚠️ Tên dự án không được để trống!"}, status_code=400)
+    
+    user_data = USERS_DB.get(username, {})
+    if "projects" not in user_data:
+        user_data["projects"] = []
+    
+    projects = user_data["projects"]
+    found = False
+    for p in projects:
+        if p.get("title") == project_title:
+            p["header"] = project_header
+            p["project_raw_story"] = project_story
+            p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            found = True
+            break
+            
+    if not found:
+        if len(projects) >= 2:
+            return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
+        projects.append({
+            "title": project_title,
+            "header": project_header,
+            "project_raw_story": project_story,
+            "tierProgress": "Tầng 7-8 (Đang lưu nháp)",
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+    save_users()
+    return JSONResponse({"status": "success", "message": f"💾 Đã lưu nháp thành công cho dự án '{project_title}'!"})
+
+
+@app.post("/api/cineai/delete-project")
+async def delete_project(request: Request, session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    
+    data = await request.json()
+    project_title = data.get("title", "").strip()
+    
+    user_data = USERS_DB.get(username, {})
+    projects = user_data.get("projects", [])
+    
+    new_projects = [p for p in projects if p.get("title") != project_title]
+    if len(new_projects) == len(projects):
+        return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án cần xóa!"}, status_code=404)
+        
+    user_data["projects"] = new_projects
+    save_users()
+    return JSONResponse({"status": "success", "message": f"🗑️ Đã xóa vĩnh viễn dự án '{project_title}' thành công!"})
+
+
 @app.post("/api/cineai/chat")
 async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -151,50 +215,6 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     return JSONResponse({"reply": reply_text, "project": project_title})
 
 
-@app.post("/api/cineai/upload-asset")
-async def upload_asset(
-    file: UploadFile = File(...), 
-    asset_type: str = Form(...), 
-    project_title: str = Form("Dự án mới"),
-    session_id: str = Cookie(None)
-):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
-    file_content = await file.read()
-    file_name = file.filename
-    extracted_text = ""
-    
-    if asset_type == "story":
-        try:
-            extracted_text = file_content.decode("utf-8", errors="ignore")
-        except Exception as e:
-            extracted_text = f"Không thể đọc trực tiếp file: {str(e)}"
-    
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("title") == project_title:
-                if "assets" not in p:
-                    p["assets"] = []
-                p["assets"].append({
-                    "name": file_name,
-                    "type": asset_type,
-                    "preview": extracted_text[:500] if extracted_text else "Binary Asset Data",
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
-                if asset_type == "story" and extracted_text:
-                    p["project_raw_story"] = extracted_text
-                break
-        save_users()
-    
-    return JSONResponse({
-        "status": "success",
-        "message": f"📁 Đã tiếp nhận và phân tích thành công tệp '{file_name}' cho hạng mục [{asset_type.upper()}]!",
-        "preview": extracted_text[:200] if extracted_text else "Đã lưu trữ mẫu asset thành công."
-    })
-
-
 @app.post("/api/cineai/breakdown-scenes-enterprise")
 async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -213,7 +233,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
                     break
                     
     if not raw_story:
-        return JSONResponse({"reply": "⚠️ Chưa có cốt truyện hoặc kịch bản thô. Vui lòng hoàn thành Tầng 7-8 trước!"}, status_code=400)
+        return JSONResponse({"reply": "⚠️ Chưa có nội dung dự án hoặc kịch bản thô. Vui lòng nhập nội dung trước!"}, status_code=400)
     
     keys = get_gemini_keys()
     if not keys:
@@ -587,15 +607,31 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
     user_credits = user_data.get("credits", 10)
     
     current_project_title = "Định Mệnh Địa Cầu - Phim Ngắn 45p"
+    current_project_header = "Thể loại: Cổ phong huyền huyễn • Tình cảm tâm lý"
+    current_project_story = "Nội dung kịch bản chi tiết hoặc cốt truyện thô sẽ được lưu ở đây..."
+    
+    projects = user_data.get("projects", [])
     if load_project:
-        current_project_title = load_project
+        for p in projects:
+            if p.get("title") == load_project:
+                current_project_title = p.get("title", current_project_title)
+                current_project_header = p.get("header", current_project_header)
+                current_project_story = p.get("project_raw_story", current_project_story)
+                break
     else:
-        projects = user_data.get("projects", [])
         if not projects:
-            user_data["projects"] = [{"title": current_project_title, "tierProgress": "Tầng 7-8 (Đang nháp)", "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]
+            user_data["projects"] = [{
+                "title": current_project_title,
+                "header": current_project_header,
+                "project_raw_story": current_project_story,
+                "tierProgress": "Tầng 7-8 (Đang lưu nháp)",
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }]
             save_users()
         else:
             current_project_title = projects[0].get("title", current_project_title)
+            current_project_header = projects[0].get("header", current_project_header)
+            current_project_story = projects[0].get("project_raw_story", current_project_story)
 
 
     html_content = """
@@ -636,11 +672,26 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 
                 <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-4 shadow-xl lg:col-span-1">
-                    <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400">⚙️ Điều khiển 16 Tầng & Khóa AI</h2>
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400">⚙️ Điều khiển 16 Tầng & Quản lý Dự Án</h2>
+                        <button onclick="saveProjectDraft()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition shadow flex items-center gap-1">💾 Lưu Nháp</button>
+                    </div>
                     
                     <div>
-                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Tên Dự Án Phim (Tối đa 45 phút):</label>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Tiêu Đề / Tên Dự Án Phim:</label>
                         <input type="text" id="project-title" value="PROJECT_TITLE_PLACEHOLDER" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs font-semibold text-amber-300">
+                    </div>
+
+
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Đề Mục / Logline & Thể Loại:</label>
+                        <input type="text" id="project-header" value="PROJECT_HEADER_PLACEHOLDER" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200">
+                    </div>
+
+
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nội Dung Dự Án / Cốt Truyện Thô:</label>
+                        <textarea id="project-story" rows="5" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500">PROJECT_STORY_PLACEHOLDER</textarea>
                     </div>
 
 
@@ -698,6 +749,31 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
 
         <script>
+            async function saveProjectDraft() {
+                const title = document.getElementById('project-title').value;
+                const header = document.getElementById('project-header').value;
+                const story = document.getElementById('project-story').value;
+                const chatBox = document.getElementById('chat-box');
+                
+                try {
+                    const res = await fetch('/api/cineai/save-draft', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({title: title, header: header, story: story})
+                    });
+                    const data = await res.json();
+                    if(data.status === 'success') {
+                        chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">💾 ' + data.message + '</div>';
+                    } else {
+                        alert(data.message);
+                    }
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } catch(e) {
+                    alert('Lỗi kết nối khi lưu dự án nháp!');
+                }
+            }
+
+
             async function uploadAssetFile(type) {
                 const fileInput = document.getElementById('file-story');
                 const title = document.getElementById('project-title').value;
@@ -802,6 +878,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
     html_content = html_content.replace("USER_CREDITS_PLACEHOLDER", str(user_credits))
     html_content = html_content.replace("USER_NAME_PLACEHOLDER", username)
     html_content = html_content.replace("PROJECT_TITLE_PLACEHOLDER", current_project_title)
+    html_content = html_content.replace("PROJECT_HEADER_PLACEHOLDER", current_project_header)
+    html_content = html_content.replace("PROJECT_STORY_PLACEHOLDER", current_project_story)
     return HTMLResponse(content=html_content)
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
@@ -824,17 +902,21 @@ async def library_page(session_id: str = Cookie(None)):
     else:
         for idx, p in enumerate(user_projects):
             title = p.get("title", f"Dự án #{idx+1}")
+            header = p.get("header", "Chưa có đề mục")
             status = p.get("tierProgress", "Đang lưu nháp (Draft)")
             updated_time = p.get("updated_at", "Vừa xong")
+            
             projects_html += f"""
             <div class="bg-slate-950 p-5 sm:p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition hover:border-amber-500/50">
                 <div class="space-y-1">
                     <span class="text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20">🎬 {status}</span>
                     <h3 class="text-base sm:text-lg font-black text-slate-100 pt-1">{title}</h3>
-                    <p class="text-xs text-slate-400">🕒 Cập nhật lần cuối: {updated_time}</p>
+                    <p class="text-xs text-slate-400 italic">📌 {header}</p>
+                    <p class="text-[11px] text-slate-500">🕒 Cập nhật: {updated_time}</p>
                 </div>
                 <div class="flex items-center gap-2 w-full sm:w-auto">
-                    <a href="/?load_project={urllib.parse.quote(title)}" class="flex-1 sm:flex-none text-center bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3.5 rounded-2xl text-xs transition shadow-lg uppercase tracking-wider">📂 Mở Studio</a>
+                    <a href="/?load_project={urllib.parse.quote(title)}" class="flex-1 sm:flex-none text-center bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs transition shadow-lg uppercase">📂 Mở Studio</a>
+                    <button onclick="confirmDeleteProject('{title}')" class="bg-rose-900/60 hover:bg-rose-700 text-rose-200 border border-rose-800 font-bold px-4 py-3 rounded-2xl text-xs transition shadow">🗑️ Xóa</button>
                 </div>
             </div>
             """
@@ -873,13 +955,33 @@ async def library_page(session_id: str = Cookie(None)):
 
 
         </div>
+
+
+        <script>
+            async function confirmDeleteProject(title) {
+                if(confirm("⚠️ Bạn đã chắc chắn với hành động xóa dự án '" + title + "' này chưa? Dữ liệu không thể khôi phục sau khi xóa.")) {
+                    try {
+                        const res = await fetch('/api/cineai/delete-project', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({title: title})
+                        });
+                        const data = await res.json();
+                        alert(data.message);
+                        location.reload();
+                    } catch(e) {
+                        alert('Lỗi kết nối khi xóa dự án!');
+                    }
+                }
+            }
+        </script>
     </body>
     </html>
     """)
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(tab: str = "login"):
+async def login_page(tab: str = "login", error: str = None):
     is_register = (tab == "register")
     login_tab_class = "flex-1 py-3 text-center font-bold text-xs rounded-xl transition " + ("bg-amber-500 text-slate-950 shadow-lg" if not is_register else "text-slate-400 hover:text-slate-200")
     reg_tab_class = "flex-1 py-3 text-center font-bold text-xs rounded-xl transition " + ("bg-amber-500 text-slate-950 shadow-lg" if is_register else "text-slate-400 hover:text-slate-200")
@@ -888,6 +990,9 @@ async def login_page(tab: str = "login"):
     title_text = "🔐 Đăng Nhập Hệ Thống" if not is_register else "📝 Tạo Tài Khoản Mới"
     subtitle_text = "Cine AI Studio Pro 6.0 Enterprise" if not is_register else "Nhận ngay 10 Credit trải nghiệm"
     btn_text = "Đăng Nhập Ngay" if not is_register else "Đăng Ký Tài Khoản"
+
+
+    error_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3 rounded-xl text-rose-200 text-xs text-center font-bold">{error}</div>' if error else ''
 
 
     return HTMLResponse(content=f"""
@@ -906,6 +1011,9 @@ async def login_page(tab: str = "login"):
                 <h2 class="text-xl sm:text-2xl font-black text-amber-400 tracking-wide">{title_text}</h2>
                 <p class="text-xs text-slate-400 font-medium">{subtitle_text}</p>
             </div>
+
+
+            {error_html}
 
 
             <div class="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
@@ -951,13 +1059,13 @@ async def login_post(username: str = Form(...), password: str = Form(...)):
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(key="session_id", value=session_id)
         return response
-    return RedirectResponse(url="/login?tab=login", status_code=303)
+    return RedirectResponse(url="/login?tab=login&error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu!"), status_code=303)
 
 
 @app.post("/register")
 async def register_post(username: str = Form(...), password: str = Form(...)):
     if username in USERS_DB:
-        return RedirectResponse(url="/login?tab=register", status_code=303)
+        return RedirectResponse(url="/login?tab=register&error=" + urllib.parse.quote("⚠️ Tên đăng nhập này đã tồn tại! Vui lòng chọn tên khác."), status_code=303)
     USERS_DB[username] = {"password_hash": hashlib.sha256(password.encode()).hexdigest(), "projects": [], "credits": 10}
     save_users()
     session_id = secrets.token_hex(16)
