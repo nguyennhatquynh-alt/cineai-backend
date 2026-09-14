@@ -82,7 +82,7 @@ def call_gemini_direct(prompt_text):
         else:
             return None, f"Lỗi Google API ({response.status_code})"
     except Exception as e:
-        return None, f"Lỗi kết nối: {str(e)}”
+        return None, "Lỗi kết nối: " + str(e)
 @app.middleware("http")
 async def self_healing_global_middleware(request: Request, call_next):
     try:
