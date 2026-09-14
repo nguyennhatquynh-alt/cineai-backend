@@ -324,8 +324,6 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         "metrics": structured_data["pacing_metrics"],
         "data": parsed_scenes
     })
-
-
 @app.post("/api/cineai/render-scene-take")
 async def render_scene_take(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -419,6 +417,8 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
         "remaining_credits": user_data["credits"],
         "take_info": new_take_object
     })
+
+
 @app.post("/api/payments/webhook")
 async def sepay_payment_webhook(request: Request):
     try:
@@ -577,8 +577,6 @@ async def export_srt_subtitles(title: str = "Dự án mới", session_id: str = 
 
 
     return JSONResponse({"status": "success", "srt_format": srt_content})
-
-
 @app.get("/", response_class=HTMLResponse)
 async def home(session_id: str = Cookie(None), load_project: str = None):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -804,7 +802,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
     html_content = html_content.replace("USER_CREDITS_PLACEHOLDER", str(user_credits))
     html_content = html_content.replace("USER_NAME_PLACEHOLDER", username)
     html_content = html_content.replace("PROJECT_TITLE_PLACEHOLDER", current_project_title)
-    return HTMLResponse(con@app.get("/library", response_class=HTMLResponse)
+    return HTMLResponse(content=html_content)
+@app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
