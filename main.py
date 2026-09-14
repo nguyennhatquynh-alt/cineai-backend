@@ -82,9 +82,7 @@ def call_gemini_direct(prompt_text):
         else:
             return None, f"Lỗi Google API ({response.status_code})"
     except Exception as e:
-        return None, f"Lỗi kết nối: {str(e)}"
-
-
+        return None, f"Lỗi kết nối: {str(e)}”
 @app.middleware("http")
 async def self_healing_global_middleware(request: Request, call_next):
     try:
@@ -109,6 +107,8 @@ def validate_python_code_ast(code_snippet: str) -> bool:
         return True
     except SyntaxError:
         return False
+
+
 @app.post("/api/cineai/save-draft")
 async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -179,8 +179,6 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         "highest_tier": target_project.get("highest_tier", 1),
         "current_tier": target_tier
     })
-
-
 @app.post("/api/cineai/delete-project")
 async def delete_project(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -766,83 +764,33 @@ async def sepay_payment_webhook(request: Request):
         return JSONResponse({"success": False, "message": "Không khớp cú pháp nạp tiền"})
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=400)
-@app.get("/", response_class=HTMLResponse)
-async def home(session_id: str = Cookie(None), load_project: str = None, tier: int = None, new_project: str = None):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
-    
-    user_data = USERS_DB.get(username, {})
-    user_credits = user_data.get("credits", 10)
-    projects = user_data.get("projects", [])
-    
-    target_project = None
-    if new_project == "1":
-        new_title = f"Dự án mới #{len(projects) + 1}"
-        target_project = {
-            "title": new_title,
-            "header": "Thể loại: Điện ảnh cảm xúc • Tự do sáng tạo",
-            "project_raw_story": "",
-            "aspect_ratio": "16:9",
-            "target_duration": "45p",
-            "token_registry": {"visual_tokens": [], "audio_tokens": []},
-            "ideation_slots": {},
-            "highest_tier": 1,
-            "current_tier": 1
-        }
-        projects.insert(0, target_project)
-        user_data["projects"] = projects[:2]
-        save_users()
-    elif load_project:
-        for p in projects:
-            if p.get("title") == load_project:
-                target_project = p
-                break
-    elif projects:
-        target_project = projects[0]
-        
-    if not target_project:
-        target_project = {
-            "title": "Dự án phim mới",
-            "header": "Thể loại: Cổ phong huyền huyễn • Tình cảm tâm lý",
-            "project_raw_story": "",
-            "aspect_ratio": "16:9",
-            "target_duration": "45p",
-            "token_registry": {"visual_tokens": [], "audio_tokens": []},
-            "ideation_slots": {},
-            "highest_tier": 1,
-            "current_tier": 1
-        }
-        projects.append(target_project)
-        user_data["projects"] = projects
-        save_users()
+def get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, tokens_html):
+    def get_tier_classes(idx):
+        if idx == active_tier:
+            return "bg-amber-500 text-slate-950 shadow-md pointer-events-none"
+        if idx <= highest_tier:
+            return "bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer"
+        return "bg-slate-950 text-slate-600 pointer-events-none opacity-40"
 
 
-    if tier and tier > target_project.get("highest_tier", 1):
-        target_project["highest_tier"] = tier
-        save_users()
+    t1_cls = get_tier_classes(1)
+    t2_cls = get_tier_classes(2)
+    t3_cls = get_tier_classes(3)
+    t4_cls = get_tier_classes(4)
+    t1_vis = "block" if active_tier == 1 else "hidden"
+    t2_vis = "block" if active_tier == 2 else "hidden"
+    t3_vis = "block" if active_tier == 3 else "hidden"
+    t4_vis = "block" if active_tier == 4 else "hidden"
+    enc_title = urllib.parse.quote(target_project.get("title", ""))
 
 
-    highest_tier = target_project.get("highest_tier", 1)
-    active_tier = tier if tier else highest_tier
-
-
-    tokens_html = ""
-    visual_tokens = target_project.get("token_registry", {}).get("visual_tokens", [])
-    audio_tokens = target_project.get("token_registry", {}).get("audio_tokens", [])
-    for vt in visual_tokens:
-        tokens_html += f'<div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-center"><span class="text-indigo-400 font-bold">🖼️ {vt.get("token_id")}</span><span class="text-slate-400 text-[11px]">{vt.get("category")}</span></div>'
-    for at in audio_tokens:
-        tokens_html += f'<div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-center"><span class="text-emerald-400 font-bold">🎵 {at.get("token_id")}</span><span class="text-slate-400 text-[11px]">{at.get("category")}</span></div>'
-
-
-    html_part_1 = """
+    tmpl = """
     <!DOCTYPE html>
     <html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.6 - Dynamic Ideation Suite</title>
+        <title>Cine AI Studio Pro 6.6</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans">
@@ -863,32 +811,30 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
 
             <!-- THANH TIẾN TRÌNH TUẦN TỰ -->
             <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-xs font-bold">
-                <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=1" class="py-2.5 rounded-xl transition TIER_1_CLASS">1. Kịch Bản</a>
-                <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=2" class="py-2.5 rounded-xl transition TIER_2_CLASS">2. Khóa Token</a>
-                <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=3" class="py-2.5 rounded-xl transition TIER_3_CLASS">3. Bóc Tách</a>
-                <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=4" class="py-2.5 rounded-xl transition TIER_4_CLASS">4. Render</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=1" class="py-2.5 rounded-xl transition T1_CLS_VAL">1. Kịch Bản</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=2" class="py-2.5 rounded-xl transition T2_CLS_VAL">2. Khóa Token</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=3" class="py-2.5 rounded-xl transition T3_CLS_VAL">3. Bóc Tách</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=4" class="py-2.5 rounded-xl transition T4_CLS_VAL">4. Render</a>
             </div>
 
 
-            <!-- MÀN HÌNH TẦNG 1: KỊCH BẢN GỐC & KHỞI MỞ Ý TƯỞNG -->
-            <div id="screen-tier-1" class="TIER_1_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
+            <!-- MÀN HÌNH TẦNG 1 -->
+            <div id="screen-tier-1" class="T1_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">📝 Tầng 1: Khai Mở Ý Tưởng & Kịch Bản Gốc</h2>
                     <span class="text-xs bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 font-bold">Bước 1/4</span>
                 </div>
-                
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 mb-1">Tên Dự Án Phim:</label>
                     <input type="text" id="project-title" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-amber-300 font-bold">
                 </div>
-                
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 mb-1">Đề Mục / Logline & Thể Loại:</label>
                     <input type="text" id="project-header" value="PROJECT_HEADER_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200">
                 </div>
 
 
-                <!-- 2 BỘ CHỐT MỤC TIÊU ĐIỆN ẢNH: KHUNG HÌNH & THỜI LƯỢNG KÈM DỰ TOÁN -->
+                <!-- 2 BỘ CHỐT MỤC TIÊU: KHUNG HÌNH & THỜI LƯỢNG KÈM DỰ TOÁN CHI PHÍ -->
                 <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2.5">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -911,7 +857,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                         💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit). Bạn có thể render từng cảnh đơn lẻ (5 C/lần) hoặc xem trước animatic miễn phí!
                     </div>
                 </div>
-                
+
+
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="text-xs font-semibold text-slate-400">Nội Dung Kịch Bản Thô (Text):</label>
@@ -919,7 +866,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     </div>
                     <textarea id="project-story" rows="5" oninput="updateWordCount()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed">PROJECT_STORY_VAL</textarea>
                 </div>
-                
                 <div class="space-y-2 p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
                     <span class="text-xs text-slate-400">Hoặc nạp file kịch bản có sẵn (.txt, .md):</span>
                     <div class="flex gap-2">
@@ -927,7 +873,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                         <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition">Nạp File</button>
                     </div>
                 </div>
-                
                 <div class="flex gap-2 pt-2">
                     <button onclick="saveDraftCurrent(1)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition shadow">💾 Lưu Nháp</button>
                     <button onclick="proceedToTier(2)" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp tục (hoặc Bỏ qua) ➔</button>
@@ -935,8 +880,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             </div>
 
 
-            <!-- MÀN HÌNH TẦNG 2: KHÓA MẪU TOKEN -->
-            <div id="screen-tier-2" class="TIER_2_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
+            <!-- MÀN HÌNH TẦNG 2 -->
+            <div id="screen-tier-2" class="T2_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🖼️ Tầng 2: Khóa Mẫu Hình Ảnh & Âm Thanh</h2>
                     <span class="text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20 font-bold">Bước 2/4</span>
@@ -974,10 +919,20 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     <button onclick="proceedToTier(3)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
                 </div>
             </div>
-    ""”
-    html_part_2 = """
-            <!-- MÀN HÌNH TẦNG 3: BÓC TÁCH PHÂN CẢNH -->
-            <div id="screen-tier-3" class="TIER_3_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
+    """
+    tmpl = tmpl.replace("USER_CREDITS_VAL", str(user_credits))
+    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
+    tmpl = tmpl.replace("ENC_TITLE_VAL", enc_title)
+    tmpl = tmpl.replace("PROJECT_HEADER_VAL", target_project.get("header", ""))
+    tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project.get("project_raw_story", ""))
+    tmpl = tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls)
+    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis)
+    tmpl = tmpl.replace("TOKENS_HTML_VAL", tokens_html or "<p class='text-slate-500 text-xs italic'>Chưa có token nào.</p>")
+    return tmpl, t3_vis, t4_vis
+def get_studio_html_block_2(t3_vis, t4_vis, active_tier):
+    tmpl = """
+            <!-- MÀN HÌNH TẦNG 3 -->
+            <div id="screen-tier-3" class="T3_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🎬 Tầng 3: Bóc Tách Phân Cảnh & Ma Trận 3 Hồi</h2>
                     <span class="text-xs bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full border border-purple-500/20 font-bold">Bước 3/4</span>
@@ -994,8 +949,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             </div>
 
 
-            <!-- MÀN HÌNH TẦNG 4: RENDER & DỰNG PHIM -->
-            <div id="screen-tier-4" class="TIER_4_VISIBILITY bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
+            <!-- MÀN HÌNH TẦNG 4 -->
+            <div id="screen-tier-4" class="T4_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                     <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🎞️ Tầng 4: Phòng Dựng, Render & Xuất Bản</h2>
                     <span class="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-800/20 font-bold">Bước 4/4</span>
@@ -1012,7 +967,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             </div>
 
 
-            <!-- CỬA SỔ ĐẠO DIỄN ẢO TƯƠNG TÁC TÂM LÝ & QUICK-REPLY CHIPS -->
+            <!-- CỬA SỔ ĐẠO DIỄN ẢO QUICK CHIPS -->
             <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
                 <div class="flex justify-between items-center">
                     <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">💬 Đạo Diễn Ảo Khơi Mở Ý Tưởng (Tầng ACTIVE_TIER_VAL)</span>
@@ -1023,7 +978,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
                     <p class="text-blue-200">Chào bạn! Tôi là Đạo diễn ảo đồng hành. Giờ này bạn đang ngồi ở đâu, và âm thanh rõ nhất bạn nghe thấy lúc này là gì?</p>
                 </div>
                 
-                <!-- KHAY QUICK-REPLY CHIPS -->
                 <div id="quick-chips-tray" class="flex flex-wrap gap-2 pt-1">
                     <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Tiếng mưa rơi trên mái tôn</button>
                     <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Quán cà phê đông đúc ồn ã</button>
@@ -1040,7 +994,11 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
 
         </div>
     """
-    html_content = html_part_1 + html_part_2
+    tmpl = tmpl.replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
+    tmpl = tmpl.replace("ACTIVE_TIER_VAL", str(active_tier))
+    return tmpl
+def get_studio_javascript():
+    return """
         <script>
             let currentActiveTier = ACTIVE_TIER_VAL;
             let currentHighestTier = HIGHEST_TIER_VAL;
@@ -1062,7 +1020,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
 
             function updateWordCount() {
                 const story = document.getElementById('project-story').value.trim();
-                const words = story ? story.split(/\s+/).length : 0;
+                const words = story ? story.split(/\\s+/).length : 0;
                 document.getElementById('word-count-badge').innerText = words + ' từ';
             }
             updateWordCount();
@@ -1297,30 +1255,85 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
     """
 
 
-    def get_tier_classes(idx):
-        if idx == active_tier:
-            return "bg-amber-500 text-slate-950 shadow-md pointer-events-none"
-        if idx <= highest_tier:
-            return "bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer"
-        return "bg-slate-950 text-slate-600 pointer-events-none opacity-40"
+@app.get("/", response_class=HTMLResponse)
+async def home(session_id: str = Cookie(None), load_project: str = None, tier: int = None, new_project: str = None):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    user_data = USERS_DB.get(username, {})
+    user_credits = user_data.get("credits", 10)
+    projects = user_data.get("projects", [])
+    
+    target_project = None
+    if new_project == "1":
+        new_title = f"Dự án mới #{len(projects) + 1}"
+        target_project = {
+            "title": new_title,
+            "header": "Thể loại: Điện ảnh cảm xúc • Tự do sáng tạo",
+            "project_raw_story": "",
+            "aspect_ratio": "16:9",
+            "target_duration": "45p",
+            "token_registry": {"visual_tokens": [], "audio_tokens": []},
+            "ideation_slots": {},
+            "highest_tier": 1,
+            "current_tier": 1
+        }
+        projects.insert(0, target_project)
+        user_data["projects"] = projects[:2]
+        save_users()
+    elif load_project:
+        for p in projects:
+            if p.get("title") == load_project:
+                target_project = p
+                break
+    elif projects:
+        target_project = projects[0]
+        
+    if not target_project:
+        target_project = {
+            "title": "Dự án phim mới",
+            "header": "Thể loại: Cổ phong huyền huyễn • Tình cảm tâm lý",
+            "project_raw_story": "",
+            "aspect_ratio": "16:9",
+            "target_duration": "45p",
+            "token_registry": {"visual_tokens": [], "audio_tokens": []},
+            "ideation_slots": {},
+            "highest_tier": 1,
+            "current_tier": 1
+        }
+        projects.append(target_project)
+        user_data["projects"] = projects
+        save_users()
 
 
-    html_content = html_content.replace("USER_CREDITS_VAL", str(user_credits))
-    html_content = html_content.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
-    html_content = html_content.replace("PROJECT_TITLE_ENCODED", urllib.parse.quote(target_project.get("title", "")))
-    html_content = html_content.replace("PROJECT_HEADER_VAL", target_project.get("header", ""))
-    html_content = html_content.replace("PROJECT_STORY_VAL", target_project.get("project_raw_story", ""))
-    html_content = html_content.replace("ACTIVE_TIER_VAL", str(active_tier))
-    html_content = html_content.replace("HIGHEST_TIER_VAL", str(highest_tier))
-    html_content = html_content.replace("TOKENS_HTML_VAL", tokens_html or "<p class='text-slate-500 text-xs italic'>Chưa có token nào.</p>")
+    if tier and tier > target_project.get("highest_tier", 1):
+        target_project["highest_tier"] = tier
+        save_users()
 
 
-    for i in range(1, 5):
-        html_content = html_content.replace(f"TIER_{i}_CLASS", get_tier_classes(i))
-        html_content = html_content.replace(f"TIER_{i}_VISIBILITY", "block" if i == active_tier else "hidden")
+    highest_tier = target_project.get("highest_tier", 1)
+    active_tier = tier if tier else highest_tier
 
 
-    return HTMLResponse(content=html_content)
+    tokens_html = ""
+    visual_tokens = target_project.get("token_registry", {}).get("visual_tokens", [])
+    audio_tokens = target_project.get("token_registry", {}).get("audio_tokens", [])
+    for vt in visual_tokens:
+        tokens_html += f'<div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-center"><span class="text-indigo-400 font-bold">🖼️ {vt.get("token_id")}</span><span class="text-slate-400 text-[11px]">{vt.get("category")}</span></div>'
+    for at in audio_tokens:
+        tokens_html += f'<div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-center"><span class="text-emerald-400 font-bold">🎵 {at.get("token_id")}</span><span class="text-slate-400 text-[11px]">{at.get("category")}</span></div>'
+
+
+    part1, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, tokens_html)
+    part2 = get_studio_html_block_2(t3_vis, t4_vis, active_tier)
+    part3 = get_studio_javascript()
+    part3 = part3.replace("ACTIVE_TIER_VAL", str(active_tier))
+    part3 = part3.replace("HIGHEST_TIER_VAL", str(highest_tier))
+    part3 = part3.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
+
+
+    return HTMLResponse(content=part1 + part2 + part3)
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
