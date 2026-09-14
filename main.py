@@ -114,8 +114,6 @@ def validate_python_code_ast(code_snippet: str) -> bool:
         return True
     except SyntaxError:
         return False
-
-
 @app.post("/api/cineai/chat")
 async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -194,6 +192,8 @@ async def upload_asset(
         "message": f"📁 Đã tiếp nhận và phân tích thành công tệp '{file_name}' cho hạng mục [{asset_type.upper()}]!",
         "preview": extracted_text[:200] if extracted_text else "Đã lưu trữ mẫu asset thành công."
     })
+
+
 @app.post("/api/cineai/breakdown-scenes-enterprise")
 async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -418,8 +418,6 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
         "remaining_credits": user_data["credits"],
         "take_info": new_take_object
     })
-
-
 @app.post("/api/payments/webhook")
 async def sepay_payment_webhook(request: Request):
     try:
@@ -578,6 +576,8 @@ async def export_srt_subtitles(title: str = "Dự án mới", session_id: str = 
 
 
     return JSONResponse({"status": "success", "srt_format": srt_content})
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -586,7 +586,7 @@ async def home(session_id: str = Cookie(None)):
     
     user_credits = USERS_DB.get(username, {}).get("credits", 10)
     
-    return HTMLResponse(content=f"""
+    html_content = """
     <!DOCTYPE html>
     <html lang="vi">
     <head>
@@ -604,8 +604,8 @@ async def home(session_id: str = Cookie(None)):
                     <p class="text-xs text-slate-400">Tự động hóa 16 Tầng • Self-Healing JSON • Model Routing • SePay Credit Ledger</p>
                 </div>
                 <div class="flex items-center space-x-3 flex-wrap gap-2">
-                    <span class="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-800">💰 Số dư: <span id="user-credits-val">{user_credits}</span> Credit</span>
-                    <span class="text-xs text-amber-300 font-semibold">👤 {username}</span>
+                    <span class="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-800">💰 Số dư: <span id="user-credits-val">USER_CREDITS_PLACEHOLDER</span> Credit</span>
+                    <span class="text-xs text-amber-300 font-semibold">👤 USER_NAME_PLACEHOLDER</span>
                     <a href="/logout" class="bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow">Đăng xuất</a>
                 </div>
             </div>
@@ -786,7 +786,10 @@ async def home(session_id: str = Cookie(None)):
         </script>
     </body>
     </html>
-    """)
+    """
+    html_content = html_content.replace("USER_CREDITS_PLACEHOLDER", str(user_credits))
+    html_content = html_content.replace("USER_NAME_PLACEHOLDER", username)
+    return HTMLResponse(content=html_content)
 @app.get("/login", response_class=HTMLResponse)
 async def login_page():
     return HTMLResponse(content="""
