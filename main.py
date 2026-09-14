@@ -137,7 +137,6 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     projects = user_data["projects"]
     target_project = None
     
-    # Tìm theo tên cũ hoặc tên mới để cập nhật đè (Smart Update)
     for p in projects:
         if p.get("title") == old_title or p.get("title") == new_title:
             target_project = p
@@ -184,6 +183,41 @@ async def delete_project(request: Request, session_id: str = Cookie(None)):
     user_data["projects"] = new_projects
     save_users()
     return JSONResponse({"status": "success", "message": f"🗑️ Đã xóa vĩnh viễn dự án '{project_title}' thành công!"})
+
+
+@app.post("/api/cineai/upload-asset-explicit")
+async def upload_asset_explicit(
+    file: UploadFile = File(...), 
+    project_title: str = Form("Dự án mới"),
+    session_id: str = Cookie(None)
+):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    
+    file_content = await file.read()
+    file_name = file.filename
+    extracted_text = ""
+    
+    try:
+        extracted_text = file_content.decode("utf-8", errors="ignore")
+    except Exception as e:
+        extracted_text = f"Không thể đọc trực tiếp định dạng tệp: {str(e)}"
+    
+    # Cập nhật thẳng vào kho dự án của user
+    if username in USERS_DB and "projects" in USERS_DB[username]:
+        for p in USERS_DB[username]["projects"]:
+            if p.get("title") == project_title:
+                p["project_raw_story"] = extracted_text
+                p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                break
+        save_users()
+    
+    return JSONResponse({
+        "status": "success",
+        "message": f"📤 Đã tải lên và nạp thành công nội dung từ tệp '{file_name}' vào kịch bản thô!",
+        "extracted_content": extracted_text
+    })
 
 
 @app.post("/api/cineai/chat")
@@ -240,7 +274,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
                     break
                     
     if not raw_story:
-        return JSONResponse({"reply": "⚠️ Chưa có nội dung dự án. Vui lòng nhập nội dung kịch bản trước!"}, status_code=400)
+        return JSONResponse({"reply": "⚠️ Chưa có nội dung dự án. Vui lòng nhập hoặc tải lên kịch bản thô trước!"}, status_code=400)
     
     keys = get_gemini_keys()
     if not keys:
@@ -715,9 +749,10 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
                     <div class="space-y-3 pt-2 border-t border-slate-800">
                         <label class="block text-[11px] font-bold uppercase tracking-wider text-amber-400">📤 Tải lên tài liệu gốc (Input Parsers):</label>
-                        <div>
-                            <span class="text-[10px] text-slate-400">Cốt truyện / Kịch bản (.txt, .docx):</span>
-                            <input type="file" id="file-story" onchange="uploadAssetFile('story')" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-[11px] text-slate-400 mt-1 cursor-pointer">
+                        <div class="space-y-2">
+                            <span class="text-[10px] text-slate-400">Chọn tệp kịch bản (.txt):</span>
+                            <input type="file" id="file-story" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-[11px] text-slate-400 cursor-pointer">
+                            <button onclick="uploadAssetFileExplicit()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1">📤 Tải Tệp Lên Hệ Thống</button>
                         </div>
                     </div>
 
@@ -756,7 +791,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
 
 
         <script>
-            // Lưu giữ lại tên ban đầu để nhận biết khi cập nhật đè (Smart Update)
             let originalProjectTitle = "PROJECT_TITLE_PLACEHOLDER";
 
 
@@ -774,7 +808,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
                     });
                     const data = await res.json();
                     if(data.status === 'success') {
-                        originalProjectTitle = data.saved_title; // Cập nhật lại tên gốc mới
+                        originalProjectTitle = data.saved_title;
                         chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">✅ ' + data.message + '</div>';
                     } else {
                         alert(data.message);
@@ -786,26 +820,35 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
             }
 
 
-            async function uploadAssetFile(type) {
+            async function uploadAssetFileExplicit() {
                 const fileInput = document.getElementById('file-story');
                 const title = document.getElementById('project-title').value;
-                if(fileInput.files.length === 0) return;
+                const chatBox = document.getElementById('chat-box');
+                
+                if(fileInput.files.length === 0) {
+                    alert('⚠️ Vui lòng chọn tệp tài liệu trước khi bấm tải lên!');
+                    return;
+                }
                 
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
-                formData.append('asset_type', type);
-                formData.append('title', title);
+                formData.append('project_title', title);
                 
-                const chatBox = document.getElementById('chat-box');
-                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">📁 Đang tải lên và phân tích tài liệu gốc...</span></div>';
+                chatBox.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-3 rounded-2xl inline-block text-slate-100 text-xs">📁 Đang tải lên và phân tích tệp tài liệu...</span></div>';
                 
                 try {
-                    const res = await fetch('/api/cineai/upload-asset', {method: 'POST', body: formData});
+                    const res = await fetch('/api/cineai/upload-asset-explicit', {method: 'POST', body: formData});
                     const data = await res.json();
-                    chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">' + data.message + '</div>';
+                    if(data.status === 'success') {
+                        // Tự động điền nội dung kịch bản vào textarea
+                        document.getElementById('project-story').value = data.extracted_content;
+                        chatBox.innerHTML += '<div class="bg-emerald-950/60 border border-emerald-800/50 p-3 rounded-2xl text-emerald-200 text-xs">✅ ' + data.message + '</div>';
+                    } else {
+                        alert(data.message);
+                    }
                     chatBox.scrollTop = chatBox.scrollHeight;
                 } catch(e) {
-                    alert('Lỗi tải lên tài liệu!');
+                    alert('Lỗi tải lên tệp tài liệu!');
                 }
             }
 
