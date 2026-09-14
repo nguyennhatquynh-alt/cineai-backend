@@ -592,7 +592,6 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
     if load_project:
         current_project_title = load_project
     else:
-        # Tự động tạo/lưu dự án nháp mặc định nếu user chưa có
         projects = user_data.get("projects", [])
         if not projects:
             user_data["projects"] = [{"title": current_project_title, "tierProgress": "Tầng 7-8 (Đang nháp)", "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]
@@ -804,7 +803,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None):
     """
     html_content = html_content.replace("USER_CREDITS_PLACEHOLDER", str(user_credits))
     html_content = html_content.replace("USER_NAME_PLACEHOLDER", username)
-    html_content = html_content.replace("PROJECT_TITLE_P@app.get("/library", response_class=HTMLResponse)
+    html_content = html_content.replace("PROJECT_TITLE_PLACEHOLDER", current_project_title)
+    return HTMLResponse(con@app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
