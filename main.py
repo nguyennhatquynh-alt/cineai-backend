@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
-app = FastAPI(title="Cine AI Studio Pro 6.6 - Dynamic Ideation & Multi-Tier Suite", version="6.6")
+app = FastAPI(title="Cine AI Studio Pro 6.7 - Dynamic Ideation & Multi-Tier Suite", version="6.7")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -332,7 +332,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         current_slots = target_project.get("ideation_slots", {}) if target_project else {}
         
         system_persona = (
-            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.6. "
+            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.7. "
             "Nhiệm vụ: Trò chuyện tâm tình hoặc trò chơi 'Nếu như...' để khai thác các biến số điện ảnh:\n"
             "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh)\n"
             "2. CORE_WOUND (Nỗi đau, vết thương lòng nhân vật)\n"
@@ -369,7 +369,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
             return JSONResponse({
                 "reply": parsed.get("message", "Tôi rất thấu hiểu cảm xúc bạn gửi gắm."),
                 "chips": parsed.get("quick_chips", ["Một người sẽ biến mất", "Bí mật bị chôn giấu", "Tha thứ cho quá khứ"]),
-                "ready": parsed.get("is_ready_for_script", True)
+                "ready": True
             })
         else:
             return JSONResponse({
@@ -385,7 +385,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         4: "Tầng 13 đến 16: Render toàn tập, Alternate Takes, Timeline Rough-Cut và xuất file phụ đề .SRT."
     }
     system_persona = (
-        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.6. Trạng thái: {mode_instructions.get(tier, '')} "
+        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.7. Trạng thái: {mode_instructions.get(tier, '')} "
         "Hãy phản hồi ngắn gọn, sắc sảo, chuyên nghiệp.\n"
         f"Dự án: {project_title}\n"
     )
@@ -414,7 +414,7 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
     slots_text = json.dumps(slots, ensure_ascii=False) if slots else "Ý tưởng tự do về tình cảm và chia ly dưới mưa."
     
     prompt = (
-        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.6. Dựa vào các biến số tâm lý:\n"
+        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.7. Dựa vào các biến số tâm lý:\n"
         f"{slots_text}\n"
         f"Định dạng yêu cầu: Khung hình [{aspect_ratio}], Thời lượng [{target_duration}].\n"
         "Hãy tạo kịch bản 3 Hồi hoàn chỉnh. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
@@ -475,7 +475,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
     
     pro_prompt = (
-        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.6. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
+        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.7. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
         "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III). Mỗi cảnh 30s-150s và gắn Global Lock-in Tokens.\n\n"
         f"Kịch bản gốc:\n{raw_story}"
     )
@@ -507,7 +507,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
 
 
     structured_data = {
-        "schema_version": "6.6-Enterprise",
+        "schema_version": "6.7-Enterprise",
         "routing_model": model_name,
         "self_healing_applied": True,
         "pacing_metrics": {"total_duration_sec": total_duration, "act_breakdown": act_durations},
@@ -528,7 +528,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         
     return JSONResponse({
         "status": "success",
-        "message": "🌟 Đã bóc tách phân cảnh kịch bản cấp độ Enterprise 6.6!",
+        "message": "🌟 Đã bóc tách phân cảnh kịch bản cấp độ Enterprise 6.7!",
         "metrics": structured_data["pacing_metrics"],
         "data": parsed_scenes
     })
@@ -764,7 +764,7 @@ async def sepay_payment_webhook(request: Request):
         return JSONResponse({"success": False, "message": "Không khớp cú pháp nạp tiền"})
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=400)
-def get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, tokens_html):
+def get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, username):
     def get_tier_classes(idx):
         if idx == active_tier:
             return "bg-amber-500 text-slate-950 shadow-md pointer-events-none"
@@ -790,104 +790,152 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.6</title>
+        <title>Cine AI Studio Pro 6.7</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans">
-        <div class="max-w-4xl mx-auto space-y-4">
+    <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-24">
+        <div class="max-w-4xl mx-auto space-y-3">
             
-            <div class="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
-                <div>
-                    <h1 class="text-base sm:text-lg font-bold text-amber-400">🎬 Cine AI Studio Pro 6.6</h1>
-                    <p class="text-xs text-slate-400">Dự án: <b class="text-slate-200">PROJECT_TITLE_VAL</b></p>
+            <!-- HEADER DÒNG 1: LOGO TRẢI DÀI & AVATAR CÁ NHÂN XỔ DROPDOWN -->
+            <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🎬</span>
+                    <h1 class="text-sm sm:text-base font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 6.7</h1>
                 </div>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <a href="/?new_project=1" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition shadow-md">➕ Dự Án Mới</a>
-                    <span class="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-800">💰 USER_CREDITS_VAL C</span>
-                    <a href="/library" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold transition">📁 Thư Viện</a>
+                
+                <!-- AVATAR HÌNH NGƯỜI QUEN THUỘC (PROFILE / CREDIT / LOGOUT) -->
+                <div class="relative">
+                    <button onclick="toggleProfileMenu()" class="w-9 h-9 rounded-full bg-slate-800 border-2 border-amber-400/80 flex items-center justify-center hover:bg-slate-700 transition shadow">
+                        <span class="text-sm">👤</span>
+                    </button>
+                    <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-52 bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-2xl z-50 space-y-2">
+                        <div class="border-b border-slate-800 pb-2">
+                            <p class="text-xs font-bold text-slate-200">USER_NAME_VAL</p>
+                            <p class="text-[11px] text-emerald-400 font-bold mt-0.5">💰 Số dư: USER_CREDITS_VAL C</p>
+                        </div>
+                        <a href="/logout" class="block w-full text-center bg-rose-950/80 hover:bg-rose-900 border border-rose-800/80 text-rose-200 py-1.5 rounded-xl text-xs font-bold transition">Đăng Xuất</a>
+                    </div>
                 </div>
             </div>
 
 
-            <!-- THANH TIẾN TRÌNH TUẦN TỰ -->
+            <!-- HEADER DÒNG 2: 3 NÚT TIỆN ÍCH (+ DỰ ÁN MỚI, THƯ VIỆN, TRỢ LÝ ẢO) -->
+            <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
+                <a href="/?new_project=1" class="bg-amber-500 hover:bg-amber-400 text-slate-950 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">➕ Dự Án Mới</a>
+                <a href="/library" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">📁 Thư Viện</a>
+                <button onclick="toggleVirtualAssistantModal()" class="bg-indigo-600/80 hover:bg-indigo-600 text-white py-2 rounded-xl transition shadow flex items-center justify-center gap-1">🤖 Trợ Lý Ảo</button>
+            </div>
+
+
+            <!-- HEADER DÒNG 3: BREADCRUMB 4 TẦNG THU GỌN -->
             <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-xs font-bold">
-                <a href="/?load_project=ENC_TITLE_VAL&tier=1" class="py-2.5 rounded-xl transition T1_CLS_VAL">1. Kịch Bản</a>
-                <a href="/?load_project=ENC_TITLE_VAL&tier=2" class="py-2.5 rounded-xl transition T2_CLS_VAL">2. Khóa Token</a>
-                <a href="/?load_project=ENC_TITLE_VAL&tier=3" class="py-2.5 rounded-xl transition T3_CLS_VAL">3. Bóc Tách</a>
-                <a href="/?load_project=ENC_TITLE_VAL&tier=4" class="py-2.5 rounded-xl transition T4_CLS_VAL">4. Render</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=1" class="py-2 rounded-xl transition T1_CLS_VAL">1. Kịch Bản</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=2" class="py-2 rounded-xl transition T2_CLS_VAL">2. Khóa Token</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=3" class="py-2 rounded-xl transition T3_CLS_VAL">3. Bóc Tách</a>
+                <a href="/?load_project=ENC_TITLE_VAL&tier=4" class="py-2 rounded-xl transition T4_CLS_VAL">4. Render</a>
             </div>
 
 
-            <!-- MÀN HÌNH TẦNG 1 -->
-            <div id="screen-tier-1" class="T1_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">📝 Tầng 1: Khai Mở Ý Tưởng & Kịch Bản Gốc</h2>
-                    <span class="text-xs bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 font-bold">Bước 1/4</span>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Tên Dự Án Phim:</label>
-                    <input type="text" id="project-title" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-amber-300 font-bold">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1">Đề Mục / Logline & Thể Loại:</label>
-                    <input type="text" id="project-header" value="PROJECT_HEADER_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200">
-                </div>
-
-
-                <!-- 2 BỘ CHỐT MỤC TIÊU: KHUNG HÌNH & THỜI LƯỢNG KÈM DỰ TOÁN CHI PHÍ -->
-                <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2.5">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[11px] font-bold text-amber-400 uppercase mb-1">🎬 Khung Hình:</label>
-                            <select id="film-aspect-ratio" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 font-semibold">
-                                <option value="16:9">16:9 • Màn Ảnh Rộng / Điện ảnh</option>
-                                <option value="9:16">9:16 • Dọc (Reels / TikTok / Shorts)</option>
-                            </select>
+            <!-- HEADER DÒNG 4: TAB SWITCHER 2 LUỒNG (TRONG TẦNG 1) -->
+            <div id="tier1-nav-switcher" class="T1_VIS_VAL bg-slate-900 p-1 rounded-2xl border border-slate-800 grid grid-cols-2 gap-1 text-xs font-bold">
+                <button id="tab-btn-stream1" onclick="switchStream(1)" class="py-2 rounded-xl bg-amber-500 text-slate-950 transition shadow">📄 Đã Có Kịch Bản</button>
+                <button id="tab-btn-stream2" onclick="switchStream(2)" class="py-2 rounded-xl text-slate-400 hover:text-slate-200 transition">✨ Nhờ Đạo Diễn Ảo</button>
+            </div>
+    """
+    tmpl = tmpl.replace("USER_NAME_VAL", username)
+    tmpl = tmpl.replace("USER_CREDITS_VAL", str(user_credits))
+    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
+    tmpl = tmpl.replace("ENC_TITLE_VAL", enc_title)
+    tmpl = tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls)
+    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis)
+    return tmpl, t1_vis, t2_vis, t3_vis, t4_vis
+def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, tokens_html):
+    tmpl = """
+            <!-- ===================== MÀN HÌNH TẦNG 1: 2 LUỒNG TÁCH BIỆT ===================== -->
+            <div id="screen-tier-1" class="T1_VIS_VAL space-y-3">
+                
+                <!-- LUỒNG 1: ĐÃ CÓ KỊCH BẢN (GỌN GÀNG, KHÔNG BẮT BUỘC TEXTAREA DÀI) -->
+                <div id="stream-1-container" class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Tên Dự Án Phim:</label>
+                        <input type="text" id="project-title" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-amber-300 font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Đề Mục / Logline:</label>
+                        <input type="text" id="project-header" value="PROJECT_HEADER_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200">
+                    </div>
+                    
+                    <!-- 2 BỘ CHỐT MỤC TIÊU: KHUNG HÌNH & THỜI LƯỢNG KÈM DỰ TOÁN CHI PHÍ -->
+                    <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-amber-400 uppercase mb-1">🎬 Khung Hình:</label>
+                                <select id="film-aspect-ratio" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200 font-semibold">
+                                    <option value="16:9">16:9 • Điện Ảnh</option>
+                                    <option value="9:16">9:16 • Dọc (Reels/Shorts)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-amber-400 uppercase mb-1">⏱️ Thời Lượng:</label>
+                                <select id="film-duration" onchange="updateEstimateBadge()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200 font-semibold">
+                                    <option value="45p">45 Phút (~30 cảnh)</option>
+                                    <option value="15p">15 Phút (~10 cảnh)</option>
+                                    <option value="3p">3 Phút (~3 cảnh)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-[11px] font-bold text-amber-400 uppercase mb-1">⏱️ Thời Lượng Mục Tiêu:</label>
-                            <select id="film-duration" onchange="updateEstimateBadge()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 font-semibold">
-                                <option value="45p">45 Phút • Phim Hoàn Chỉnh (~30 cảnh)</option>
-                                <option value="15p">10 - 15 Phút • Phim Trung Thiên (~10 cảnh)</option>
-                                <option value="3p">1 - 3 Phút • Phim Ngắn / Viral (~3 cảnh)</option>
-                            </select>
+                        <div id="cost-estimate-badge" class="text-[10px] bg-indigo-950/60 border border-indigo-800/60 p-2 rounded-xl text-indigo-300 leading-tight">
+                            💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit).
                         </div>
                     </div>
-                    <div id="cost-estimate-badge" class="text-[11px] bg-indigo-950/60 border border-indigo-800/60 p-2.5 rounded-xl text-indigo-300 leading-relaxed font-medium">
-                        💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit). Bạn có thể render từng cảnh đơn lẻ (5 C/lần) hoặc xem trước animatic miễn phí!
+
+
+                    <!-- NẠP TỆP KỊCH BẢN CÓ SẴN -->
+                    <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
+                        <span class="text-[11px] text-slate-400 block font-semibold">Nạp tệp kịch bản (.txt, .md):</span>
+                        <div class="flex gap-2">
+                            <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-xs text-slate-400 cursor-pointer">
+                            <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition">Nạp File</button>
+                        </div>
+                    </div>
+                    
+                    <textarea id="project-story" class="hidden">PROJECT_STORY_VAL</textarea>
+                </div>
+
+
+                <!-- LUỒNG 2: CHƯA CÓ Ý TƯỞNG (ĐỐI THOẠI TÂM LÝ & QUICK CHIPS) -->
+                <div id="stream-2-container" class="hidden bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <span class="text-xs font-bold text-amber-400 uppercase">✨ Đạo Diễn Ảo Khơi Mở Ý Tưởng</span>
+                        <button onclick="autoGenerateScriptFromSlots()" class="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black px-3 py-1 rounded-xl text-[10px] shadow transition animate-pulse">✨ Khởi Tạo Ngay</button>
+                    </div>
+                    
+                    <div id="chat-box" class="bg-slate-950 h-36 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2 leading-relaxed">
+                        <p class="text-blue-200">Chào bạn! Tôi là Đạo diễn ảo. Giờ này bạn đang ngồi ở đâu, và âm thanh bạn nghe thấy lúc này là gì?</p>
+                    </div>
+                    
+                    <div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-1">
+                        <button onclick="selectChip(this.innerText)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">Tiếng mưa rơi trên mái tôn</button>
+                        <button onclick="selectChip(this.innerText)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">Căn phòng đêm tĩnh mịch</button>
+                        <button onclick="focusCustomInput()" class="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2.5 py-1 rounded-xl text-[11px] font-bold transition">✍️ Lựa chọn khác...</button>
+                    </div>
+                    
+                    <div class="flex gap-2 pt-1">
+                        <input type="text" id="chat-input" placeholder="Nhập tâm sự hoặc chọn gợi ý..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 transition" onkeypress="if(event.key==='Enter') sendChat()">
+                        <button onclick="sendChat()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 rounded-xl font-bold text-xs text-white transition shadow">Gửi</button>
                     </div>
                 </div>
 
 
-                <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="text-xs font-semibold text-slate-400">Nội Dung Kịch Bản Thô (Text):</label>
-                        <span id="word-count-badge" class="text-[11px] text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-800/60">0 từ</span>
-                    </div>
-                    <textarea id="project-story" rows="5" oninput="updateWordCount()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed">PROJECT_STORY_VAL</textarea>
-                </div>
-                <div class="space-y-2 p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
-                    <span class="text-xs text-slate-400">Hoặc nạp file kịch bản có sẵn (.txt, .md):</span>
-                    <div class="flex gap-2">
-                        <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400 cursor-pointer">
-                        <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition">Nạp File</button>
-                    </div>
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button onclick="saveDraftCurrent(1)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition shadow">💾 Lưu Nháp</button>
-                    <button onclick="proceedToTier(2)" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp tục (hoặc Bỏ qua) ➔</button>
-                </div>
             </div>
 
 
+            <!-- ===================== MÀN HÌNH TẦNG 2, 3, 4 ===================== -->
             <!-- MÀN HÌNH TẦNG 2 -->
-            <div id="screen-tier-2" class="T2_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🖼️ Tầng 2: Khóa Mẫu Hình Ảnh & Âm Thanh</h2>
-                    <span class="text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20 font-bold">Bước 2/4</span>
-                </div>
+            <div id="screen-tier-2" class="T2_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+                <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">🖼️ Tầng 2: Khóa Mẫu Hình Ảnh & Âm Thanh</h2>
                 <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
-                    <label class="block text-xs font-bold text-slate-300">1. Khóa Token Hình Ảnh (Nhân vật, Trang phục, Bối cảnh):</label>
+                    <label class="block text-xs font-bold text-slate-300">1. Khóa Token Hình Ảnh:</label>
                     <div class="flex gap-2">
                         <select id="visual-category" class="bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200">
                             <option value="character">Nhân vật</option>
@@ -896,10 +944,10 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                         </select>
                         <input type="file" id="file-visual" accept=".png,.jpg,.jpeg" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400">
                     </div>
-                    <button onclick="uploadVisualToken()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-xl text-xs font-bold text-white transition shadow">🖼️ Lưu Token Hình Ảnh</button>
+                    <button onclick="uploadVisualToken()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded-xl text-xs font-bold text-white transition shadow">🖼️ Lưu Token Ảnh</button>
                 </div>
                 <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
-                    <label class="block text-xs font-bold text-slate-300">2. Khóa Token Âm Thanh (BGM / Giọng đọc):</label>
+                    <label class="block text-xs font-bold text-slate-300">2. Khóa Token Âm Thanh:</label>
                     <div class="flex gap-2">
                         <select id="audio-category" class="bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200">
                             <option value="bgm">Nhạc nền</option>
@@ -907,123 +955,94 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                         </select>
                         <input type="file" id="file-audio" accept=".mp3,.wav" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-400">
                     </div>
-                    <button onclick="uploadAudioToken()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-xs font-bold text-slate-950 transition shadow">🎵 Lưu Token Âm Thanh</button>
+                    <button onclick="uploadAudioToken()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2 rounded-xl text-xs font-bold text-slate-950 transition shadow">🎵 Lưu Token Âm Thanh</button>
                 </div>
-                <div class="space-y-2">
-                    <span class="text-xs font-bold text-slate-400">Kho Token Của Dự Án:</span>
-                    <div id="tokens-tray" class="space-y-1.5 max-h-32 overflow-y-auto">TOKENS_HTML_VAL</div>
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button onclick="proceedToTier(1)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 1</button>
-                    <button onclick="saveDraftCurrent(2)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">💾 Lưu Nháp</button>
-                    <button onclick="proceedToTier(3)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
-                </div>
+                <div id="tokens-tray" class="space-y-1 max-h-28 overflow-y-auto">TOKENS_HTML_VAL</div>
             </div>
-    """
-    tmpl = tmpl.replace("USER_CREDITS_VAL", str(user_credits))
-    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
-    tmpl = tmpl.replace("ENC_TITLE_VAL", enc_title)
-    tmpl = tmpl.replace("PROJECT_HEADER_VAL", target_project.get("header", ""))
-    tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project.get("project_raw_story", ""))
-    tmpl = tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls)
-    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis)
-    tmpl = tmpl.replace("TOKENS_HTML_VAL", tokens_html or "<p class='text-slate-500 text-xs italic'>Chưa có token nào.</p>")
-    return tmpl, t3_vis, t4_vis
-def get_studio_html_block_2(t3_vis, t4_vis, active_tier):
-    tmpl = """
+
+
             <!-- MÀN HÌNH TẦNG 3 -->
-            <div id="screen-tier-3" class="T3_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🎬 Tầng 3: Bóc Tách Phân Cảnh & Ma Trận 3 Hồi</h2>
-                    <span class="text-xs bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full border border-purple-500/20 font-bold">Bước 3/4</span>
-                </div>
-                <button onclick="runBreakdown()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3.5 rounded-2xl text-xs shadow-lg transition">🚀 Kích Hoạt AI Bóc Tách Phân Cảnh</button>
-                <div id="breakdown-result" class="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs space-y-2 text-slate-300 max-h-44 overflow-y-auto">
-                    Chưa bóc tách kịch bản. Hãy bấm nút phía trên để kích hoạt AI.
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button onclick="proceedToTier(2)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 2</button>
-                    <button onclick="saveDraftCurrent(3)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">💾 Lưu Nháp</button>
-                    <button onclick="proceedToTier(4)" class="w-1/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg">Tiếp Tục ➔</button>
-                </div>
+            <div id="screen-tier-3" class="T3_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+                <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">🎬 Tầng 3: Bóc Tách Phân Cảnh & Ma Trận 3 Hồi</h2>
+                <button onclick="runBreakdown()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded-2xl text-xs shadow-lg transition">🚀 Kích Hoạt AI Bóc Tách Phân Cảnh</button>
+                <div id="breakdown-result" class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 max-h-40 overflow-y-auto">Chưa bóc tách kịch bản. Hãy bấm nút phía trên.</div>
             </div>
 
 
             <!-- MÀN HÌNH TẦNG 4 -->
-            <div id="screen-tier-4" class="T4_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">🎞️ Tầng 4: Phòng Dựng, Render & Xuất Bản</h2>
-                    <span class="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-800/20 font-bold">Bước 4/4</span>
-                </div>
-                <div class="space-y-2.5">
-                    <button onclick="renderScene(1)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-3.5 rounded-2xl text-xs shadow-lg transition">🎬 Render Phân Cảnh Mẫu (5 Credit)</button>
-                    <button onclick="fetchTimeline()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-2xl text-xs transition">🎞️ Xem Timeline Rough-Cut Playlist</button>
-                    <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-2xl text-xs transition">📜 Xuất Phụ Đề Chuẩn .SRT</button>
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button onclick="proceedToTier(3)" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">⬅️ Tầng 3</button>
-                    <button onclick="saveDraftCurrent(4)" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition">💾 Lưu Toàn Bộ Dự Án</button>
-                </div>
-            </div>
-
-
-            <!-- CỬA SỔ ĐẠO DIỄN ẢO QUICK CHIPS -->
-            <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">💬 Đạo Diễn Ảo Khơi Mở Ý Tưởng (Tầng ACTIVE_TIER_VAL)</span>
-                    <button id="btn-generate-script" onclick="autoGenerateScriptFromSlots()" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-[11px] shadow-lg transition animate-pulse">✨ Khởi Tạo Kịch Bản Tự Động</button>
-                </div>
-                
-                <div id="chat-box" class="bg-slate-950 h-44 rounded-2xl p-3.5 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2.5 leading-relaxed">
-                    <p class="text-blue-200">Chào bạn! Tôi là Đạo diễn ảo đồng hành. Giờ này bạn đang ngồi ở đâu, và âm thanh rõ nhất bạn nghe thấy lúc này là gì?</p>
-                </div>
-                
-                <div id="quick-chips-tray" class="flex flex-wrap gap-2 pt-1">
-                    <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Tiếng mưa rơi trên mái tôn</button>
-                    <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Quán cà phê đông đúc ồn ã</button>
-                    <button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">Căn phòng đêm tĩnh mịch</button>
-                    <button onclick="focusCustomInput()" class="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm">✍️ Lựa chọn khác...</button>
-                </div>
-                
-                <div class="flex gap-2 pt-1">
-                    <input type="text" id="chat-input" placeholder="Nhập tâm sự hoặc chọn gợi ý bên trên..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 transition" onkeypress="if(event.key==='Enter') sendChat()">
-                    <button onclick="sendChat()" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-3.5 rounded-xl font-bold text-xs text-white transition shadow-lg">Gửi</button>
-                </div>
+            <div id="screen-tier-4" class="T4_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+                <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">🎞️ Tầng 4: Phòng Dựng & Render</h2>
+                <button onclick="renderScene(1)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-3 rounded-2xl text-xs shadow transition">🎬 Render Phân Cảnh Mẫu (5 C)</button>
+                <button onclick="fetchTimeline()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-2xl text-xs transition">🎞️ Xem Timeline Rough-Cut</button>
+                <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-2xl text-xs transition">📜 Xuất Phụ Đề .SRT</button>
             </div>
 
 
         </div>
+
+
+        <!-- ===================== CỤM 2 NÚT HÀNH ĐỘNG CỐ ĐỊNH ĐÁY ===================== -->
+        <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40">
+            <div class="max-w-4xl mx-auto flex gap-2">
+                <button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition shadow">💾 Lưu Nháp</button>
+                <button onclick="proceedToTier(ACTIVE_TIER_VAL + 1)" class="w-2/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg uppercase tracking-wider">Tiếp Tục ➔</button>
+            </div>
+        </div>
     """
-    tmpl = tmpl.replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
-    tmpl = tmpl.replace("ACTIVE_TIER_VAL", str(active_tier))
+    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
+    tmpl = tmpl.replace("PROJECT_HEADER_VAL", target_project.get("header", ""))
+    tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project.get("project_raw_story", ""))
+    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
+    tmpl = tmpl.replace("TOKENS_HTML_VAL", tokens_html or "<p class='text-slate-500 text-xs italic'>Chưa có token nào.</p>")
     return tmpl
 def get_studio_javascript():
     return """
         <script>
             let currentActiveTier = ACTIVE_TIER_VAL;
-            let currentHighestTier = HIGHEST_TIER_VAL;
             let currentProjectTitle = "PROJECT_TITLE_VAL";
+
+
+            function toggleProfileMenu() {
+                const m = document.getElementById('profile-dropdown');
+                m.classList.toggle('hidden');
+            }
+
+
+            function toggleVirtualAssistantModal() {
+                switchStream(2);
+            }
+
+
+            function switchStream(streamId) {
+                const s1 = document.getElementById('stream-1-container');
+                const s2 = document.getElementById('stream-2-container');
+                const b1 = document.getElementById('tab-btn-stream1');
+                const b2 = document.getElementById('tab-btn-stream2');
+                if (streamId === 1) {
+                    s1.classList.remove('hidden');
+                    s2.classList.add('hidden');
+                    b1.className = "py-2 rounded-xl bg-amber-500 text-slate-950 transition shadow";
+                    b2.className = "py-2 rounded-xl text-slate-400 hover:text-slate-200 transition";
+                } else {
+                    s1.classList.add('hidden');
+                    s2.classList.remove('hidden');
+                    b2.className = "py-2 rounded-xl bg-amber-500 text-slate-950 transition shadow";
+                    b1.className = "py-2 rounded-xl text-slate-400 hover:text-slate-200 transition";
+                }
+            }
 
 
             function updateEstimateBadge() {
                 const dur = document.getElementById('film-duration').value;
                 const badge = document.getElementById('cost-estimate-badge');
                 if (dur === '45p') {
-                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit). Bạn có thể render từng phân cảnh (5 C/lần) hoặc xem trước animatic miễn phí!';
+                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit).';
                 } else if (dur === '15p') {
-                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim trung thiên 10-15 phút cần ~10 phân cảnh (ước tính ~50 Credit). Nhịp phim cô đọng, giàu cảm xúc!';
+                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim 15 phút cần ~10 phân cảnh (ước tính ~50 Credit).';
                 } else {
-                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim ngắn viral 1-3 phút cần ~3 phân cảnh (ước tính ~15 Credit). Nhanh, nhẹ, tối ưu đăng ngay mạng xã hội!';
+                    badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim ngắn 3 phút cần ~3 phân cảnh (ước tính ~15 Credit).';
                 }
             }
-
-
-            function updateWordCount() {
-                const story = document.getElementById('project-story').value.trim();
-                const words = story ? story.split(/\\s+/).length : 0;
-                document.getElementById('word-count-badge').innerText = words + ' từ';
-            }
-            updateWordCount();
 
 
             function selectChip(text) {
@@ -1040,6 +1059,7 @@ def get_studio_javascript():
 
 
             async function proceedToTier(targetTier) {
+                if (targetTier > 4) targetTier = 4;
                 const title = document.getElementById('project-title') ? document.getElementById('project-title').value : currentProjectTitle;
                 const header = document.getElementById('project-header') ? document.getElementById('project-header').value : "";
                 const story = document.getElementById('project-story') ? document.getElementById('project-story').value : "";
@@ -1094,7 +1114,6 @@ def get_studio_javascript():
                     const data = await res.json();
                     if(data.status === 'success') {
                         document.getElementById('project-story').value = data.extracted_content;
-                        updateWordCount();
                         alert(data.message);
                         saveDraftCurrent(1);
                     } else {
@@ -1198,7 +1217,7 @@ def get_studio_javascript():
                     const res = await fetch('/api/cineai/chat', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({message: text, title: currentProjectTitle, tier: currentActiveTier})
+                        body: JSON.stringify({message: text, title: currentProjectTitle, tier: 1})
                     });
                     const data = await res.json();
                     box.innerHTML += '<div class="bg-blue-950/60 border border-blue-800/50 p-3 rounded-xl text-blue-200 leading-relaxed max-w-[85%]">' + data.reply + '</div>';
@@ -1208,9 +1227,9 @@ def get_studio_javascript():
                     if (data.chips && data.chips.length > 0) {
                         let chipHtml = '';
                         data.chips.forEach(c => {
-                            chipHtml += '<button onclick="selectChip(this.innerText)" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-amber-300 px-3 py-1.5 rounded-xl text-xs transition shadow-sm">' + c + '</button>';
+                            chipHtml += '<button onclick="selectChip(this.innerText)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">' + c + '</button>';
                         });
-                        chipHtml += '<button onclick="focusCustomInput()" class="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm">✍️ Lựa chọn khác...</button>';
+                        chipHtml += '<button onclick="focusCustomInput()" class="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2.5 py-1 rounded-xl text-[11px] font-bold transition">✍️ Lựa chọn khác...</button>';
                         chipsTray.innerHTML = chipHtml;
                     }
                 } catch(e) {
@@ -1239,9 +1258,8 @@ def get_studio_javascript():
                         document.getElementById('project-header').value = resData.data.header;
                         document.getElementById('project-story').value = resData.data.story;
                         currentProjectTitle = resData.data.title;
-                        updateWordCount();
-                        box.innerHTML += '<div class="bg-emerald-950/60 p-3 rounded-xl text-emerald-200 font-bold">🎉 Kịch bản chuẩn ' + ratio + ' (' + dur + ') đã tạo thành công và điền vào Tầng 1! Bạn có thể xem lại hoặc bấm Tiếp tục.</div>';
-                        box.scrollTop = box.scrollHeight;
+                        switchStream(1);
+                        alert('🎉 Kịch bản đã được khởi tạo thành công và đổ vào Luồng 1!');
                     } else {
                         alert(resData.message);
                     }
@@ -1325,15 +1343,16 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
         tokens_html += f'<div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-xs flex justify-between items-center"><span class="text-emerald-400 font-bold">🎵 {at.get("token_id")}</span><span class="text-slate-400 text-[11px]">{at.get("category")}</span></div>'
 
 
-    part1, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, tokens_html)
-    part2 = get_studio_html_block_2(t3_vis, t4_vis, active_tier)
-    part3 = get_studio_javascript()
-    part3 = part3.replace("ACTIVE_TIER_VAL", str(active_tier))
-    part3 = part3.replace("HIGHEST_TIER_VAL", str(highest_tier))
-    part3 = part3.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
+    # Sửa chuẩn xác truyền đủ 5 tham số bao gồm username
+    p1, t1_vis, t2_vis, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, username)
+    p2 = get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, tokens_html)
+    p3 = get_studio_javascript()
+    p3 = p3.replace("ACTIVE_TIER_VAL", str(active_tier))
+    p3 = p3.replace("HIGHEST_TIER_VAL", str(highest_tier))
+    p3 = p3.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
 
 
-    return HTMLResponse(content=part1 + part2 + part3)
+    return HTMLResponse(content=p1 + p2 + p3)
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -1363,7 +1382,7 @@ async def library_page(session_id: str = Cookie(None)):
 
 
     library_template = """
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.6</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.7</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-4 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
@@ -1412,14 +1431,14 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI 6.6</title>
+        <title>Xác Thực - Cine AI 6.7</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
         <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
             <div class="text-center space-y-1">
                 <h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2>
-                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.6 Enterprise</p>
+                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.7 Enterprise</p>
             </div>
             ALERT_ERR_VAL ALERT_SUCC_VAL
             <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
@@ -1498,11 +1517,11 @@ async def community_page(session_id: str = Cookie(None)):
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI 6.6</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI 6.7</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-5 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
-                <h1 class="text-lg font-bold text-amber-400">🌍 Cộng Đồng Phim Public Pro 6.6</h1>
+                <h1 class="text-lg font-bold text-amber-400">🌍 Cộng Đồng Phim Public Pro 6.7</h1>
                 <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs shadow">⚡ Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bảng tin cộng đồng đang kết nối API mạng xã hội...</div>
