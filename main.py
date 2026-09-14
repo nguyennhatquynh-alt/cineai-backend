@@ -561,7 +561,11 @@ async def set_active_take(request: Request, session_id: str = Cookie(None)):
         enterprise_data["active_takes"] = {}
     enterprise_data["active_takes"][scene_key] = selected_take_id
     save_users()
-    return JSONResponse({"status": "success", "message": f"🎯 Đã chọn Take {selected_take_id} làm phiên bản chính thức cho Phân cảnh {scene_id}!"})
+    return JSONResponse({
+        "status": "success",
+        "message": f"🎯 Đã chọn Take {selected_take_id} làm phiên bản chính thức cho Phân cảnh {scene_id}!",
+        "active_takes": enterprise_data["active_takes"]
+    })
 
 
 @app.get("/api/cineai/get-rough-cut")
@@ -740,7 +744,7 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
             </div>
 
 
-            <!-- THANH TIẾN TRÌNH TUẦN TỰ -->
+            <!-- THANH TIẾN TRÌNH TUẦN TỰ (BREADCRUMB) -->
             <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-xs font-bold">
                 <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=1" class="py-2.5 rounded-xl transition TIER_1_CLASS">1. Kịch Bản</a>
                 <a href="/?load_project=PROJECT_TITLE_ENCODED&tier=2" class="py-2.5 rounded-xl transition TIER_2_CLASS">2. Khóa Token</a>
@@ -1069,18 +1073,18 @@ async def library_page(session_id: str = Cookie(None)):
         """
 
 
-    return HTMLResponse(content=f"""
+    library_template = """
     <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.5</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-4 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
                 <div>
                     <h1 class="text-lg font-bold text-amber-400">📁 Thư Viện Dự Án</h1>
-                    <p class="text-xs text-slate-400">Hạn mức: {len(user_projects)}/2 dự án • Ví Credit: {user_credits} C</p>
+                    <p class="text-xs text-slate-400">Hạn mức: PROJECT_COUNT_VAL/2 dự án • Ví Credit: USER_CREDITS_VAL C</p>
                 </div>
                 <a href="/" class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl text-xs font-bold transition">⚡ Studio</a>
             </div>
-            <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3">{projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào.</p>"}</div>
+            <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3">PROJECTS_LIST_VAL</div>
         </div>
         <script>
             async function confirmDelete(title) {
@@ -1093,7 +1097,11 @@ async def library_page(session_id: str = Cookie(None)):
             }
         </script>
     </body></html>
-    """)
+    """
+    library_template = library_template.replace("PROJECT_COUNT_VAL", str(len(user_projects)))
+    library_template = library_template.replace("USER_CREDITS_VAL", str(user_credits))
+    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào.</p>")
+    return HTMLResponse(content=library_template)
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -1107,13 +1115,13 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     succ_html = f'<div class="bg-emerald-950/80 p-3 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
 
 
-    return HTMLResponse(content=f"""
+    login_template = """
     <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Xác Thực - Cine AI 6.5</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 font-sans">
         <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-md space-y-5 shadow-2xl">
-            <h2 class="text-xl font-bold text-amber-400 text-center">{title_text}</h2>
-            {err_html} {succ_html}
-            <form method="POST" action="{form_action}" class="space-y-4">
+            <h2 class="text-xl font-bold text-amber-400 text-center">PAGE_TITLE_VAL</h2>
+            ALERT_ERR_VAL ALERT_SUCC_VAL
+            <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
                 <input type="text" name="username" required placeholder="Tên tài khoản..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3.5 text-xs text-slate-100">
                 <input type="password" name="password" required placeholder="Mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3.5 text-xs text-slate-100">
                 <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 rounded-2xl text-xs uppercase shadow-xl transition">Xác Nhận</button>
@@ -1125,7 +1133,12 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
             </div>
         </div>
     </body></html>
-    """)
+    """
+    login_template = login_template.replace("PAGE_TITLE_VAL", title_text)
+    login_template = login_template.replace("ALERT_ERR_VAL", err_html)
+    login_template = login_template.replace("ALERT_SUCC_VAL", succ_html)
+    login_template = login_template.replace("FORM_ACTION_VAL", form_action)
+    return HTMLResponse(content=login_template)
 
 
 @app.post("/login")
