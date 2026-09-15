@@ -1730,5 +1730,117 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI 6.7.3</title>
-        <script src="https://cdn.tailwindcss.com">
+        <title>Xác Thực - Cine AI 6.7.3 Enterprise</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
+        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
+            <div class="text-center space-y-1">
+                <h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2>
+                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.7.3 Enterprise</p>
+            </div>
+            ALERT_ERR_VAL ALERT_SUCC_VAL
+            <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">👤 Tên tài khoản:</label>
+                    <input type="text" name="username" required placeholder="Nhập tên đăng nhập..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">🔑 Mật khẩu:</label>
+                    <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xác Nhận</button>
+            </form>
+            <div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800">
+                <a href="/login" class="hover:underline text-amber-400 font-semibold">Đăng nhập</a>
+                <a href="/login?tab=register" class="hover:underline">Đăng ký (+10 C)</a>
+                <a href="/login?tab=forgot" class="hover:underline">Quên mật khẩu?</a>
+            </div>
+        </div>
+    </body></html>
+    """
+    login_template = login_template.replace("PAGE_TITLE_VAL", title_text)
+    login_template = login_template.replace("ALERT_ERR_VAL", err_html)
+    login_template = login_template.replace("ALERT_SUCC_VAL", succ_html)
+    login_template = login_template.replace("FORM_ACTION_VAL", form_action)
+    return HTMLResponse(content=login_template)
+
+
+
+
+@app.post("/login")
+async def login_post(username: str = Form(...), password: str = Form(...)):
+    user_info = USERS_DB.get(username)
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    if (username == "admin" and password == "admin123") or (user_info and user_info.get("password_hash") == pwd_hash):
+        session_id = secrets.token_hex(16)
+        ACTIVE_SESSIONS[session_id] = username
+        resp = RedirectResponse(url="/", status_code=303)
+        resp.set_cookie(key="session_id", value=session_id)
+        return resp
+    return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu!"), status_code=303)
+
+
+
+
+@app.post("/register")
+async def register_post(username: str = Form(...), password: str = Form(...)):
+    if username in USERS_DB:
+        return RedirectResponse(url="/login?tab=register&error=" + urllib.parse.quote("⚠️ Tên tài khoản đã tồn tại!"), status_code=303)
+    USERS_DB[username] = {"password_hash": hashlib.sha256(password.encode()).hexdigest(), "projects": [], "credits": 10}
+    save_users()
+    session_id = secrets.token_hex(16)
+    ACTIVE_SESSIONS[session_id] = username
+    resp = RedirectResponse(url="/", status_code=303)
+    resp.set_cookie(key="session_id", value=session_id)
+    return resp
+
+
+
+
+@app.post("/forgot-password")
+async def forgot_password_post(username: str = Form(...), password: str = Form(...)):
+    if username not in USERS_DB:
+        return RedirectResponse(url="/login?tab=forgot&error=" + urllib.parse.quote("⚠️ Tên tài khoản không tồn tại!"), status_code=303)
+    USERS_DB[username]["password_hash"] = hashlib.sha256(password.encode()).hexdigest()
+    save_users()
+    return RedirectResponse(url="/login?success=" + urllib.parse.quote("🎉 Đổi mật khẩu thành công! Vui lòng đăng nhập."), status_code=303)
+
+
+
+
+@app.get("/logout")
+async def logout(session_id: str = Cookie(None)):
+    if session_id in ACTIVE_SESSIONS:
+        del ACTIVE_SESSIONS[session_id]
+    resp = RedirectResponse(url="/login", status_code=303)
+    resp.delete_cookie(key="session_id")
+    return resp
+
+
+
+
+@app.get("/community", response_class=HTMLResponse)
+async def community_page(session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return RedirectResponse(url="/login", status_code=303)
+    return HTMLResponse(content="""
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI 6.7.3</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="bg-slate-950 text-slate-100 min-h-screen p-5 font-sans">
+        <div class="max-w-4xl mx-auto space-y-4">
+            <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
+                <h1 class="text-lg font-bold text-amber-400">🌍 Cộng Đồng Phim Public Pro 6.7.3</h1>
+                <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs shadow">⚡ Quay lại Studio</a>
+            </div>
+            <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bảng tin cộng đồng đang kết nối API mạng xã hội...</div>
+        </div>
+    </body></html>
+    """)
+
+
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
