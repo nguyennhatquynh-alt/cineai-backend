@@ -79,24 +79,42 @@ def get_gemini_keys():
 
 
 
+from google import genai
+
+
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
     if not keys:
-        return None, "Chua cau hinh GEMINI_API_KEYS tren Render!"
+        return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
     selected_key = random.choice(keys)
-    models_to_try = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"]
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-    for m in models_to_try:
-        url = "https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent?key=" + selected_key
+    try:
+        # Khởi tạo client chính thức của Google GenAI SDK mới
+        client = genai.Client(api_key=selected_key)
+        
+        # Gọi model flash chuẩn mới nhất qua SDK
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt_text,
+        )
+        
+        if response and response.text:
+            return response.text, "gemini-1.5-flash"
+        else:
+            return None, "⚠️ Không nhận được phản hồi từ Google AI."
+    except Exception as e:
+        # Fallback thử sang gemini-2.5-flash hoặc gemini-pro nếu cần
         try:
-            res = requests.post(url, json=payload, headers=headers, timeout=20)
-            if res.status_code == 200:
-                data = res.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"], m
+            response_alt = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt_text,
+            )
+            if response_alt and response_alt.text:
+                return response_alt.text, "gemini-2.5-flash"
         except Exception:
-            continue
-    return None, "Loi: Khong tim thay model tuong thich."
+            pass
+        return None, "Lỗi kết nối SDK: " + str(e)
+
+
 def get_cloud_cache(cache_key: str):
     if not SUPABASE_KEY:
         return None
