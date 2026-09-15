@@ -1712,12 +1712,10 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     is_reg = (tab == "register")
     is_forgot = (tab == "forgot")
     form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
-    title_text = "📝 Tạo Tài Khoản Mới" if is_reg else ("🔑 Khôi Phục Mật Khẩu" if is_forgot else "🔐 Đăng Nhập Hệ Thống")
+    title_text = "Tao Tai Khoan Moi" if is_reg else ("Khoi Phuc Mat Khau" if is_forgot else "Dang Nhap He Thong")
     
     err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
     succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
-
-
 
 
     login_template = """
@@ -1725,7 +1723,7 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI 6.7.6 Enterprise</title>
+        <title>Xac Thuc - Cine AI 6.7.6 Enterprise</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
@@ -1737,19 +1735,19 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
             ALERT_ERR_VAL ALERT_SUCC_VAL
             <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1.5">👤 Tên tài khoản:</label>
-                    <input type="text" name="username" required placeholder="Nhập tên đăng nhập..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Ten tai khoan:</label>
+                    <input type="text" name="username" required placeholder="Nhap ten dang nhap..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1.5">🔑 Mật khẩu:</label>
-                    <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Mat khau:</label>
+                    <input type="password" name="password" required placeholder="Nhap mat khau..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
                 </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xác Nhận</button>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xac Nhan</button>
             </form>
             <div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800">
-                <a href="/login" class="hover:underline text-amber-400 font-semibold">Đăng nhập</a>
-                <a href="/login?tab=register" class="hover:underline">Đăng ký (+10 C)</a>
-                <a href="/login?tab=forgot" class="hover:underline">Quên mật khẩu?</a>
+                <a href="/login" class="hover:underline text-amber-400 font-semibold">Dang nhap</a>
+                <a href="/login?tab=register" class="hover:underline">Dang ky (+10 C)</a>
+                <a href="/login?tab=forgot" class="hover:underline">Quen mat khau?</a>
             </div>
         </div>
     </body></html>
@@ -1759,6 +1757,8 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     login_template = login_template.replace("ALERT_SUCC_VAL", succ_html)
     login_template = login_template.replace("FORM_ACTION_VAL", form_action)
     return HTMLResponse(content=login_template)
+
+
 
 
 @app.get("/library", response_class=HTMLResponse)
