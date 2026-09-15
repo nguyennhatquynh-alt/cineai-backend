@@ -1557,28 +1557,24 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
     return HTMLResponse(content=p1 + p2 + p3)
 
 
-@app.get("/library", response_class=HTMLResponse)
-async def library_page(session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
-    user_data = USERS_DB.get(username, {})
-    user_projects = user_data.get("projects", [])
-    user_credits = user_data.get("credits", 0)
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(tab: str = "login", error: str = None, success: str = None):
+    is_reg = (tab == "register")
+    is_forgot = (tab == "forgot")
+    form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
+    title_text = "Tao Tai Khoan Moi" if is_reg else ("Khoi Phuc Mat Khau" if is_forgot else "Dang Nhap He Thong")
     
-    projects_html = ""
-    for p in user_projects:
-        title = p.get("title", "Dự án")
-        h_tier = p.get("highest_tier", 1)
-        projects_html += f"""<div class="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex justify-between items-center gap-3"><div><span class="text-[10px] font-bold bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20">Tien do: Tang {h_tier}</span><h3 class="text-base font-black text-slate-100 mt-2">{title}</h3><p class="text-xs text-slate-400 italic">{p.get("header", "")}</p></div><div class="flex gap-2"><a href="/?load_project={urllib.parse.quote(title)}" class="bg-amber-500 text-slate-950 font-black px-4 py-3 rounded-2xl text-xs uppercase shadow transition">Mo</a><button onclick="confirmDelete('{title}')" class="bg-rose-900/60 hover:bg-rose-700 text-rose-200 px-3 py-3 rounded-2xl text-xs font-bold transition">Xoa</button></div></div>"""
+    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
+    succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
 
 
-    library_template = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thu Vien - Cine AI 6.7.6</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-4 font-sans"><div class="max-w-4xl mx-auto space-y-4"><div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl"><div><h1 class="text-lg font-bold text-amber-400">Thu Vien Du An</h1><p class="text-xs text-slate-400">Han muc: PROJECT_COUNT_VAL/2 du an - Vi Credit: USER_CREDITS_VAL C</p></div><div class="flex gap-2"><a href="/?new_project=1" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs transition shadow-md">Tao Du An Moi</a><a href="/" class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl text-xs transition">Studio</a></div></div><div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3">PROJECTS_LIST_VAL</div></div><script>async function confirmDelete(title) {if(confirm("Ban co chac chan muon xoa vinh vien du an '" + title + "' khong?")) {const res = await fetch('/api/cineai/delete-project', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title})});const d = await res.json();alert(d.message);location.reload();}}</script></body></html>"""
+    login_template = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Xac Thuc - Cine AI 6.7.6</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans"><div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl"><div class="text-center space-y-1"><h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2><p class="text-xs text-slate-400">Cine AI Studio Pro 6.7.6 Enterprise</p></div>ALERT_ERR_VAL ALERT_SUCC_VAL<form method="POST" action="FORM_ACTION_VAL" class="space-y-4"><div><label class="block text-xs font-bold text-slate-300 mb-1.5">Ten tai khoan:</label><input type="text" name="username" required placeholder="Nhap ten dang nhap..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner"></div><div><label class="block text-xs font-bold text-slate-300 mb-1.5">Mat khau:</label><input type="password" name="password" required placeholder="Nhap mat khau..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner"></div><button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xac Nhan</button></form><div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800"><a href="/login" class="hover:underline text-amber-400 font-semibold">Dang nhap</a><a href="/login?tab=register" class="hover:underline">Dang ky (+10 C)</a><a href="/login?tab=forgot" class="hover:underline">Quen mat khau?</a></div></div></body></html>"""
     
-    library_template = library_template.replace("PROJECT_COUNT_VAL", str(len(user_projects)))
-    library_template = library_template.replace("USER_CREDITS_VAL", str(user_credits))
-    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào.</p>")
-    return HTMLResponse(content=library_template)
+    login_template = login_template.replace("PAGE_TITLE_VAL", title_text)
+    login_template = login_template.replace("ALERT_ERR_VAL", err_html)
+    login_template = login_template.replace("ALERT_SUCC_VAL", succ_html)
+    login_template = login_template.replace("FORM_ACTION_VAL", form_action)
+    return HTMLResponse(content=login_template)
 
 
 @app.get("/login", response_class=HTMLResponse)
