@@ -79,26 +79,40 @@ def get_gemini_keys():
 
 
 
+from google import genai
+
+
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
     if not keys:
         return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
     selected_key = random.choice(keys)
     
-    # Thêm tiền tố models/ vào trước tên model để khớp hoàn toàn với định dạng API v1 mới
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-    
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        if response.status_code == 200:
-            data = response.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"], "gemini-1.5-flash"
-        else:
-            return None, f"Lỗi Google ({response.status_code}): {response.text[:150]}"
-    except Exception as e:
-        return None, "Lỗi kết nối: " + str(e)
+        # Sử dụng SDK chính thức google-genai đã có sẵn trong requirements.txt của anh
+        client = genai.Client(api_key=selected_key)
+        
+        # Thử gọi model chuẩn thông qua SDK mới
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt_text,
+        )
+        if response and response.text:
+            return response.text, "gemini-1.5-flash"
+    except Exception as e1:
+        try:
+            # Thử lại với bản dự phòng nếu model flash gặp vấn đề
+            client = genai.Client(api_key=selected_key)
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt_text,
+            )
+            if response and response.text:
+                return response.text, "gemini-2.5-flash"
+        except Exception as e2:
+            return None, f"Lỗi xác thực SDK: {str(e1)}"
+            
+    return None, "⚠️ Không thể kết nối với Key API hiện tại. Vui lòng kiểm tra lại loại Key trên Google AI Studio."
 
 
 def get_cloud_cache(cache_key: str):
