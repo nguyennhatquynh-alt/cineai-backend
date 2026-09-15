@@ -1680,7 +1680,7 @@ async def community_page(session_id: str = Cookie(None)):
             <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bang tin cong dong dang ket noi API mang xa hoi...</div>
         </div>
     </body></html>
-    """)
+    """
 
 
 if __name__ == "__main__":
