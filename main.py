@@ -85,7 +85,7 @@ def call_gemini_direct(prompt_text):
         return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
     selected_key = random.choice(keys)
     
-    # Sử dụng endpoint phiên bản v1 chuẩn xác theo đúng tài liệu mới của Google
+    # Thêm tiền tố models/ vào trước tên model để khớp hoàn toàn với định dạng API v1 mới
     url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
