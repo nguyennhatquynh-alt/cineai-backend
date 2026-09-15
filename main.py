@@ -14,11 +14,17 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
+
+
 app = FastAPI(title="Cine AI Studio Pro 6.7.6 - Enterprise Ultimate Suite", version="6.7.6")
+
+
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+
 
 
 def get_supabase_headers():
@@ -28,6 +34,8 @@ def get_supabase_headers():
         "Content-Type": "application/json",
         "Prefer": "return=representation"
     }
+
+
 
 
 def load_users():
@@ -56,13 +64,19 @@ def save_users():
         print("Lỗi lưu Supabase:", e)
 
 
+
+
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
+
+
 
 
 def get_gemini_keys():
     raw = os.getenv("GEMINI_API_KEYS", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
+
+
 
 
 def call_gemini_direct(prompt_text):
@@ -95,6 +109,8 @@ def get_cloud_cache(cache_key: str):
     return None
 
 
+
+
 def set_cloud_cache(cache_key: str, value_data):
     if not SUPABASE_KEY:
         return
@@ -106,6 +122,8 @@ def set_cloud_cache(cache_key: str, value_data):
         requests.post(url, json=payload, headers=headers, timeout=5)
     except Exception:
         pass
+
+
 
 
 @app.middleware("http")
@@ -124,6 +142,8 @@ async def self_healing_global_middleware(request: Request, call_next):
                 "error_details": error_trace
             }
         )
+
+
 
 
 def validate_python_code_ast(code_snippet: str) -> bool:
@@ -234,6 +254,8 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
         return JSONResponse({"status": "success", "message": "⚡ [Cache Hit] Đã nạp Master Schema từ Cloud Cache!", "audit_data": cached_audit})
 
 
+
+
     system_prompt = (
         "Bạn là Tổng Đạo Diễn và Giám Đốc Sản Xuất cấp cao của Cine AI Studio Pro 6.7.6 Enterprise.\n"
         "Nhiệm vụ: Quét sâu kịch bản theo Master Schema toàn diện gồm:\n"
@@ -269,6 +291,8 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
         return JSONResponse({"status": "error", "message": f"Không thể giải mã dữ liệu kiểm kê: {str(e)}"}, status_code=500)
         
     set_cloud_cache(cache_key, parsed_audit)
+
+
 
 
     existing_tokens = target_project.get("token_registry", {})
@@ -308,6 +332,8 @@ async def generate_asset_concept_prompt(request: Request, session_id: str = Cook
     return JSONResponse({"status": "success", "concept_prompt": raw_res or err_msg})
 
 
+
+
 @app.post("/api/cineai/delete-project")
 async def delete_project(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -326,6 +352,8 @@ async def delete_project(request: Request, session_id: str = Cookie(None)):
     user_data["projects"] = new_projects
     save_users()
     return JSONResponse({"status": "success", "message": f"🗑️ Đã xóa vĩnh viễn dự án '{project_title}' thành công!"})
+
+
 
 
 @app.post("/api/cineai/upload-asset-explicit")
@@ -361,6 +389,8 @@ async def upload_asset_explicit(
         "message": f"✅ Nạp và lưu thành công kịch bản từ tệp '{file.filename}'!",
         "extracted_content": extracted_text
     })
+
+
 
 
 @app.post("/api/cineai/upload-visual-token")
@@ -453,6 +483,8 @@ async def upload_audio_token(
     })
 
 
+
+
 @app.post("/api/cineai/chat")
 async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -518,6 +550,8 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
                 "chips": ["Tiếng mưa rơi trên mái tôn", "Bức ảnh cũ phai màu", "Một lời xin lỗi muộn màng"],
                 "ready": True
             })
+
+
 
 
     mode_instructions = {
@@ -588,6 +622,8 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
     return JSONResponse({"status": "success", "data": res_data})
 
 
+
+
 @app.post("/api/cineai/breakdown-scenes-enterprise")
 async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -636,6 +672,8 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
                 parsed_scenes = {"acts": [{"act_name": "Act I", "scenes": [{"scene_id": 1, "title": "Cảnh khởi đầu", "duration_sec": 60, "summary": "Khởi động mạch phim.", "lock_tokens": {"face_id": "CHAR_DEFAULT", "costume": "COSTUME_DEFAULT", "landscape": "LOC_DEFAULT", "color_grading": "CINEMATIC_LUT"}}]}]}
 
 
+
+
     total_duration = 0
     act_durations = {"Act I": 0, "Act II": 0, "Act III": 0}
     if isinstance(parsed_scenes, dict) and "acts" in parsed_scenes:
@@ -645,6 +683,8 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
                 dur = sc.get("duration_sec", 60)
                 total_duration += dur
                 act_durations[act_name] = act_durations.get(act_name, 0) + dur
+
+
 
 
     structured_data = {
@@ -701,6 +741,8 @@ async def async_render_background_worker(username, project_title, scene_id, rend
                 break
 
 
+
+
 @app.post("/api/cineai/render-scene-take")
 async def render_scene_take(request: Request, background_tasks: BackgroundTasks, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -721,7 +763,11 @@ async def render_scene_take(request: Request, background_tasks: BackgroundTasks,
     save_users()
 
 
+
+
     background_tasks.add_task(async_render_background_worker, username, project_title, scene_id, render_cost)
+
+
 
 
     return JSONResponse({
@@ -729,6 +775,8 @@ async def render_scene_take(request: Request, background_tasks: BackgroundTasks,
         "message": f"🎬 Đã đưa Phân cảnh {scene_id} vào hàng đợi xử lý ngầm (Async Queue)! Đã trừ {render_cost} credit (Số dư còn lại: {user_data['credits']} credit).",
         "remaining_credits": user_data["credits"]
     })
+
+
 
 
 @app.post("/api/cineai/set-active-take")
@@ -806,11 +854,15 @@ async def get_rough_cut(title: str = "Dự án mới", session_id: str = Cookie(
                 total_duration += sc.get("duration_sec", 60)
 
 
+
+
     return JSONResponse({
         "status": "success",
         "total_timeline_duration_sec": total_duration,
         "rough_cut_playlist": rough_cut_timeline
     })
+
+
 
 
 @app.get("/api/cineai/export-srt")
@@ -841,6 +893,8 @@ async def export_srt_subtitles(title: str = "Dự án mới", session_id: str = 
         return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
+
+
     if "acts" in scenes_json:
         for act in scenes_json["acts"]:
             for sc in act.get("scenes", []):
@@ -851,7 +905,11 @@ async def export_srt_subtitles(title: str = "Dự án mới", session_id: str = 
                 idx += 1
 
 
+
+
     return JSONResponse({"status": "success", "srt_format": srt_content})
+
+
 
 
 @app.post("/api/payments/webhook")
@@ -872,6 +930,8 @@ async def sepay_payment_webhook(request: Request):
         return JSONResponse({"success": False, "error": str(e)}, status_code=400)
 
 
+
+
 @app.post("/api/payments/stripe-webhook")
 async def stripe_payment_webhook(request: Request):
     try:
@@ -885,7 +945,7 @@ async def stripe_payment_webhook(request: Request):
                 credits_to_add = int(amount_received / 100 * 10)
                 USERS_DB[target_username]["credits"] = USERS_DB[target_username].get("credits", 0) + credits_to_add
                 save_users()
-                return JSONResponse({"status": "success", "message": f"Đã cộng {credits_to_add} credit qua Apple/Google Pay cho user {target_username}"})
+                return JSONResponse({"status": "success", "message": f"Đã cộng {credits_to_add} credit qua Apple/Google Pay for user {target_username}"})
         return JSONResponse({"status": "ignored"})
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
@@ -898,6 +958,8 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
         return "bg-slate-950 text-slate-600 pointer-events-none opacity-40"
 
 
+
+
     t1_cls = get_tier_classes(1)
     t2_cls = get_tier_classes(2)
     t3_cls = get_tier_classes(3)
@@ -907,6 +969,8 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     t3_vis = "block" if active_tier == 3 else "hidden"
     t4_vis = "block" if active_tier == 4 else "hidden"
     enc_title = urllib.parse.quote(target_project.get("title", ""))
+
+
 
 
     tmpl = """
@@ -947,12 +1011,16 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
             </div>
 
 
+
+
             <!-- HEADER DÒNG 2: 3 NÚT TIỆN ÍCH (+ DỰ ÁN MỚI, THƯ VIỆN, TRỢ LÝ ẢO) -->
             <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
                 <a href="/?new_project=1" class="bg-amber-500 hover:bg-amber-400 text-slate-950 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">➕ Dự Án Mới</a>
                 <a href="/library" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">📁 Thư Viện</a>
                 <button onclick="toggleVirtualAssistantModal()" class="bg-indigo-600/80 hover:bg-indigo-600 text-white py-2 rounded-xl transition shadow flex items-center justify-center gap-1">🤖 Trợ Lý Ảo</button>
             </div>
+
+
 
 
             <!-- HEADER DÒNG 3: BREADCRUMB 4 TẦNG THU GỌN -->
@@ -962,6 +1030,8 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                 <a href="/?load_project=ENC_TITLE_VAL&tier=3" class="py-2 rounded-xl transition T3_CLS_VAL">3. Bóc Tách</a>
                 <a href="/?load_project=ENC_TITLE_VAL&tier=4" class="py-2 rounded-xl transition T4_CLS_VAL">4. Render</a>
             </div>
+
+
 
 
             <!-- HEADER DÒNG 4: TAB SWITCHER 2 LUỒNG (TRONG TẦNG 1) -->
@@ -1026,6 +1096,8 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 </div>
 
 
+
+
                 <div id="stream-2-container" class="hidden bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                         <span class="text-xs font-bold text-amber-400 uppercase">✨ Đạo Diễn Ảo Khơi Mở Ý Tưởng</span>
@@ -1047,6 +1119,8 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
             </div>
 
 
+
+
             <!-- ===================== MÀN HÌNH TẦNG 2: CHECKLIST DUYỆT KHÓA TOKEN (MASTER SCHEMA) ===================== -->
             <div id="screen-tier-2" class="T2_VIS_VAL space-y-3">
                 <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
@@ -1059,11 +1133,15 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                     </div>
 
 
+
+
                     <div id="audit-checklist-tray" class="space-y-2 max-h-72 overflow-y-auto pr-1">
                         <div class="text-center py-6 text-slate-500 text-xs">
                             Bấm nút <b>"🔍 Quét Kịch Bản"</b> để AI trích xuất toàn bộ Master Schema theo 4 tầng lọc!
                         </div>
                     </div>
+
+
 
 
                     <div class="p-2.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-1.5">
@@ -1074,12 +1152,16 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
             </div>
 
 
+
+
             <!-- ===================== MÀN HÌNH TẦNG 3 ===================== -->
             <div id="screen-tier-3" class="T3_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
                 <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">🎬 Tầng 3: Bóc Tách Phân Cảnh & Ma Trận 3 Hồi</h2>
                 <button onclick="runBreakdown()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded-2xl text-xs shadow-lg transition">🚀 Kích Hoạt AI Bóc Tách Phân Cảnh</button>
                 <div id="breakdown-result" class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 max-h-40 overflow-y-auto">Chưa bóc tách kịch bản. Hãy bấm nút phía trên.</div>
             </div>
+
+
 
 
             <!-- ===================== MÀN HÌNH TẦNG 4 ===================== -->
@@ -1090,6 +1172,8 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-2xl text-xs transition">📜 Xuất Phụ Đề .SRT</button>
             </div>
         </div>
+
+
 
 
         <!-- CỤM 2 NÚT HÀNH ĐỘNG CỐ ĐỊNH ĐÁY -->
@@ -1113,15 +1197,21 @@ def get_studio_javascript():
             let currentProjectTitle = "PROJECT_TITLE_VAL";
 
 
+
+
             function toggleProfileMenu() {
                 const m = document.getElementById('profile-dropdown');
                 m.classList.toggle('hidden');
             }
 
 
+
+
             function toggleVirtualAssistantModal() {
                 switchStream(2);
             }
+
+
 
 
             function openTopUpModal() {
@@ -1156,6 +1246,8 @@ def get_studio_javascript():
             }
 
 
+
+
             function switchStream(streamId) {
                 const s1 = document.getElementById('stream-1-container');
                 const s2 = document.getElementById('stream-2-container');
@@ -1175,6 +1267,8 @@ def get_studio_javascript():
             }
 
 
+
+
             function updateEstimateBadge() {
                 const dur = document.getElementById('film-duration').value;
                 const badge = document.getElementById('cost-estimate-badge');
@@ -1184,10 +1278,14 @@ def get_studio_javascript():
             }
 
 
+
+
             function selectChip(text) {
                 document.getElementById('chat-input').value = text;
                 sendChat();
             }
+
+
 
 
             function focusCustomInput() {
@@ -1195,8 +1293,6 @@ def get_studio_javascript():
                 input.placeholder = "Nhập ý tưởng riêng của bạn...";
                 input.focus();
             }
-
-
             async function runAuditAssets() {
                 const tray = document.getElementById('audit-checklist-tray');
                 tray.innerHTML = "<div class='text-center py-4 text-amber-400 text-xs animate-pulse'>⏳ Đang quét Master Schema & Ma Trận Thời Gian...</div>";
@@ -1216,6 +1312,10 @@ def get_studio_javascript():
                     tray.innerHTML = "<div class='text-rose-400 text-xs p-3 text-center'>⚠️ Lỗi kết nối kiểm kê!</div>";
                 }
             }
+
+
+
+
             function renderAuditChecklist(audit) {
                 const tray = document.getElementById('audit-checklist-tray');
                 let html = '';
@@ -1226,6 +1326,8 @@ def get_studio_javascript():
                         <p class="text-[11px] text-slate-200 mt-0.5">${audit.time_jumps_detected.join(' • ')}</p>
                     </div>`;
                 }
+
+
 
 
                 const renderCard = (item, catLabel, catType) => `
@@ -1253,14 +1355,20 @@ def get_studio_javascript():
                 `;
 
 
+
+
                 (audit.entities || []).forEach(e => html += renderCard(e, e.archetype || 'Thực thể', 'character'));
                 (audit.locations || []).forEach(l => html += renderCard(l, 'Bối cảnh', 'landscape'));
                 (audit.props || []).forEach(p => html += renderCard(p, 'Đạo cụ định mệnh', 'costume'));
                 (audit.audio_signatures || []).forEach(a => html += renderCard(a, 'Âm thanh 3D', 'bgm'));
 
 
+
+
                 tray.innerHTML = html || "<div class='text-slate-500 text-xs text-center py-4'>Không phát hiện đối tượng nào.</div>";
             }
+
+
 
 
             async function uploadDirectAsset(inputElement, category, assetName) {
@@ -1275,6 +1383,8 @@ def get_studio_javascript():
                 formData.append('project_title', currentProjectTitle);
 
 
+
+
                 try {
                     const res = await fetch(endpoint, {method: 'POST', body: formData});
                     const d = await res.json();
@@ -1284,6 +1394,8 @@ def get_studio_javascript():
                     alert('Lỗi nạp tệp khóa token!');
                 }
             }
+
+
 
 
             async function requestConcept(name, desc) {
@@ -1323,6 +1435,8 @@ def get_studio_javascript():
             }
 
 
+
+
             async function saveDraftCurrent(tier) {
                 const title = document.getElementById('project-title') ? document.getElementById('project-title').value : currentProjectTitle;
                 const header = document.getElementById('project-header') ? document.getElementById('project-header').value : "";
@@ -1344,6 +1458,8 @@ def get_studio_javascript():
             }
 
 
+
+
             async function uploadStoryFile() {
                 const fileInput = document.getElementById('file-story');
                 if(fileInput.files.length === 0) return alert('⚠️ Vui lòng chọn tệp kịch bản (.txt, .md)!');
@@ -1362,6 +1478,8 @@ def get_studio_javascript():
             }
 
 
+
+
             async function runBreakdown() {
                 const box = document.getElementById('breakdown-result');
                 box.innerHTML = "⏳ Đang gọi AI bóc tách phân cảnh...";
@@ -1375,6 +1493,8 @@ def get_studio_javascript():
                     box.innerHTML = "✅ Bóc tách thành công! Tổng thời lượng: " + data.metrics.total_duration_sec + " giây.<br><pre class='text-[10px] text-slate-400 mt-2 whitespace-pre-wrap'>" + JSON.stringify(data.data, null, 2) + "</pre>";
                 } else box.innerHTML = data.reply;
             }
+
+
 
 
             async function renderScene(id) {
@@ -1393,6 +1513,8 @@ def get_studio_javascript():
             }
 
 
+
+
             async function exportSrtSubtitles() {
                 const res = await fetch('/api/cineai/export-srt?title=' + encodeURIComponent(currentProjectTitle));
                 const data = await res.json();
@@ -1407,6 +1529,8 @@ def get_studio_javascript():
             }
 
 
+
+
             async function sendChat() {
                 const input = document.getElementById('chat-input');
                 const box = document.getElementById('chat-box');
@@ -1415,9 +1539,13 @@ def get_studio_javascript():
                 if(!text) return;
 
 
+
+
                 box.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-2.5 rounded-xl inline-block text-slate-100 max-w-[85%] text-left">' + text + '</span></div>';
                 input.value = '';
                 box.scrollTop = box.scrollHeight;
+
+
 
 
                 try {
@@ -1429,6 +1557,8 @@ def get_studio_javascript():
                     const data = await res.json();
                     box.innerHTML += '<div class="bg-blue-950/60 border border-blue-800/50 p-3 rounded-xl text-blue-200 leading-relaxed max-w-[85%]" style="overflow-wrap: anywhere;">' + data.reply + '</div>';
                     box.scrollTop = box.scrollHeight;
+
+
 
 
                     if (data.chips && data.chips.length > 0) {
@@ -1443,6 +1573,8 @@ def get_studio_javascript():
                     box.innerHTML += '<div class="bg-rose-950/60 p-2.5 rounded-xl text-rose-200">⚠️ Lỗi kết nối Đạo diễn ảo!</div>';
                 }
             }
+
+
 
 
             async function autoGenerateScriptFromSlots() {
@@ -1528,6 +1660,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
         save_users()
 
 
+
+
     if tier:
         target_project["highest_tier"] = max(target_project.get("highest_tier", 1), tier)
         active_tier = tier
@@ -1535,6 +1669,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
     else:
         active_tier = target_project.get("highest_tier", 1)
     highest_tier = target_project.get("highest_tier", 1)
+
+
 
 
     tokens_html = ""
@@ -1546,6 +1682,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
         tokens_html += f'<span class="bg-emerald-950 border border-emerald-800 text-emerald-300 text-[10px] px-2 py-0.5 rounded-full font-bold">🎵 {at.get("token_id")} ({at.get("name") or at.get("category")})</span>'
 
 
+
+
     p1, t1_vis, t2_vis, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, username)
     p2 = get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, tokens_html)
     p3 = get_studio_javascript()
@@ -1554,27 +1692,77 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
     p3 = p3.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
 
 
+
+
     return HTMLResponse(content=p1 + p2 + p3)
 
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(tab: str = "login", error: str = None, success: str = None):
-    is_reg = (tab == "register")
-    is_forgot = (tab == "forgot")
-    form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
-    title_text = "Tao Tai Khoan Moi" if is_reg else ("Khoi Phuc Mat Khau" if is_forgot else "Dang Nhap He Thong")
-    
-    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
-    succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
 
 
-    login_template = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Xac Thuc - Cine AI 6.7.6</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans"><div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl"><div class="text-center space-y-1"><h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2><p class="text-xs text-slate-400">Cine AI Studio Pro 6.7.6 Enterprise</p></div>ALERT_ERR_VAL ALERT_SUCC_VAL<form method="POST" action="FORM_ACTION_VAL" class="space-y-4"><div><label class="block text-xs font-bold text-slate-300 mb-1.5">Ten tai khoan:</label><input type="text" name="username" required placeholder="Nhap ten dang nhap..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner"></div><div><label class="block text-xs font-bold text-slate-300 mb-1.5">Mat khau:</label><input type="password" name="password" required placeholder="Nhap mat khau..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner"></div><button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xac Nhan</button></form><div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800"><a href="/login" class="hover:underline text-amber-400 font-semibold">Dang nhap</a><a href="/login?tab=register" class="hover:underline">Dang ky (+10 C)</a><a href="/login?tab=forgot" class="hover:underline">Quen mat khau?</a></div></div></body></html>"""
+@app.get("/library", response_class=HTMLResponse)
+async def library_page(session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return RedirectResponse(url="/login", status_code=303)
+    user_data = USERS_DB.get(username, {})
+    user_projects = user_data.get("projects", [])
+    user_credits = user_data.get("credits", 0)
     
-    login_template = login_template.replace("PAGE_TITLE_VAL", title_text)
-    login_template = login_template.replace("ALERT_ERR_VAL", err_html)
-    login_template = login_template.replace("ALERT_SUCC_VAL", succ_html)
-    login_template = login_template.replace("FORM_ACTION_VAL", form_action)
-    return HTMLResponse(content=login_template)
+    projects_html = ""
+    for p in user_projects:
+        title = p.get("title", "Dự án")
+        h_tier = p.get("highest_tier", 1)
+        projects_html += f"""
+        <div class="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex justify-between items-center gap-3">
+            <div>
+                <span class="text-[10px] font-bold bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20">🎬 Tiến độ: Tầng {h_tier}</span>
+                <h3 class="text-base font-black text-slate-100 mt-2">{title}</h3>
+                <p class="text-xs text-slate-400 italic">{p.get("header", "")}</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="/?load_project={urllib.parse.quote(title)}" class="bg-amber-500 text-slate-950 font-black px-4 py-3 rounded-2xl text-xs uppercase shadow transition">Mở</a>
+                <button onclick="confirmDelete('{title}')" class="bg-rose-900/60 hover:bg-rose-700 text-rose-200 px-3 py-3 rounded-2xl text-xs font-bold transition">Xóa</button>
+            </div>
+        </div>
+        """
+
+
+
+
+    library_template = """
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.7.6</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="bg-slate-950 text-slate-100 min-h-screen p-4 font-sans">
+        <div class="max-w-4xl mx-auto space-y-4">
+            <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
+                <div>
+                    <h1 class="text-lg font-bold text-amber-400">📁 Thư Viện Dự Án</h1>
+                    <p class="text-xs text-slate-400">Hạn mức: PROJECT_COUNT_VAL/2 dự án • Ví Credit: USER_CREDITS_VAL C</p>
+                </div>
+                <div class="flex gap-2">
+                    <a href="/?new_project=1" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs transition shadow-md">➕ Tạo Dự Án Mới</a>
+                    <a href="/" class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl text-xs transition">⚡ Studio</a>
+                </div>
+            </div>
+            <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3">PROJECTS_LIST_VAL</div>
+        </div>
+        <script>
+            async function confirmDelete(title) {
+                if(confirm("⚠️ Bạn có chắc chắn muốn xóa vĩnh viễn dự án '" + title + "' không?")) {
+                    const res = await fetch('/api/cineai/delete-project', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title})});
+                    const d = await res.json();
+                    alert(d.message);
+                    location.reload();
+                }
+            }
+        </script>
+    </body></html>
+    """
+    library_template = library_template.replace("PROJECT_COUNT_VAL", str(len(user_projects)))
+    library_template = library_template.replace("USER_CREDITS_VAL", str(user_credits))
+    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào. Bấm '➕ Tạo Dự Án Mới' để bắt đầu.</p>")
+    return HTMLResponse(content=library_template)
+
+
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -1586,6 +1774,8 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     
     err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
     succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
+
+
 
 
     login_template = """
@@ -1629,6 +1819,8 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     return HTMLResponse(content=login_template)
 
 
+
+
 @app.post("/login")
 async def login_post(username: str = Form(...), password: str = Form(...)):
     user_info = USERS_DB.get(username)
@@ -1640,6 +1832,8 @@ async def login_post(username: str = Form(...), password: str = Form(...)):
         resp.set_cookie(key="session_id", value=session_id)
         return resp
     return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu!"), status_code=303)
+
+
 
 
 @app.post("/register")
@@ -1655,6 +1849,8 @@ async def register_post(username: str = Form(...), password: str = Form(...)):
     return resp
 
 
+
+
 @app.post("/forgot-password")
 async def forgot_password_post(username: str = Form(...), password: str = Form(...)):
     if username not in USERS_DB:
@@ -1664,6 +1860,8 @@ async def forgot_password_post(username: str = Form(...), password: str = Form(.
     return RedirectResponse(url="/login?success=" + urllib.parse.quote("🎉 Đổi mật khẩu thành công! Vui lòng đăng nhập."), status_code=303)
 
 
+
+
 @app.get("/logout")
 async def logout(session_id: str = Cookie(None)):
     if session_id in ACTIVE_SESSIONS:
@@ -1671,6 +1869,8 @@ async def logout(session_id: str = Cookie(None)):
     resp = RedirectResponse(url="/login", status_code=303)
     resp.delete_cookie(key="session_id")
     return resp
+
+
 
 
 @app.get("/community", response_class=HTMLResponse)
@@ -1690,6 +1890,8 @@ async def community_page(session_id: str = Cookie(None)):
         </div>
     </body></html>
     """)
+
+
 
 
 if __name__ == "__main__":
