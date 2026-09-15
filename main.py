@@ -84,18 +84,17 @@ def call_gemini_direct(prompt_text):
     if not keys:
         return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
     selected_key = random.choice(keys)
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
+    # Sử dụng v1beta và gemini-2.5-flash khớp tuyệt đối với key Google AI Studio của anh
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={selected_key}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         if response.status_code == 200:
             data = response.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"], "gemini-1.5-flash"
+            return data["candidates"][0]["content"]["parts"][0]["text"], "gemini-2.5-flash"
         else:
-            # Lấy thẳng thông báo chi tiết từ Google trả về để soi chính xác lỗi
             error_detail = response.text
-            print(f"🔥 GOOGLE API ERROR {response.status_code}: {error_detail}")
             return None, f"Lỗi Google ({response.status_code}): {error_detail[:120]}"
     except Exception as e:
         return None, "Lỗi kết nối: " + str(e)
