@@ -1577,7 +1577,7 @@ def get_studio_javascript():
 
 
 
-            async function autoGenerateScriptFromSlots() {
+                        async function autoGenerateScriptFromSlots() {
                 const box = document.getElementById('chat-box');
                 const ratio = document.getElementById('film-aspect-ratio').value;
                 const dur = document.getElementById('film-duration').value;
@@ -1606,6 +1606,8 @@ def get_studio_javascript():
     </body>
     </html>
     ""”
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(session_id: str = Cookie(None), load_project: str = None, tier: int = None, new_project: str = None):
     username = ACTIVE_SESSIONS.get(session_id)
@@ -1699,68 +1701,8 @@ async def home(session_id: str = Cookie(None), load_project: str = None, tier: i
 
 
 
-@app.get("/library", response_class=HTMLResponse)
-async def library_page(session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
-    user_data = USERS_DB.get(username, {})
-    user_projects = user_data.get("projects", [])
-    user_credits = user_data.get("credits", 0)
-    
-    projects_html = ""
-    for p in user_projects:
-        title = p.get("title", "Dự án")
-        h_tier = p.get("highest_tier", 1)
-        projects_html += f"""
-        <div class="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex justify-between items-center gap-3">
-            <div>
-                <span class="text-[10px] font-bold bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20">🎬 Tiến độ: Tầng {h_tier}</span>
-                <h3 class="text-base font-black text-slate-100 mt-2">{title}</h3>
-                <p class="text-xs text-slate-400 italic">{p.get("header", "")}</p>
-            </div>
-            <div class="flex gap-2">
-                <a href="/?load_project={urllib.parse.quote(title)}" class="bg-amber-500 text-slate-950 font-black px-4 py-3 rounded-2xl text-xs uppercase shadow transition">Mở</a>
-                <button onclick="confirmDelete('{title}')" class="bg-rose-900/60 hover:bg-rose-700 text-rose-200 px-3 py-3 rounded-2xl text-xs font-bold transition">Xóa</button>
-            </div>
-        </div>
-        """
 
 
-
-
-    library_template = """
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.7.6</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 text-slate-100 min-h-screen p-4 font-sans">
-        <div class="max-w-4xl mx-auto space-y-4">
-            <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
-                <div>
-                    <h1 class="text-lg font-bold text-amber-400">📁 Thư Viện Dự Án</h1>
-                    <p class="text-xs text-slate-400">Hạn mức: PROJECT_COUNT_VAL/2 dự án • Ví Credit: USER_CREDITS_VAL C</p>
-                </div>
-                <div class="flex gap-2">
-                    <a href="/?new_project=1" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs transition shadow-md">➕ Tạo Dự Án Mới</a>
-                    <a href="/" class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl text-xs transition">⚡ Studio</a>
-                </div>
-            </div>
-            <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3">PROJECTS_LIST_VAL</div>
-        </div>
-        <script>
-            async function confirmDelete(title) {
-                if(confirm("⚠️ Bạn có chắc chắn muốn xóa vĩnh viễn dự án '" + title + "' không?")) {
-                    const res = await fetch('/api/cineai/delete-project', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title})});
-                    const d = await res.json();
-                    alert(d.message);
-                    location.reload();
-                }
-            }
-        </script>
-    </body></html>
-    """
-    library_template = library_template.replace("PROJECT_COUNT_VAL", str(len(user_projects)))
-    library_template = library_template.replace("USER_CREDITS_VAL", str(user_credits))
-    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào. Bấm '➕ Tạo Dự Án Mới' để bắt đầu.</p>")
-    return HTMLResponse(content=library_template)
 
 
 
@@ -1819,6 +1761,28 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     return HTMLResponse(content=login_template)
 
 
+@app.get("/library", response_class=HTMLResponse)
+async def library_page(session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username:
+        return RedirectResponse(url="/login", status_code=303)
+    user_data = USERS_DB.get(username, {})
+    user_projects = user_data.get("projects", [])
+    user_credits = user_data.get("credits", 0)
+    
+    projects_html = ""
+    for p in user_projects:
+        title = p.get("title", "Dự án")
+        h_tier = p.get("highest_tier", 1)
+        projects_html += f"""<div class="bg-slate-950 p-5 rounded-3xl border border-slate-800 flex justify-between items-center gap-3"><div><span class="text-[10px] font-bold bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20">🎬 Tiến độ: Tầng {h_tier}</span><h3 class="text-base font-black text-slate-100 mt-2">{title}</h3><p class="text-xs text-slate-400 italic">{p.get("header", "")}</p></div><div class="flex gap-2"><a href="/?load_project={urllib.parse.quote(title)}" class="bg-amber-500 text-slate-950 font-black px-4 py-3 rounded-2xl text-xs uppercase shadow transition">Mở</a><button onclick="confirmDelete('{title}')" class="bg-rose-900/60 hover:bg-rose-700 text-rose-200 px-3 py-3 rounded-2xl text-xs font-bold transition">Xóa</button></div></div>"""
+
+
+    library_template = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Thư Viện - Cine AI 6.7.6</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-4 font-sans"><div class="max-w-4xl mx-auto space-y-4"><div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl"><div><h1 class="text-lg font-bold text-amber-400">📁 Thư Viện Dự Án</h1><p class="text-xs text-slate-400">Hạn mức: PROJECT_COUNT_VAL/2 dự án • Ví Credit: USER_CREDITS_VAL C</p></div><div class="flex gap-2"><a href="/?new_project=1" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs transition shadow-md">➕ Tạo Dự Án Mới</a><a href="/" class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl text-xs transition">⚡ Studio</a></div></div><div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3">PROJECTS_LIST_VAL</div></div><script>async function confirmDelete(title) {if(confirm("⚠️ Bạn có chắc chắn muốn xóa vĩnh viễn dự án '" + title + "' không?")) {const res = await fetch('/api/cineai/delete-project', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title})});const d = await res.json();alert(d.message);location.reload();}}</script></body></html>"""
+    
+    library_template = library_template.replace("PROJECT_COUNT_VAL", str(len(user_projects)))
+    library_template = library_template.replace("USER_CREDITS_VAL", str(user_credits))
+    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<p class='text-slate-500 text-xs text-center py-6'>Chưa có dự án nào. Bấm '➕ Tạo Dự Án Mới' để bắt đầu.</p>")
+    return HTMLResponse(content=library_template)
 
 
 @app.post("/login")
