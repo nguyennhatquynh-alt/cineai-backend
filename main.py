@@ -476,7 +476,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         current_slots = target_project.get("ideation_slots", {}) if target_project else {}
         system_persona = (
             "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.7.5. "
-            "Nhiệm vụ: Trò chuyện tâm tình hoặc trò chơi 'Если như...' để khai thác các biến số điện ảnh:\n"
+            "Nhiệm vụ: Trò chuyện tâm tình hoặc trò chơi 'Nếu như...' để khai thác các biến số điện ảnh:\n"
             "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh)\n"
             "2. CORE_WOUND (Nỗi đau, vết thương lòng nhân vật)\n"
             "3. TRIGGER_PROP (Đạo cụ định mệnh, vật kích hoạt biến cố)\n"
@@ -1195,6 +1195,8 @@ def get_studio_javascript():
                 input.placeholder = "Nhập ý tưởng riêng của bạn...";
                 input.focus();
             }
+
+
             async function runAuditAssets() {
                 const tray = document.getElementById('audit-checklist-tray');
                 tray.innerHTML = "<div class='text-center py-4 text-amber-400 text-xs animate-pulse'>⏳ Đang quét Master Schema & Ma Trận Thời Gian...</div>";
@@ -1214,8 +1216,6 @@ def get_studio_javascript():
                     tray.innerHTML = "<div class='text-rose-400 text-xs p-3 text-center'>⚠️ Lỗi kết nối kiểm kê!</div>";
                 }
             }
-
-
             function renderAuditChecklist(audit) {
                 const tray = document.getElementById('audit-checklist-tray');
                 let html = '';
@@ -1386,6 +1386,8 @@ def get_studio_javascript():
                 const data = await res.json();
                 alert(data.message);
             }
+
+
             async function fetchTimeline() {
                 const res = await fetch('/api/cineai/get-rough-cut?title=' + encodeURIComponent(currentProjectTitle));
                 const data = await res.json();
@@ -1473,7 +1475,9 @@ def get_studio_javascript():
         </script>
     </body>
     </html>
-    ""”
+    """
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(session_id: str = Cookie(None), load_project: str = None, tier: int = None, new_project: str = None):
     username = ACTIVE_SESSIONS.get(session_id)
