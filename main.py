@@ -79,40 +79,26 @@ def get_gemini_keys():
 
 
 
-from google import genai
-
-
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
     if not keys:
         return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
     selected_key = random.choice(keys)
+    
+    # Sử dụng endpoint phiên bản v1 chuẩn xác theo đúng tài liệu mới của Google
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={selected_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+    
     try:
-        # Khởi tạo client chính thức của Google GenAI SDK mới
-        client = genai.Client(api_key=selected_key)
-        
-        # Gọi model flash chuẩn mới nhất qua SDK
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt_text,
-        )
-        
-        if response and response.text:
-            return response.text, "gemini-1.5-flash"
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"], "gemini-1.5-flash"
         else:
-            return None, "⚠️ Không nhận được phản hồi từ Google AI."
+            return None, f"Lỗi Google ({response.status_code}): {response.text[:150]}"
     except Exception as e:
-        # Fallback thử sang gemini-2.5-flash hoặc gemini-pro nếu cần
-        try:
-            response_alt = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt_text,
-            )
-            if response_alt and response_alt.text:
-                return response_alt.text, "gemini-2.5-flash"
-        except Exception:
-            pass
-        return None, "Lỗi kết nối SDK: " + str(e)
+        return None, "Lỗi kết nối: " + str(e)
 
 
 def get_cloud_cache(cache_key: str):
