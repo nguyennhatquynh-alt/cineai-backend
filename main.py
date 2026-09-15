@@ -89,24 +89,32 @@ def call_gemini_direct(prompt_text):
     selected_key = random.choice(keys)
     
     try:
+        # Khởi tạo client theo chuẩn SDK google-genai mới nhất
         client = genai.Client(api_key=selected_key)
-        # Tự động quét qua các model flash tiêu chuẩn hiện hành của Google
-        models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']
         
-        for m in models_to_try:
-            try:
-                response = client.models.generate_content(
-                    model=m,
-                    contents=prompt_text,
-                )
-                if response and response.text:
-                    return response.text, m
-            except Exception:
-                continue
-                
-        return None, "⚠️ Key hiện tại không tương thích với các model flash qua SDK."
+        # Gọi tương tác theo đúng chuẩn tài liệu Google AI Studio
+        interaction = client.interactions.create(
+            model="gemini-3.8-flash",
+            input=prompt_text
+        )
+        
+        if interaction and interaction.output_text:
+            return interaction.output_text, "gemini-3.8-flash"
+        else:
+            return None, "⚠️ Không nhận được phản hồi từ mô hình."
     except Exception as e:
-        return None, f"Lỗi khởi tạo SDK: {str(e)}"
+        # Fallback dự phòng sang model flash khác nếu cần
+        try:
+            client = genai.Client(api_key=selected_key)
+            interaction_alt = client.interactions.create(
+                model="gemini-1.5-flash",
+                input=prompt_text
+            )
+            if interaction_alt and interaction_alt.output_text:
+                return interaction_alt.output_text, "gemini-1.5-flash"
+        except Exception as e2:
+            pass
+        return None, f"Lỗi Interactions API: {str(e)[:120]}"
 
 
 def get_cloud_cache(cache_key: str):
