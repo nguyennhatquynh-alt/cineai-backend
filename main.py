@@ -73,7 +73,7 @@ ACTIVE_SESSIONS = {}
 
 
 def get_gemini_keys():
-    raw = os.getenv("GEMINI_API_KEYS", "")
+    raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
 
 
@@ -85,34 +85,28 @@ from google import genai
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
     if not keys:
-        return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
+        return None, "⚠️ Chưa cấu hình GEMINI_API_KEY trên Render!"
     selected_key = random.choice(keys)
     
     try:
-        # Sử dụng SDK chính thức google-genai đã có sẵn trong requirements.txt của anh
         client = genai.Client(api_key=selected_key)
+        # Tự động quét qua các model flash tiêu chuẩn hiện hành của Google
+        models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']
         
-        # Thử gọi model chuẩn thông qua SDK mới
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt_text,
-        )
-        if response and response.text:
-            return response.text, "gemini-1.5-flash"
-    except Exception as e1:
-        try:
-            # Thử lại với bản dự phòng nếu model flash gặp vấn đề
-            client = genai.Client(api_key=selected_key)
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt_text,
-            )
-            if response and response.text:
-                return response.text, "gemini-2.5-flash"
-        except Exception as e2:
-            return None, f"Lỗi xác thực SDK: {str(e1)}"
-            
-    return None, "⚠️ Không thể kết nối với Key API hiện tại. Vui lòng kiểm tra lại loại Key trên Google AI Studio."
+        for m in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=m,
+                    contents=prompt_text,
+                )
+                if response and response.text:
+                    return response.text, m
+            except Exception:
+                continue
+                
+        return None, "⚠️ Key hiện tại không tương thích với các model flash qua SDK."
+    except Exception as e:
+        return None, f"Lỗi khởi tạo SDK: {str(e)}"
 
 
 def get_cloud_cache(cache_key: str):
