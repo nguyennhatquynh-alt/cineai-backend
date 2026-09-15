@@ -82,32 +82,21 @@ def get_gemini_keys():
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
     if not keys:
-        return None, "⚠️ Chưa cấu hình GEMINI_API_KEYS trên Render!"
+        return None, "Chua cau hinh GEMINI_API_KEYS tren Render!"
     selected_key = random.choice(keys)
-    
-    # Danh sách các model phổ biến của Google, code sẽ tự quét đến khi model nào chạy được thì thôi
-    models_to_try = [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-pro"
-    ]
-    
+    models_to_try = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"]
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-    
-    for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={selected_key}"
+    for m in models_to_try:
+        url = "https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent?key=" + selected_key
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=20)
-            if response.status_code == 200:
-                data = response.json()
-                text_res = data["candidates"][0]["content"]["parts"][0]["text"]
-                return text_res, model_name
+            res = requests.post(url, json=payload, headers=headers, timeout=20)
+            if res.status_code == 200:
+                data = res.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"], m
         except Exception:
             continue
-            
-    return None, "⚠️ Lỗi: Không tìm thấy model nào tương thích với Key hiện tại.”
+    return None, "Loi: Khong tim thay model tuong thich."
 def get_cloud_cache(cache_key: str):
     if not SUPABASE_KEY:
         return None
