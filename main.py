@@ -1605,7 +1605,7 @@ def get_studio_javascript():
         </script>
     </body>
     </html>
-    ""”
+    """
 
 
 @app.get("/", response_class=HTMLResponse)
