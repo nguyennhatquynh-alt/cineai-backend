@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
-app = FastAPI(title="Cine AI Studio Pro 6.8.7 - Enterprise Ultimate Suite", version="6.8.7")
+app = FastAPI(title="Cine AI Studio Pro 6.8.8 - Enterprise Ultimate Suite", version="6.8.8")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -58,6 +58,55 @@ def save_users():
 
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
+
+
+def migrate_project_to_tree(p):
+    if "metadata" in p: 
+        return p
+    new_id = p.get("id") or secrets.token_hex(6)
+    return {
+        "id": new_id,
+        "metadata": {
+            "title": p.get("title", "Dự án mới"),
+            "header": p.get("header", "Thể loại: Điện ảnh cảm xúc • Tự do sáng tạo"),
+            "aspect_ratio": p.get("aspect_ratio", "16:9"),
+            "target_duration": p.get("target_duration", "45p"),
+            "highest_tier": p.get("highest_tier", 1),
+            "current_tier": p.get("current_tier", 1),
+            "created_at": p.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+            "updated_at": p.get("updated_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        },
+        "ideation_core": {
+            "project_raw_story": p.get("project_raw_story", ""),
+            "ideation_slots": p.get("ideation_slots", {}),
+            "chat_history": p.get("chat_history", [])
+        },
+        "master_schema": {
+            "token_registry": p.get("token_registry", {"visual_tokens": [], "audio_tokens": []}),
+            "assets_audit": p.get("assets_audit", {}),
+            "scene_breakdown_enterprise": p.get("scene_breakdown_enterprise", {})
+        },
+        "post_production": {
+            "rough_cut_playlist": p.get("rough_cut_playlist", []),
+            "subtitles_srt": p.get("subtitles_srt", ""),
+            "render_status": p.get("render_status", {})
+        }
+    }
+
+
+def get_user_projects(username):
+    user_data = USERS_DB.get(username, {})
+    if "projects" not in user_data:
+        user_data["projects"] = []
+    
+    changed = False
+    for i, p in enumerate(user_data["projects"]):
+        if "metadata" not in p:
+            user_data["projects"][i] = migrate_project_to_tree(p)
+            changed = True
+    if changed:
+        save_users()
+    return user_data["projects"]
 def get_gemini_keys():
     raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
@@ -89,7 +138,7 @@ def call_gemini_direct(prompt_text):
                 
         return None, "⚠️ Khóa hiện tại đã vượt giới hạn hạn mức (Quota 429) hoặc chưa kích hoạt Billing."
     except Exception as e:
-        return None, f"Lỗi khởi tạo SDK: {str(e)[:120]}"
+        return None, f"Lỗi khởi tạo SDK: {str(e)[:120]}”
 def get_cloud_cache(cache_key: str):
     if not SUPABASE_KEY:
         return None
@@ -158,63 +207,51 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     if not new_title:
         return JSONResponse({"status": "error", "message": "⚠️ Tên dự án không được để trống!"}, status_code=400)
     
-    user_data = USERS_DB.get(username, {})
-    if "projects" not in user_data:
-        user_data["projects"] = []
-    
-    projects = user_data["projects"]
+    projects = get_user_projects(username)
     target_project = None
     
-    # Kỹ thuật tìm kiếm chính xác bằng ID (bất chấp user đổi tên)
     for p in projects:
         if p.get("id") == project_id:
             target_project = p
             break
             
     if target_project:
-        target_project["title"] = new_title
-        target_project["header"] = project_header
-        target_project["project_raw_story"] = project_story
-        target_project["aspect_ratio"] = aspect_ratio
-        target_project["target_duration"] = target_duration
-        current_highest = target_project.get("highest_tier", 1)
-        target_project["highest_tier"] = max(current_highest, target_tier)
-        target_project["current_tier"] = target_tier
-        target_project["tierProgress"] = f"Tầng {target_project['highest_tier']} ({aspect_ratio} • {target_duration})"
-        target_project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg = f"💾 Đã lưu nháp dự án '{new_title}' thành công!"
+        target_project["metadata"]["title"] = new_title
+        target_project["metadata"]["header"] = project_header
+        target_project["ideation_core"]["project_raw_story"] = project_story
+        target_project["metadata"]["aspect_ratio"] = aspect_ratio
+        target_project["metadata"]["target_duration"] = target_duration
+        current_highest = target_project["metadata"].get("highest_tier", 1)
+        target_project["metadata"]["highest_tier"] = max(current_highest, target_tier)
+        target_project["metadata"]["current_tier"] = target_tier
+        target_project["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"💾 Đã cập nhật vi mô dự án '{new_title}' thành công!"
     else:
-        # Nếu gửi lên không có ID hoặc ID không tồn tại -> Tạo mới (sau khi check trần)
         if len(projects) >= 2:
             return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
         
         new_id = secrets.token_hex(6)
-        target_project = {
+        target_project = migrate_project_to_tree({
             "id": new_id,
             "title": new_title,
             "header": project_header,
             "project_raw_story": project_story,
             "aspect_ratio": aspect_ratio,
             "target_duration": target_duration,
-            "token_registry": {"visual_tokens": [], "audio_tokens": []},
-            "assets_audit": {},
-            "scene_matrix": {},
-            "ideation_slots": {},
             "highest_tier": target_tier,
-            "current_tier": target_tier,
-            "tierProgress": f"Tầng {target_tier} (Mới tạo)",
-            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
+            "current_tier": target_tier
+        })
         projects.append(target_project)
-        msg = f"💾 Đã tạo và lưu nháp dự án mới '{new_title}' thành công!"
+        msg = f"💾 Đã tạo và lưu Cây Dữ Liệu mới '{new_title}' thành công!"
         
+    USERS_DB[username]["projects"] = projects
     save_users()
     return JSONResponse({
         "status": "success", 
         "message": msg, 
         "saved_id": target_project["id"],
-        "saved_title": new_title,
-        "highest_tier": target_project.get("highest_tier", 1),
+        "saved_title": target_project["metadata"]["title"],
+        "highest_tier": target_project["metadata"]["highest_tier"],
         "current_tier": target_tier
     })
 @app.post("/api/cineai/audit-script-assets")
@@ -226,30 +263,26 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
     data = await request.json()
     project_id = data.get("id", "")
     
-    target_project = None
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == project_id:
-                target_project = p
-                break
+    projects = get_user_projects(username)
+    target_project = next((p for p in projects if p.get("id") == project_id), None)
                 
     if not target_project:
         return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án gốc!"}, status_code=404)
         
-    raw_story = target_project.get("project_raw_story", "")
+    raw_story = target_project["ideation_core"].get("project_raw_story", "")
     if not raw_story:
         return JSONResponse({"status": "error", "message": "⚠️ Kịch bản còn trống. Vui lòng hoàn tất kịch bản tại Tầng 1!"}, status_code=400)
     
     cache_key = hashlib.md5(raw_story.encode()).hexdigest()
     cached_audit = get_cloud_cache(cache_key)
     if cached_audit:
-        target_project["assets_audit"] = {"audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "data": cached_audit}
+        target_project["master_schema"]["assets_audit"] = {"audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "data": cached_audit}
         save_users()
         return JSONResponse({"status": "success", "message": "⚡ [Cache Hit] Đã nạp Master Schema từ Cloud Cache!", "audit_data": cached_audit})
 
 
     system_prompt = (
-        "Bạn là Tổng Đạo Diễn và Giám Đốc Sản Xuất cấp cao của Cine AI Studio Pro 6.8.7 Enterprise.\n"
+        "Bạn là Tổng Đạo Diễn và Giám Đốc Sản Xuất cấp cao của Cine AI Studio Pro 6.8.8 Enterprise.\n"
         "Nhiệm vụ: Quét sâu kịch bản theo Master Schema toàn diện gồm:\n"
         "1. 4 Tầng Lưới Lọc Cốt Lõi: Entities (Vạn vật hữu linh/nhân vật), Locations (Bối cảnh), Props (Đạo cụ định mệnh), Audio Signatures (Âm thanh 3D).\n"
         "2. Ma Trận Biến Thiên Thời Gian (Temporal State Matrix): Phát hiện bước nhảy thời gian ('time_jumps_detected') và phân rã các trạng thái ('temporal_states') theo độ tuổi hoặc sự lão hóa/biến đổi.\n"
@@ -270,7 +303,7 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
         "}"
     )
     
-    prompt = system_prompt + f"\n\nKịch bản phim [{target_project.get('title', 'Project')}]:\n{raw_story}"
+    prompt = system_prompt + f"\n\nKịch bản phim [{target_project['metadata'].get('title', 'Project')}]:\n{raw_story}"
     raw_res, err_msg = call_gemini_direct(prompt)
     
     if not raw_res:
@@ -285,8 +318,8 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
     set_cloud_cache(cache_key, parsed_audit)
 
 
-    existing_tokens = target_project.get("token_registry", {})
-    target_project["assets_audit"] = {
+    existing_tokens = target_project["master_schema"].get("token_registry", {})
+    target_project["master_schema"]["assets_audit"] = {
         "audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "data": parsed_audit
     }
@@ -294,7 +327,7 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
     
     return JSONResponse({
         "status": "success",
-        "message": "✅ Đã kiểm kê và trích xuất Master Schema 6.8.7 thành công!",
+        "message": "✅ Đã kiểm kê và trích xuất Master Schema 6.8.8 thành công!",
         "audit_data": parsed_audit,
         "existing_tokens": existing_tokens
     })
@@ -330,16 +363,15 @@ async def delete_project(request: Request, session_id: str = Cookie(None)):
     
     data = await request.json()
     project_id = data.get("id", "").strip()
-    user_data = USERS_DB.get(username, {})
-    projects = user_data.get("projects", [])
+    projects = get_user_projects(username)
     
     new_projects = [p for p in projects if p.get("id") != project_id]
     if len(new_projects) == len(projects):
         return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án cần xóa!"}, status_code=404)
         
-    user_data["projects"] = new_projects
+    USERS_DB[username]["projects"] = new_projects
     save_users()
-    return JSONResponse({"status": "success", "message": "🗑️ Đã xóa vĩnh viễn dự án thành công!"})
+    return JSONResponse({"status": "success", "message": "🗑️ Đã xóa vĩnh viễn Cây Dữ Liệu dự án thành công!"})
 
 
 @app.post("/api/cineai/upload-asset-explicit")
@@ -362,13 +394,13 @@ async def upload_asset_explicit(
     except Exception as e:
         extracted_text = f"Lỗi đọc tệp: {str(e)}"
     
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == project_id:
-                p["project_raw_story"] = extracted_text
-                p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                break
-        save_users()
+    projects = get_user_projects(username)
+    for p in projects:
+        if p.get("id") == project_id:
+            p["ideation_core"]["project_raw_story"] = extracted_text
+            p["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            break
+    save_users()
     
     return JSONResponse({
         "status": "success",
@@ -397,23 +429,21 @@ async def upload_visual_token(
     token_id = f"TOKEN_{clean_cat}_{secrets.token_hex(3).upper()}"
     mock_url = f"https://cdn.cineai.studio/tokens/{username}/{project_id}/{file.filename}"
     
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == project_id:
-                if "token_registry" not in p:
-                    p["token_registry"] = {"visual_tokens": [], "audio_tokens": []}
-                p["token_registry"]["visual_tokens"].append({
-                    "token_id": token_id,
-                    "category": token_category,
-                    "name": token_name or file.filename,
-                    "file_url": mock_url,
-                    "file_name": file.filename,
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
-                p["highest_tier"] = max(p.get("highest_tier", 1), 2)
-                p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                break
-        save_users()
+    projects = get_user_projects(username)
+    for p in projects:
+        if p.get("id") == project_id:
+            p["master_schema"]["token_registry"]["visual_tokens"].append({
+                "token_id": token_id,
+                "category": token_category,
+                "name": token_name or file.filename,
+                "file_url": mock_url,
+                "file_name": file.filename,
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            p["metadata"]["highest_tier"] = max(p["metadata"].get("highest_tier", 1), 2)
+            p["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            break
+    save_users()
         
     return JSONResponse({
         "status": "success", 
@@ -443,23 +473,21 @@ async def upload_audio_token(
     token_id = f"TOKEN_AUDIO_{clean_cat}_{secrets.token_hex(3).upper()}"
     mock_url = f"https://cdn.cineai.studio/audio/{username}/{project_id}/{file.filename}"
     
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == project_id:
-                if "token_registry" not in p:
-                    p["token_registry"] = {"visual_tokens": [], "audio_tokens": []}
-                p["token_registry"]["audio_tokens"].append({
-                    "token_id": token_id,
-                    "category": token_category,
-                    "name": token_name or file.filename,
-                    "file_url": mock_url,
-                    "file_name": file.filename,
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
-                p["highest_tier"] = max(p.get("highest_tier", 1), 2)
-                p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                break
-        save_users()
+    projects = get_user_projects(username)
+    for p in projects:
+        if p.get("id") == project_id:
+            p["master_schema"]["token_registry"]["audio_tokens"].append({
+                "token_id": token_id,
+                "category": token_category,
+                "name": token_name or file.filename,
+                "file_url": mock_url,
+                "file_name": file.filename,
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            p["metadata"]["highest_tier"] = max(p["metadata"].get("highest_tier", 1), 2)
+            p["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            break
+    save_users()
         
     return JSONResponse({
         "status": "success", 
@@ -481,15 +509,12 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         return JSONResponse({"reply": "Vui lòng nhập nội dung trao đổi với Đạo diễn ảo!"})
     
     if tier == 1:
-        target_project = None
-        if username in USERS_DB and "projects" in USERS_DB[username]:
-            for p in USERS_DB[username]["projects"]:
-                if p.get("id") == project_id:
-                    target_project = p
-                    break
-        current_slots = target_project.get("ideation_slots", {}) if target_project else {}
+        projects = get_user_projects(username)
+        target_project = next((p for p in projects if p.get("id") == project_id), None)
+        
+        current_slots = target_project["ideation_core"].get("ideation_slots", {}) if target_project else {}
         system_persona = (
-            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.8.7 trong không gian 'Ươm mầm ý tưởng'.\n"
+            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.8.8 trong không gian 'Ươm mầm ý tưởng'.\n"
             "Nhiệm vụ tối thượng: Thấu cảm sâu sắc 'vân tâm hồn' (Soul Fingerprint) của user — bao gồm trạng thái cảm xúc tức thời, môi trường xung quanh và bản sắc độc bản của họ.\n"
             "Hãy dẫn dắt user qua 3 tầng khảo sát tâm lý để trích xuất các biến số điện ảnh:\n"
             "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh thực tại đang bao trùm user)\n"
@@ -518,9 +543,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         if parsed and isinstance(parsed, dict):
             new_slots = parsed.get("extracted_slots", {})
             if target_project and new_slots:
-                if "ideation_slots" not in target_project:
-                    target_project["ideation_slots"] = {}
-                target_project["ideation_slots"].update(new_slots)
+                target_project["ideation_core"]["ideation_slots"].update(new_slots)
                 save_users()
             return JSONResponse({
                 "reply": parsed.get("message", "Tôi cảm nhận rõ nhịp đập cảm xúc từ câu chuyện của bạn."),
@@ -541,7 +564,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         4: "Render toàn tập, Alternate Takes, Timeline Rough-Cut và xuất file phụ đề .SRT."
     }
     system_persona = (
-        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.8.7. Trạng thái: {mode_instructions.get(tier, '')} "
+        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.8.8. Trạng thái: {mode_instructions.get(tier, '')} "
         "Hãy phản hồi ngắn gọn, sắc sảo, chuyên nghiệp."
     )
     reply_text, err_msg = call_gemini_direct(system_persona + f"\nÝ kiến: {user_message}")
@@ -558,18 +581,14 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
     aspect_ratio = data.get("aspect_ratio", "16:9")
     target_duration = data.get("target_duration", "45p")
     
-    target_project = None
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == project_id:
-                target_project = p
-                break
+    projects = get_user_projects(username)
+    target_project = next((p for p in projects if p.get("id") == project_id), None)
                 
-    slots = target_project.get("ideation_slots", {}) if target_project else {}
+    slots = target_project["ideation_core"].get("ideation_slots", {}) if target_project else {}
     slots_text = json.dumps(slots, ensure_ascii=False) if slots else "Ý tưởng tự do mang đậm dấu ấn tâm hồn."
     
     prompt = (
-        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.8.7. Dựa tuyệt đối vào 'vân tâm hồn' (Soul Fingerprint) và các biến số tâm lý đã khai thác:\n"
+        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.8.8. Dựa tuyệt đối vào 'vân tâm hồn' (Soul Fingerprint) và các biến số tâm lý đã khai thác:\n"
         f"{slots_text}\n"
         f"Định dạng yêu cầu: Khung hình [{aspect_ratio}], Thời lượng [{target_duration}].\n"
         "Hãy dệt nên một kịch bản 3 Hồi hoàn chỉnh mang màu sắc độc bản, giàu tính tự sự và chữa lành. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
@@ -587,18 +606,19 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
         clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
         res_data = json.loads(clean_json)
     except Exception:
+        fallback_title = target_project["metadata"].get("title", "Dự án mới") if target_project else "Dự án mới"
         res_data = {
-            "title": target_project.get("title", "Dự án mới") if target_project else "Dự án mới",
+            "title": fallback_title,
             "header": f"Thể loại: Tâm lý điện ảnh • {aspect_ratio} • {target_duration}",
             "story": raw_res
         }
         
     if target_project:
-        target_project["title"] = res_data.get("title", target_project.get("title"))
-        target_project["header"] = res_data.get("header", "")
-        target_project["project_raw_story"] = res_data.get("story", "")
-        target_project["aspect_ratio"] = aspect_ratio
-        target_project["target_duration"] = target_duration
+        target_project["metadata"]["title"] = res_data.get("title", target_project["metadata"].get("title"))
+        target_project["metadata"]["header"] = res_data.get("header", "")
+        target_project["ideation_core"]["project_raw_story"] = res_data.get("story", "")
+        target_project["metadata"]["aspect_ratio"] = aspect_ratio
+        target_project["metadata"]["target_duration"] = target_duration
         save_users()
         
     return JSONResponse({"status": "success", "data": res_data})
@@ -610,21 +630,17 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
     
     data = await request.json()
     project_id = data.get("id", "")
-    raw_story = ""
     
-    target_project = None
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == project_id:
-                target_project = p
-                raw_story = p.get("project_raw_story", "")
-                break
+    projects = get_user_projects(username)
+    target_project = next((p for p in projects if p.get("id") == project_id), None)
+    
+    raw_story = target_project["ideation_core"].get("project_raw_story", "") if target_project else ""
                     
     if not raw_story:
         return JSONResponse({"reply": "⚠️ Chưa có nội dung kịch bản thô. Vui lòng hoàn thiện kịch bản tại Tầng 1!"}, status_code=400)
     
     pro_prompt = (
-        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.8.7 Enterprise. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
+        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.8.8 Enterprise. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
         "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III). Mỗi cảnh 30s-150s và gắn Master Schema Tokens.\n\n"
         f"Kịch bản gốc:\n{raw_story}"
     )
@@ -655,7 +671,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
 
 
     structured_data = {
-        "schema_version": "6.8.7-Enterprise",
+        "schema_version": "6.8.8-Enterprise",
         "routing_model": "gemini-flash",
         "self_healing_applied": True,
         "pacing_metrics": {"total_duration_sec": total_duration, "act_breakdown": act_durations},
@@ -666,14 +682,14 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
     }
     
     if target_project:
-        target_project["scene_breakdown_enterprise"] = structured_data
-        target_project["highest_tier"] = max(target_project.get("highest_tier", 1), 3)
-        target_project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        target_project["master_schema"]["scene_breakdown_enterprise"] = structured_data
+        target_project["metadata"]["highest_tier"] = max(target_project["metadata"].get("highest_tier", 1), 3)
+        target_project["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         save_users()
         
     return JSONResponse({
         "status": "success",
-        "message": "🌟 Đã dựng cảnh & chia nhịp phim cấp độ Enterprise 6.8.7!",
+        "message": "🌟 Đã dựng cảnh & chia nhịp phim cấp độ Enterprise 6.8.8!",
         "metrics": structured_data["pacing_metrics"],
         "data": parsed_scenes
     })
@@ -685,7 +701,7 @@ async def async_render_background_worker(username, project_id, scene_id, render_
     if "projects" in user_data:
         for p in user_data["projects"]:
             if p.get("id") == project_id:
-                enterprise_data = p.get("scene_breakdown_enterprise", {})
+                enterprise_data = p["master_schema"].get("scene_breakdown_enterprise", {})
                 if "alternate_takes" not in enterprise_data:
                     enterprise_data["alternate_takes"] = {}
                 scene_key = f"scene_{scene_id}"
@@ -701,7 +717,7 @@ async def async_render_background_worker(username, project_id, scene_id, render_
                     "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
                 current_takes.append(new_take_object)
-                p["highest_tier"] = max(p.get("highest_tier", 1), 4)
+                p["metadata"]["highest_tier"] = max(p["metadata"].get("highest_tier", 1), 4)
                 save_users()
                 print(f"✅ [BACKGROUND JOB COMPLETED]: Đã hoàn tất render ngầm Scene {scene_id} - Take {new_take_id} cho ID {project_id}!")
                 break
@@ -730,7 +746,7 @@ async def render_scene_take(request: Request, background_tasks: BackgroundTasks,
 
     return JSONResponse({
         "status": "success",
-        "message": f"🎬 Đã đưa Phân cảnh {scene_id} vào hàng đợi xử lý ngầm (Async Queue)! Đã trừ {render_cost} credit (Số dư còn lại: {user_data['credits']} credit).",
+        "message": f"🎬 Đã đưa Phân cảnh {scene_id} vào hàng đợi xử lý ngầm (Async Queue)! Đã trừ {render_cost} credit.",
         "remaining_credits": user_data["credits"]
     })
 
@@ -745,16 +761,12 @@ async def set_active_take(request: Request, session_id: str = Cookie(None)):
     scene_id = data.get("scene_id", 1)
     selected_take_id = data.get("take_id", 1)
     
-    project_data = None
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == project_id:
-                project_data = p
-                break
+    projects = get_user_projects(username)
+    project_data = next((p for p in projects if p.get("id") == project_id), None)
     if not project_data:
         return JSONResponse({"reply": "⚠️ Không tìm thấy dự án!"}, status_code=404)
         
-    enterprise_data = project_data.get("scene_breakdown_enterprise", {})
+    enterprise_data = project_data["master_schema"].get("scene_breakdown_enterprise", {})
     scene_key = f"scene_{scene_id}"
     if "active_takes" not in enterprise_data:
         enterprise_data["active_takes"] = {}
@@ -772,16 +784,12 @@ async def get_rough_cut(id: str = "", session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
         return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    project_data = None
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == id:
-                project_data = p
-                break
+    projects = get_user_projects(username)
+    project_data = next((p for p in projects if p.get("id") == id), None)
     if not project_data:
         return JSONResponse({"reply": "⚠️ Không tìm thấy dự án!"}, status_code=404)
         
-    enterprise_data = project_data.get("scene_breakdown_enterprise", {})
+    enterprise_data = project_data["master_schema"].get("scene_breakdown_enterprise", {})
     scenes_json = enterprise_data.get("scenes_data", {})
     active_takes = enterprise_data.get("active_takes", {})
     alternate_takes = enterprise_data.get("alternate_takes", {})
@@ -810,6 +818,9 @@ async def get_rough_cut(id: str = "", session_id: str = Cookie(None)):
                     "media_url": take_info.get("media_url") if take_info else "Chưa render take"
                 })
                 total_duration += sc.get("duration_sec", 60)
+                
+    project_data["post_production"]["rough_cut_playlist"] = rough_cut_timeline
+    save_users()
 
 
     return JSONResponse({
@@ -822,16 +833,12 @@ async def export_srt_subtitles(id: str = "", session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
         return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    project_data = None
-    if username in USERS_DB and "projects" in USERS_DB[username]:
-        for p in USERS_DB[username]["projects"]:
-            if p.get("id") == id:
-                project_data = p
-                break
+    projects = get_user_projects(username)
+    project_data = next((p for p in projects if p.get("id") == id), None)
     if not project_data:
         return JSONResponse({"reply": "⚠️ Không tìm thấy dự án!"}, status_code=404)
         
-    enterprise_data = project_data.get("scene_breakdown_enterprise", {})
+    enterprise_data = project_data["master_schema"].get("scene_breakdown_enterprise", {})
     scenes_json = enterprise_data.get("scenes_data", {})
     srt_content = ""
     current_time = 0.0
@@ -853,6 +860,9 @@ async def export_srt_subtitles(id: str = "", session_id: str = Cookie(None)):
                 srt_content += f"{idx}\n{format_time(current_time)} --> {format_time(current_time + dur)}\n[Lip-Sync] {summary}\n\n"
                 current_time += dur
                 idx += 1
+                
+    project_data["post_production"]["subtitles_srt"] = srt_content
+    save_users()
 
 
     return JSONResponse({"status": "success", "srt_format": srt_content})
@@ -906,10 +916,6 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     t2_cls = get_tier_classes(2)
     t3_cls = get_tier_classes(3)
     t4_cls = get_tier_classes(4)
-    t1_vis = "block" if active_tier == 1 else "hidden"
-    t2_vis = "block" if active_tier == 2 else "hidden"
-    t3_vis = "block" if active_tier == 3 else "hidden"
-    t4_vis = "block" if active_tier == 4 else "hidden"
     enc_id = target_project.get("id", "")
 
 
@@ -919,7 +925,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.8.7 Enterprise</title>
+        <title>Cine AI Studio Pro 6.8.8 Enterprise</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-24">
@@ -929,7 +935,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
             <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative">
                 <div class="flex items-center gap-2">
                     <span class="text-xl">🎬</span>
-                    <h1 class="text-sm sm:text-base font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 6.8.7</h1>
+                    <h1 class="text-sm sm:text-base font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 6.8.8</h1>
                 </div>
                 
                 <div class="relative">
@@ -998,7 +1004,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     """
     tmpl = tmpl.replace("USER_NAME_VAL", username)
     tmpl = tmpl.replace("USER_CREDITS_VAL", str(user_credits))
-    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
+    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"])
     tmpl = tmpl.replace("ENC_ID_VAL", enc_id)
     tmpl = tmpl.replace("ACTIVE_TIER_VAL", str(active_tier))
     tmpl = tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls)
@@ -1138,9 +1144,9 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
             </div>
         </div>
     """
-    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project.get("title", ""))
-    tmpl = tmpl.replace("PROJECT_HEADER_VAL", target_project.get("header", ""))
-    tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project.get("project_raw_story", ""))
+    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"])
+    tmpl = tmpl.replace("PROJECT_HEADER_VAL", target_project["metadata"]["header"])
+    tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     tmpl = tmpl.replace("TOKENS_HTML_VAL", tokens_html or "<p class='text-slate-500 text-[11px] italic'>Chưa có token nào.</p>")
     return tmpl
@@ -1148,7 +1154,6 @@ def get_studio_javascript():
     return """
         <script>
             let currentActiveTier = """ + str(active_tier if 'active_tier' in locals() else 1) + """;
-            let currentProjectTitle = "` + target_project.get('title', 'Dự án mới') + `";
             let currentProjectId = "` + target_project.get('id', '') + `";
             let autoSaveTimer = null;
 
@@ -1184,7 +1189,7 @@ def get_studio_javascript():
 
 
             function backupToLocalStorage() {
-                const title = document.getElementById('project-title')?.value || currentProjectTitle;
+                const title = document.getElementById('project-title')?.value || "Dự án mới";
                 const story = document.getElementById('project-story')?.value || "";
                 localStorage.setItem('cineai_backup_' + currentProjectId, JSON.stringify({title, story, time: new Date().toISOString()}));
             }
@@ -1424,7 +1429,7 @@ def get_studio_javascript():
                 const durEl = document.getElementById('film-duration');
 
 
-                const title = titleEl ? titleEl.value.trim() : currentProjectTitle;
+                const title = titleEl ? titleEl.value.trim() : "Dự án mới";
                 const header = headerEl ? headerEl.value : "";
                 const story = storyEl ? storyEl.value : "";
                 const ratio = ratioEl ? ratioEl.value : "16:9";
@@ -1439,8 +1444,8 @@ def get_studio_javascript():
                     });
                     const data = await res.json();
                     if(data.status === 'success') {
-                        currentProjectTitle = data.saved_title;
-                        currentProjectId = data.saved_id;
+                        document.getElementById('global-project-title-display').innerText = data.saved_title;
+                        alert(data.message || "Đã lưu nháp!");
                     } else {
                         alert(data.message || "Lỗi lưu dữ liệu!");
                     }
@@ -1510,7 +1515,8 @@ def get_studio_javascript():
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = currentProjectTitle + '_subtitles.srt';
+                    const title = document.getElementById('project-title')?.value || "cine_ai";
+                    a.download = title + '_subtitles.srt';
                     a.click();
                 } else alert('Chưa có dữ liệu phân cảnh để xuất phụ đề!');
             }
@@ -1592,36 +1598,14 @@ async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = 
     
     user_data = USERS_DB.get(username, {})
     user_credits = user_data.get("credits", 10)
-    projects = user_data.get("projects", [])
-    
-    # Auto-Migration: Bơm ID vào các dự án cũ chưa có ID để không bị mất dữ liệu
-    db_changed = False
-    for p in projects:
-        if "id" not in p:
-            p["id"] = secrets.token_hex(6)
-            db_changed = True
-    if db_changed:
-        save_users()
+    projects = get_user_projects(username)
     
     target_project = None
     if new_project == "1":
         new_title = f"Dự án mới #{len(projects) + 1}"
-        target_project = {
-            "id": secrets.token_hex(6),
-            "title": new_title,
-            "header": "Thể loại: Điện ảnh cảm xúc • Tự do sáng tạo",
-            "project_raw_story": "",
-            "aspect_ratio": "16:9",
-            "target_duration": "45p",
-            "token_registry": {"visual_tokens": [], "audio_tokens": []},
-            "assets_audit": {},
-            "scene_matrix": {},
-            "ideation_slots": {},
-            "highest_tier": 1,
-            "current_tier": 1
-        }
+        target_project = migrate_project_to_tree({"id": secrets.token_hex(6), "title": new_title})
         projects.insert(0, target_project)
-        user_data["projects"] = projects[:2]
+        USERS_DB[username]["projects"] = projects[:2]
         save_users()
     elif load_id:
         for p in projects:
@@ -1632,36 +1616,27 @@ async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = 
         target_project = projects[0]
         
     if not target_project:
-        target_project = {
+        target_project = migrate_project_to_tree({
             "id": secrets.token_hex(6),
-            "title": "Dự án phim mới",
-            "header": "Thể loại: Cổ phong huyền huyễn • Tình cảm tâm lý",
-            "project_raw_story": "",
-            "aspect_ratio": "16:9",
-            "target_duration": "45p",
-            "token_registry": {"visual_tokens": [], "audio_tokens": []},
-            "assets_audit": {},
-            "ideation_slots": {},
-            "highest_tier": 1,
-            "current_tier": 1
-        }
+            "title": "Dự án phim mới"
+        })
         projects.append(target_project)
-        user_data["projects"] = projects
+        USERS_DB[username]["projects"] = projects
         save_users()
 
 
     if tier:
-        target_project["highest_tier"] = max(target_project.get("highest_tier", 1), tier)
+        target_project["metadata"]["highest_tier"] = max(target_project["metadata"].get("highest_tier", 1), tier)
         active_tier = tier
         save_users()
     else:
-        active_tier = target_project.get("highest_tier", 1)
-    highest_tier = target_project.get("highest_tier", 1)
+        active_tier = target_project["metadata"].get("highest_tier", 1)
+    highest_tier = target_project["metadata"].get("highest_tier", 1)
 
 
     tokens_html = ""
-    visual_tokens = target_project.get("token_registry", {}).get("visual_tokens", [])
-    audio_tokens = target_project.get("token_registry", {}).get("audio_tokens", [])
+    visual_tokens = target_project["master_schema"]["token_registry"].get("visual_tokens", [])
+    audio_tokens = target_project["master_schema"]["token_registry"].get("audio_tokens", [])
     for vt in visual_tokens:
         tokens_html += f'<span class="bg-indigo-950 border border-indigo-800 text-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold">🖼️ {vt.get("token_id")} ({vt.get("name") or vt.get("category")})</span>'
     for at in audio_tokens:
@@ -1678,74 +1653,22 @@ async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = 
     return HTMLResponse(content=p1 + p2 + p3)
 
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(tab: str = "login", error: str = None, success: str = None):
-    is_reg = (tab == "register")
-    is_forgot = (tab == "forgot")
-    form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
-    title_text = "Tạo Tài Khoản Mới" if is_reg else ("Khôi Phục Mật Khẩu" if is_forgot else "Đăng Nhập Hệ Thống")
-    
-    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
-    succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
-
-
-    login_template = """
-    <!DOCTYPE html><html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI Studio Pro 6.8.7</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
-        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
-            <div class="text-center space-y-1">
-                <h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2>
-                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.8.7 Enterprise</p>
-            </div>
-            ALERT_ERR_VAL ALERT_SUCC_VAL
-            <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Tên tài khoản:</label>
-                    <input type="text" name="username" required placeholder="Nhập tên đăng nhập..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Mật khẩu:</label>
-                    <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
-                </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xác Nhận</button>
-            </form>
-            <div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800">
-                <a href="/login" class="hover:underline text-amber-400 font-semibold">Đăng nhập</a>
-                <a href="/login?tab=register" class="hover:underline">Đăng ký (+10 C)</a>
-                <a href="/login?tab=forgot" class="hover:underline">Quên mật khẩu?</a>
-            </div>
-        </div>
-    </body></html>
-    """
-    login_template = login_template.replace("PAGE_TITLE_VAL", title_text)
-    login_template = login_template.replace("ALERT_ERR_VAL", err_html)
-    login_template = login_template.replace("ALERT_SUCC_VAL", succ_html)
-    login_template = login_template.replace("FORM_ACTION_VAL", form_action)
-    return HTMLResponse(content=login_template)
-
-
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     user_data = USERS_DB.get(username, {})
-    user_projects = user_data.get("projects", [])
+    user_projects = get_user_projects(username)
     user_credits = user_data.get("credits", 0)
     
     projects_html = ""
     for p in user_projects:
-        title = p.get("title", "Dự án chưa đặt tên")
+        title = p.get("metadata", {}).get("title", "Dự án chưa đặt tên")
         p_id = p.get("id", "")
-        h_tier = p.get("highest_tier", 1)
-        header = p.get("header", "Thể loại: Đang cập nhật")
-        updated = p.get("updated_at", "Vừa xong")
+        h_tier = p.get("metadata", {}).get("highest_tier", 1)
+        header = p.get("metadata", {}).get("header", "Đang cập nhật")
+        updated = p.get("metadata", {}).get("updated_at", "Vừa xong")
         
         projects_html += f"""
         <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
@@ -1779,7 +1702,7 @@ async def library_page(session_id: str = Cookie(None)):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Thư Viện Tâm Huyết - Cine AI Studio Pro 6.8.7</title>
+        <title>Thư Viện Tâm Huyết - Cine AI Studio Pro 6.8.8</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans pb-16">
@@ -1880,11 +1803,11 @@ async def community_page(session_id: str = Cookie(None)):
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.8.7</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.8.8</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-5 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
-                <h1 class="text-lg font-bold text-amber-400">Cộng Đồng Phim Public Pro 6.8.7</h1>
+                <h1 class="text-lg font-bold text-amber-400">Cộng Đồng Phim Public Pro 6.8.8</h1>
                 <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs shadow">Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bảng tin cộng đồng đang kết nối API mạng xã hội...</div>
