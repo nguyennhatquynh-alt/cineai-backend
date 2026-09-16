@@ -138,7 +138,7 @@ def call_gemini_direct(prompt_text):
                 
         return None, "⚠️ Khóa hiện tại đã vượt giới hạn hạn mức (Quota 429) hoặc chưa kích hoạt Billing."
     except Exception as e:
-        return None, f"Lỗi khởi tạo SDK: {str(e)[:120]}”
+        return None, f"Lỗi khởi tạo SDK: {str(e)[:120]}"
 def get_cloud_cache(cache_key: str):
     if not SUPABASE_KEY:
         return None
