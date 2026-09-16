@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
-app = FastAPI(title="Cine AI Studio Pro 7.1 - Immortal Tree Enterprise", version="7.1.0")
+app = FastAPI(title="Cine AI Studio Pro 7.2 - Immortal Tree Enterprise Ultimate", version="7.2.0")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -69,12 +69,12 @@ def get_user_projects(username):
                     if payload and not payload.get("metadata", {}).get("deleted"):
                         latest_projects.append(payload)
             return latest_projects
-    except Exception as e: print(f"Lỗi đọc lá: {e}")
+    except Exception as e: print(f"Lỗi đọc lá dự án: {e}")
     return []
 
 
 def get_project_latest_leaf(project_id):
-    if not SUPABASE_KEY: return None
+    if not SUPABASE_KEY or not project_id: return None
     url = f"{SUPABASE_URL}/rest/v1/cineai_tree_leaves?project_id=eq.{project_id}&select=payload&order=created_at.desc&limit=1"
     try:
         res = requests.get(url, headers=get_supabase_headers(), timeout=5)
@@ -85,7 +85,7 @@ def get_project_latest_leaf(project_id):
 
 
 def grow_new_leaf(username, project_id, payload):
-    if not SUPABASE_KEY: return False
+    if not SUPABASE_KEY or not project_id: return False
     url = f"{SUPABASE_URL}/rest/v1/cineai_tree_leaves"
     data = {
         "username": username,
@@ -96,7 +96,9 @@ def grow_new_leaf(username, project_id, payload):
     try:
         res = requests.post(url, json=data, headers=get_supabase_headers(), timeout=10)
         return res.status_code == 201
-    except Exception: return False
+    except Exception as e:
+        print(f"Lỗi mọc lá: {e}")
+        return False
 def migrate_project_to_tree(p):
     if "metadata" in p: return p
     new_id = p.get("id") or secrets.token_hex(6)
@@ -196,6 +198,11 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     
     if not project_id:
         user_projects = get_user_projects(username)
+        if user_projects:
+            project_id = user_projects[0].get("id")
+            
+    if not project_id:
+        user_projects = get_user_projects(username)
         if len(user_projects) >= 2: 
             return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn 2 dự án thương mại/user!"}, status_code=400)
         
@@ -211,7 +218,7 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     
     target_payload = get_project_latest_leaf(project_id)
     if not target_payload:
-        return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án trên cây!"}, status_code=404)
+        target_payload = migrate_project_to_tree({"id": project_id, "title": new_title})
     
     target_tier = int(data.get("tier", 1))
     target_payload["metadata"]["title"] = new_title
@@ -247,6 +254,10 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
     if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
     project_id = data.get("id", "")
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
+        
     target_payload = get_project_latest_leaf(project_id)
     if not target_payload: return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án!"}, status_code=404)
         
@@ -262,7 +273,7 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
 
 
     system_prompt = (
-        "Bạn là Tổng Đạo Diễn Cine AI 7.1 Enterprise. Quét sâu kịch bản theo Master Schema gồm:\n"
+        "Bạn là Tổng Đạo Diễn Cine AI 7.2 Enterprise. Quét sâu kịch bản theo Master Schema gồm:\n"
         "1. 4 Tầng Lọc: Entities, Locations, Props, Audio Signatures.\n"
         "2. Ma Trận Thời Gian: 'time_jumps_detected', 'temporal_states'.\n"
         "3. Khóa Tiến Trình: 'evolution_lineage'.\n"
@@ -298,13 +309,25 @@ async def upload_asset_explicit(file: UploadFile = File(...), project_id: str = 
     if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     try:
         extracted_text = (await file.read()).decode("utf-8", errors="ignore")
+        projs = get_user_projects(username)
+        if not project_id and projs:
+            project_id = projs[0].get("id")
+            
         target_payload = get_project_latest_leaf(project_id)
+        if not target_payload and projs:
+            project_id = projs[0].get("id")
+            target_payload = get_project_latest_leaf(project_id)
+            
         if target_payload:
             target_payload["ideation_core"]["project_raw_story"] = extracted_text
             target_payload["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             grow_new_leaf(username, project_id, target_payload)
-            return JSONResponse({"status": "success", "message": f"✅ Đã nạp kịch bản từ tệp '{file.filename}'!", "extracted_content": extracted_text})
-        return JSONResponse({"status": "error", "message": "Không tìm thấy dự án."}, status_code=404)
+            return JSONResponse({"status": "success", "message": f"✅ Đã nạp kịch bản từ tệp '{file.filename}'!", "extracted_content": extracted_text, "saved_id": project_id})
+            
+        new_id = secrets.token_hex(6)
+        new_payload = migrate_project_to_tree({"id": new_id, "title": file.filename.split('.')[0], "project_raw_story": extracted_text})
+        grow_new_leaf(username, new_id, new_payload)
+        return JSONResponse({"status": "success", "message": f"✅ Đã tạo dự án mới và nạp kịch bản từ tệp '{file.filename}'!", "extracted_content": extracted_text, "saved_id": new_id})
     except Exception as e: return JSONResponse({"status": "error", "message": f"Lỗi: {str(e)}"}, status_code=500)
 
 
@@ -312,6 +335,9 @@ async def upload_asset_explicit(file: UploadFile = File(...), project_id: str = 
 async def upload_visual_token(file: UploadFile = File(...), token_category: str = Form("character"), token_name: str = Form(""), project_id: str = Form(""), session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
     token_id = f"TOKEN_{token_category.upper()}_{secrets.token_hex(3).upper()}"
     mock_url = f"https://cdn.cineai.studio/tokens/{username}/{project_id}/{file.filename}"
     target_payload = get_project_latest_leaf(project_id)
@@ -327,6 +353,9 @@ async def upload_visual_token(file: UploadFile = File(...), token_category: str 
 async def upload_audio_token(file: UploadFile = File(...), token_category: str = Form("bgm"), token_name: str = Form(""), project_id: str = Form(""), session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
     token_id = f"TOKEN_AUD_{token_category.upper()}_{secrets.token_hex(3).upper()}"
     mock_url = f"https://cdn.cineai.studio/audio/{username}/{project_id}/{file.filename}"
     target_payload = get_project_latest_leaf(project_id)
@@ -344,13 +373,16 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     if not username: return JSONResponse({"reply": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
     user_message, project_id, tier = data.get("message", ""), data.get("id", ""), int(data.get("tier", 1))
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
     if not user_message: return JSONResponse({"reply": "Vui lòng nhập nội dung!"})
     
     if tier == 1:
         target_payload = get_project_latest_leaf(project_id)
         current_slots = target_payload["ideation_core"].get("ideation_slots", {}) if target_payload else {}
         system_persona = (
-            "Bạn là Đạo diễn ảo thấu cảm Cine AI 7.1.\n"
+            "Bạn là Đạo diễn ảo thấu cảm Cine AI 7.2.\n"
             "Nhiệm vụ: Trích xuất ATMOSPHERE, CORE_WOUND, TRIGGER_PROP, DILEMMA, CATHARSIS.\n"
             f"Slots hiện có: {json.dumps(current_slots, ensure_ascii=False)}\n"
             'Trả về JSON: {"message": "...", "extracted_slots": {"...": "..."}, "quick_chips": ["...", "...", "..."], "is_ready_for_script": true}'
@@ -368,7 +400,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
 
 
     mode_instructions = {2: "Khóa mẫu Thực thể", 3: "Dựng cảnh 3 Hồi", 4: "Render toàn tập"}
-    reply_text, err_msg = call_gemini_direct(f"Bạn là Đạo diễn ảo 7.1. Trạng thái: {mode_instructions.get(tier, '')}.\nUser: {user_message}")
+    reply_text, err_msg = call_gemini_direct(f"Bạn là Đạo diễn ảo 7.2. Trạng thái: {mode_instructions.get(tier, '')}.\nUser: {user_message}")
     return JSONResponse({"reply": reply_text or err_msg, "chips": []})
 
 
@@ -378,11 +410,14 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
     if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
     project_id, aspect_ratio, target_duration = data.get("id", ""), data.get("aspect_ratio", "16:9"), data.get("target_duration", "45p")
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
     target_payload = get_project_latest_leaf(project_id)
     slots_text = json.dumps(target_payload["ideation_core"].get("ideation_slots", {}), ensure_ascii=False) if target_payload else "Tự do sáng tạo."
     
     prompt = (
-        "Nhà biên kịch điện ảnh Cine AI 7.1. Dựa vào Soul Fingerprint:\n"
+        "Nhà biên kịch điện ảnh Cine AI 7.2. Dựa vào Soul Fingerprint:\n"
         f"{slots_text}\nĐịnh dạng: {aspect_ratio}, Thời lượng: {target_duration}.\n"
         'Trả về JSON: {"title": "...", "header": "...", "story": "Kịch bản 3 hồi..."}'
     )
@@ -397,14 +432,15 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
             grow_new_leaf(username, project_id, target_payload)
         return JSONResponse({"status": "success", "data": res_data})
     except Exception as e: return JSONResponse({"status": "error", "message": "Lỗi phân giải kịch bản."}, status_code=500)
-
-
 @app.post("/api/cineai/breakdown-scenes-enterprise")
 async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
     data = await request.json()
     project_id = data.get("id", "")
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
     target_payload = get_project_latest_leaf(project_id)
     raw_story = target_payload["ideation_core"].get("project_raw_story", "") if target_payload else ""
     if not raw_story: return JSONResponse({"reply": "⚠️ Kịch bản trống!"}, status_code=400)
@@ -427,7 +463,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
 
 
     structured_data = {
-        "schema_version": "7.1-Enterprise", "pacing_metrics": {"total_duration_sec": total_dur, "act_breakdown": act_durs},
+        "schema_version": "7.2-Enterprise", "pacing_metrics": {"total_duration_sec": total_dur, "act_breakdown": act_durs},
         "scenes_data": parsed_scenes, "alternate_takes": {}, "active_takes": {}, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     if target_payload:
@@ -468,7 +504,10 @@ async def render_scene_take(request: Request, background_tasks: BackgroundTasks,
     
     data = await request.json()
     project_id, scene_id = data.get("id", ""), data.get("scene_id", 1)
-    
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
+        
     profile["credits"] = current_credits - render_cost
     save_user_profile_leaf(username, profile)
     
@@ -482,6 +521,9 @@ async def set_active_take(request: Request, session_id: str = Cookie(None)):
     if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
     data = await request.json()
     project_id, scene_id, selected_take_id = data.get("id", ""), data.get("scene_id", 1), data.get("take_id", 1)
+    if not project_id:
+        projs = get_user_projects(username)
+        if projs: project_id = projs[0].get("id")
     target_payload = get_project_latest_leaf(project_id)
     if not target_payload: return JSONResponse({"reply": "⚠️ Lỗi dự án!"}, status_code=404)
         
@@ -495,6 +537,9 @@ async def set_active_take(request: Request, session_id: str = Cookie(None)):
 async def get_rough_cut(id: str = "", session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
+    if not id:
+        projs = get_user_projects(username)
+        if projs: id = projs[0].get("id")
     target_payload = get_project_latest_leaf(id)
     if not target_payload: return JSONResponse({"reply": "Lỗi dự án!"}, status_code=404)
         
@@ -524,6 +569,9 @@ async def get_rough_cut(id: str = "", session_id: str = Cookie(None)):
 async def export_srt_subtitles(id: str = "", session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
+    if not id:
+        projs = get_user_projects(username)
+        if projs: id = projs[0].get("id")
     target_payload = get_project_latest_leaf(id)
     if not target_payload: return JSONResponse({"reply": "Lỗi dự án!"}, status_code=404)
         
@@ -577,11 +625,11 @@ def get_studio_html(target_project, user_credits, active_tier, highest_tier, use
 
     tmpl = f"""
     <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cine AI Studio Pro 7.1 Immortal Tree</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <title>Cine AI Studio Pro 7.2 Immortal Tree</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-24">
         <div class="max-w-4xl mx-auto space-y-3">
             <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative">
-                <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-sm sm:text-base font-black text-amber-400 uppercase">Cine AI Studio Pro 7.1</h1></div>
+                <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-sm sm:text-base font-black text-amber-400 uppercase">Cine AI Studio Pro 7.2</h1></div>
                 <div class="relative"><button onclick="document.getElementById('profile-dropdown').classList.toggle('hidden')" class="w-9 h-9 rounded-full bg-slate-800 border-2 border-amber-400 flex items-center justify-center hover:bg-slate-700">👤</button>
                     <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-2xl z-50">
                         <p class="text-xs font-bold text-slate-200">{username}</p>
@@ -612,6 +660,8 @@ def get_studio_html(target_project, user_credits, active_tier, highest_tier, use
                 <a href="/?load_id={p_id}&tier=3" class="py-2 rounded-xl {t3_cls}">3. Dựng cảnh</a>
                 <a href="/?load_id={p_id}&tier=4" class="py-2 rounded-xl {t4_cls}">4. Render</a>
             </div>
+
+
             <!-- MÀN HÌNH TẦNG 1 -->
             <div id="screen-tier-1" class="{t1_vis} space-y-3 mt-3">
                 <div class="grid grid-cols-2 gap-2">
@@ -647,7 +697,7 @@ def get_studio_html(target_project, user_credits, active_tier, highest_tier, use
                             <button onclick="closeDrawer('chat')" class="text-slate-300 font-bold">✕</button>
                         </div>
                     </div>
-                    <div id="chat-box" class="bg-slate-950 h-52 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2"><p class="text-blue-200">Chào bạn! Đạo diễn ảo 7.1 đã sẵn sàng.</p></div>
+                    <div id="chat-box" class="bg-slate-950 h-52 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2"><p class="text-blue-200">Chào bạn! Đạo diễn ảo 7.2 đã sẵn sàng.</p></div>
                     <div class="flex gap-2 pt-1"><input type="text" id="chat-input" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs text-slate-100" placeholder="Trò chuyện..." onkeypress="if(event.key==='Enter') sendChat()"><button onclick="sendChat()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Gửi</button></div>
                 </div>
             </div>
@@ -750,12 +800,13 @@ def get_studio_javascript(project_id, active_tier):
                 if(!fileInput || fileInput.files.length === 0) return alert('⚠️ Vui lòng chọn tệp (.txt, .md)!');
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
-                formData.append('project_id', currentProjectId);
+                formData.append('project_id', currentProjectId || "");
                 try {{
                     const res = await fetch('/api/cineai/upload-asset-explicit', {{method: 'POST', body: formData}});
                     const data = await res.json();
                     if(data.status === 'success') {{
                         document.getElementById('project-story').value = data.extracted_content;
+                        if(data.saved_id) currentProjectId = data.saved_id;
                         alert(data.message);
                         saveDraftCurrent(1);
                     }} else alert(data.message);
@@ -795,6 +846,8 @@ def get_studio_javascript(project_id, active_tier):
                     }} else alert(data.message);
                 }} catch(e) {{ alert('Lỗi tạo kịch bản!'); }}
             }}
+
+
             async function runAuditAssets() {{
                 const tray = document.getElementById('audit-checklist-tray');
                 tray.innerHTML = "<div class='text-center py-4 text-amber-400 text-xs animate-pulse'>⏳ Đang quét Master Schema...</div>";
@@ -833,7 +886,7 @@ def get_studio_javascript(project_id, active_tier):
                 const endpoint = (category === 'bgm' || category === 'voice') ? '/api/cineai/upload-audio-token' : '/api/cineai/upload-visual-token';
                 const formData = new FormData();
                 formData.append('file', file); formData.append('token_category', category);
-                formData.append('token_name', assetName); formData.append('project_id', currentProjectId);
+                formData.append('token_name', assetName); formData.append('project_id', currentProjectId || "");
                 try {{
                     const res = await fetch(endpoint, {{method: 'POST', body: formData}});
                     const d = await res.json();
@@ -875,7 +928,7 @@ def get_studio_javascript(project_id, active_tier):
 
             async function fetchTimeline() {{
                 try {{
-                    const res = await fetch('/api/cineai/get-rough-cut?id=' + encodeURIComponent(currentProjectId));
+                    const res = await fetch('/api/cineai/get-rough-cut?id=' + encodeURIComponent(currentProjectId || ''));
                     const data = await res.json(); alert('🎞️ Timeline: ' + (data.total_timeline_duration_sec || 0) + ' giây.');
                 }} catch(e) {{ alert("Lỗi tải Timeline!"); }}
             }}
@@ -883,7 +936,7 @@ def get_studio_javascript(project_id, active_tier):
 
             async function exportSrtSubtitles() {{
                 try {{
-                    const res = await fetch('/api/cineai/export-srt?id=' + encodeURIComponent(currentProjectId));
+                    const res = await fetch('/api/cineai/export-srt?id=' + encodeURIComponent(currentProjectId || ''));
                     const data = await res.json();
                     if(data.srt_format) {{
                         const a = document.createElement('a');
@@ -955,8 +1008,6 @@ async def library_page(session_id: str = Cookie(None)):
         
     profile = get_user_profile_leaf(username)
     return HTMLResponse(content=f"<html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-white p-4 sm:p-6 font-sans'><div class='max-w-3xl mx-auto'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-4'><h1 class='text-base font-bold text-amber-400 uppercase'>📁 Thư Viện Cây Bất Tử</h1><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 px-3 py-2 rounded-xl text-xs font-bold'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-xs font-bold'>🏠 Studio</a></div></div>{projects_html or '<p class=\"text-slate-500 text-sm text-center py-10\">Chưa có dự án nào.</p>'}</div></body></html>")
-
-
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
 async def login_handler(request: Request, tab: str = "login", error: str = None, success: str = None):
@@ -989,14 +1040,14 @@ async def login_handler(request: Request, tab: str = "login", error: str = None,
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{title_text} - Cine AI 7.1</title>
+        <title>{title_text} - Cine AI 7.2</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
         <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
             <div class="text-center space-y-1">
                 <h2 class="text-xl sm:text-2xl font-black text-amber-400">{title_text}</h2>
-                <p class="text-xs text-slate-400">Cine AI Studio Pro 7.1 • Immortal Tree</p>
+                <p class="text-xs text-slate-400">Cine AI Studio Pro 7.2 • Immortal Tree</p>
             </div>
             {err_html} {succ_html}
             <form method="POST" action="{form_action}" class="space-y-4">
@@ -1025,7 +1076,6 @@ async def login_handler(request: Request, tab: str = "login", error: str = None,
 async def register_post(username: str = Form(...), password: str = Form(...)):
     username = username.strip()
     profile = get_user_profile_leaf(username)
-    # Kiểm tra xem tài khoản đã tồn tại hay chưa (nếu có password_hash khác mặc định)
     pwd_hash = hashlib.sha256(password.encode()).hexdigest()
     
     new_profile = {
@@ -1051,8 +1101,6 @@ async def forgot_password_post(username: str = Form(...), password: str = Form(.
     profile["password_hash"] = hashlib.sha256(password.encode()).hexdigest()
     save_user_profile_leaf(username, profile)
     return RedirectResponse(url="/login?success=" + urllib.parse.quote("🎉 Đổi mật khẩu thành công! Vui lòng đăng nhập."), status_code=303)
-
-
 
 
 @app.get("/logout")
