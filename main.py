@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
-app = FastAPI(title="Cine AI Studio Pro 6.8.2 - Enterprise Ultimate Suite", version="6.8.2")
+app = FastAPI(title="Cine AI Studio Pro 6.8.3 - Enterprise Ultimate Suite", version="6.8.3")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
@@ -89,7 +89,7 @@ def call_gemini_direct(prompt_text):
                 
         return None, "⚠️ Khóa hiện tại đã vượt giới hạn hạn mức (Quota 429) hoặc chưa kích hoạt Billing."
     except Exception as e:
-        return None, f"Lỗi khởi tạo SDK: {str(e)[:120]}"
+        return None, f"Lỗi khởi tạo SDK: {str(e)[:120]}”
 def get_cloud_cache(cache_key: str):
     if not SUPABASE_KEY:
         return None
@@ -165,6 +165,7 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     projects = user_data["projects"]
     target_project = None
     
+    # Quét tìm dự án theo tên cũ hoặc tên mới để cập nhật đồng bộ tuyệt đối
     for p in projects:
         if p.get("title") == old_title or p.get("title") == new_title:
             target_project = p
@@ -243,7 +244,7 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
 
 
     system_prompt = (
-        "Bạn là Tổng Đạo Diễn và Giám Đốc Sản Xuất cấp cao của Cine AI Studio Pro 6.8.2 Enterprise.\n"
+        "Bạn là Tổng Đạo Diễn và Giám Đốc Sản Xuất cấp cao của Cine AI Studio Pro 6.8.3 Enterprise.\n"
         "Nhiệm vụ: Quét sâu kịch bản theo Master Schema toàn diện gồm:\n"
         "1. 4 Tầng Lưới Lọc Cốt Lõi: Entities (Vạn vật hữu linh/nhân vật), Locations (Bối cảnh), Props (Đạo cụ định mệnh), Audio Signatures (Âm thanh 3D).\n"
         "2. Ma Trận Biến Thiên Thời Gian (Temporal State Matrix): Phát hiện bước nhảy thời gian ('time_jumps_detected') và phân rã các trạng thái ('temporal_states') theo độ tuổi hoặc sự lão hóa/biến đổi.\n"
@@ -288,7 +289,7 @@ async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
     
     return JSONResponse({
         "status": "success",
-        "message": "✅ Đã kiểm kê và trích xuất Master Schema 6.8.2 thành công!",
+        "message": "✅ Đã kiểm kê và trích xuất Master Schema 6.8.3 thành công!",
         "audit_data": parsed_audit,
         "existing_tokens": existing_tokens
     })
@@ -483,19 +484,20 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
                     break
         current_slots = target_project.get("ideation_slots", {}) if target_project else {}
         system_persona = (
-            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.8.2 trong không gian 'Ươm mầm ý tưởng'.\n"
-            "Nhiệm vụ: Lắng nghe và thấu cảm sâu sắc 'vân tâm hồn' (trạng thái cảm xúc, môi trường, bản sắc độc bản) của user để khai thác các biến số:\n"
-            "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh thực tại)\n"
-            "2. CORE_WOUND (Vết thương lòng, nỗi trăn trở nội tâm)\n"
-            "3. TRIGGER_PROP (Đạo cụ định mệnh, vật neo giữ ký ức)\n"
-            "4. DILEMMA (Điểm xoay chuyển, lựa chọn đánh đổi)\n"
+            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.8.3 trong không gian 'Ươm mầm ý tưởng'.\n"
+            "Nhiệm vụ tối thượng: Thấu cảm sâu sắc 'vân tâm hồn' (Soul Fingerprint) của user — bao gồm trạng thái cảm xúc tức thời, môi trường xung quanh và bản sắc độc bản của họ.\n"
+            "Hãy dẫn dắt user qua 3 tầng khảo sát tâm lý để trích xuất các biến số điện ảnh:\n"
+            "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh thực tại đang bao trùm user)\n"
+            "2. CORE_WOUND (Vết thương lòng hoặc nỗi trăn trở nội tâm sâu kín nhất)\n"
+            "3. TRIGGER_PROP (Đạo cụ định mệnh, vật thể hữu hình neo giữ ký ức)\n"
+            "4. DILEMMA (Điểm xoay chuyển sinh tử, lựa chọn không có đáp án hoàn hảo)\n"
             "5. CATHARSIS (Hồi kết hướng tới sự chữa lành hoặc giải thoát cảm xúc)\n\n"
-            f"Các Slots hiện có: {json.dumps(current_slots, ensure_ascii=False)}\n"
-            "Quy tắc phản hồi: Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
+            f"Các Slots hiện có của dự án: {json.dumps(current_slots, ensure_ascii=False)}\n"
+            "Quy tắc phản hồi: Trả về DUY NHẤT một chuỗi JSON thuần hợp lệ (không kèm markdown):\n"
             "{\n"
-            '  "message": "Câu nói tâm tình chạm cảm xúc, phản ánh đúng tần số tâm hồn của user (1-2 câu)",\n'
-            '  "extracted_slots": {"TÊN_SLOT": "Giá trị trích xuất"},\n'
-            '  "quick_chips": ["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3"],\n'
+            '  "message": "Câu nói tâm tình chạm cảm xúc, phản ánh đúng tần số 'vân tâm hồn' của user (1-2 câu)",\n'
+            '  "extracted_slots": {"TÊN_SLOT": "Giá trị trích xuất độc bản"},\n'
+            '  "quick_chips": ["Lựa chọn cảm xúc 1", "Lựa chọn cảm xúc 2", "Lựa chọn cảm xúc 3"],\n'
             '  "is_ready_for_script": true/false\n'
             "}"
         )
@@ -516,7 +518,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
                 target_project["ideation_slots"].update(new_slots)
                 save_users()
             return JSONResponse({
-                "reply": parsed.get("message", "Tôi cảm nhận được nhịp đập cảm xúc từ câu chuyện của bạn."),
+                "reply": parsed.get("message", "Tôi cảm nhận rõ nhịp đập cảm xúc từ câu chuyện của bạn."),
                 "chips": parsed.get("quick_chips", ["Ký ức ùa về", "Một lối rẽ khác", "Khoảng lặng phía trước"]),
                 "ready": True
             })
@@ -534,7 +536,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         4: "Render toàn tập, Alternate Takes, Timeline Rough-Cut và xuất file phụ đề .SRT."
     }
     system_persona = (
-        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.8.2. Trạng thái: {mode_instructions.get(tier, '')} "
+        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.8.3. Trạng thái: {mode_instructions.get(tier, '')} "
         "Hãy phản hồi ngắn gọn, sắc sảo, chuyên nghiệp.\n"
         f"Dự án: {project_title}\n"
     )
@@ -563,14 +565,14 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
     slots_text = json.dumps(slots, ensure_ascii=False) if slots else "Ý tưởng tự do mang đậm dấu ấn tâm hồn."
     
     prompt = (
-        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.8.2. Dựa vào các biến số 'vân tâm hồn' và thông điệp từ không gian Ươm mầm ý tưởng:\n"
+        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.8.3. Dựa tuyệt đối vào 'vân tâm hồn' (Soul Fingerprint) và các biến số tâm lý đã khai thác:\n"
         f"{slots_text}\n"
         f"Định dạng yêu cầu: Khung hình [{aspect_ratio}], Thời lượng [{target_duration}].\n"
-        "Hãy tạo kịch bản 3 Hồi hoàn chỉnh mang màu sắc độc bản, giàu cảm xúc. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
+        "Hãy dệt nên một kịch bản 3 Hồi hoàn chỉnh mang màu sắc độc bản, giàu tính tự sự và chữa lành. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
         "{\n"
         '  "title": "Tên phim gợi ý đầy chất thơ",\n'
         '  "header": "Thể loại: ... • Khung hình: ' + aspect_ratio + ' • Thời lượng: ' + target_duration + '",\n'
-        '  "story": "Nội dung câu chuyện 3 Hồi hoàn chỉnh (khoảng 600 - 1200 từ), phản ánh trọn vẹn tâm trạng, nhân vật chính, đạo cụ then chốt và cao trào tâm lý."\n'
+        '  "story": "Nội dung câu chuyện 3 Hồi hoàn chỉnh (khoảng 600 - 1200 từ), phản ánh trọn vẹn tâm trạng, nhân vật chính, đạo cụ định mệnh và cao trào tâm lý."\n'
         "}"
     )
     raw_res, err = call_gemini_direct(prompt)
@@ -616,7 +618,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         return JSONResponse({"reply": "⚠️ Chưa có nội dung kịch bản thô. Vui lòng hoàn thiện kịch bản tại Tầng 1!"}, status_code=400)
     
     pro_prompt = (
-        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.8.2 Enterprise. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
+        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.8.3 Enterprise. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
         "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III). Mỗi cảnh 30s-150s và gắn Master Schema Tokens.\n\n"
         f"Kịch bản gốc:\n{raw_story}"
     )
@@ -647,7 +649,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
 
 
     structured_data = {
-        "schema_version": "6.8.2-Enterprise",
+        "schema_version": "6.8.3-Enterprise",
         "routing_model": "gemini-flash",
         "self_healing_applied": True,
         "pacing_metrics": {"total_duration_sec": total_duration, "act_breakdown": act_durations},
@@ -668,7 +670,7 @@ async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie
         
     return JSONResponse({
         "status": "success",
-        "message": "🌟 Đã dựng cảnh & chia nhịp phim cấp độ Enterprise 6.8.2!",
+        "message": "🌟 Đã dựng cảnh & chia nhịp phim cấp độ Enterprise 6.8.3!",
         "metrics": structured_data["pacing_metrics"],
         "data": parsed_scenes
     })
@@ -914,7 +916,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.8.2 Enterprise</title>
+        <title>Cine AI Studio Pro 6.8.3 Enterprise</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-24">
@@ -924,7 +926,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
             <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative">
                 <div class="flex items-center gap-2">
                     <span class="text-xl">🎬</span>
-                    <h1 class="text-sm sm:text-base font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 6.8.2</h1>
+                    <h1 class="text-sm sm:text-base font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 6.8.3</h1>
                 </div>
                 
                 <div class="relative">
@@ -1608,14 +1610,14 @@ async def login_page(tab: str = "login", error: str = None, success: str = None)
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI Studio Pro 6.8.2</title>
+        <title>Xác Thực - Cine AI Studio Pro 6.8.3</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
         <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
             <div class="text-center space-y-1">
                 <h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2>
-                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.8.2 Enterprise</p>
+                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.8.3 Enterprise</p>
             </div>
             ALERT_ERR_VAL ALERT_SUCC_VAL
             <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
@@ -1692,7 +1694,7 @@ async def library_page(session_id: str = Cookie(None)):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Thư Viện Tâm Huyết - Cine AI Studio Pro 6.8.2</title>
+        <title>Thư Viện Tâm Huyết - Cine AI Studio Pro 6.8.3</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans pb-16">
@@ -1793,11 +1795,11 @@ async def community_page(session_id: str = Cookie(None)):
     if not username:
         return RedirectResponse(url="/login", status_code=303)
     return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.8.2</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.8.3</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-5 font-sans">
         <div class="max-w-4xl mx-auto space-y-4">
             <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
-                <h1 class="text-lg font-bold text-amber-400">Cộng Đồng Phim Public Pro 6.8.2</h1>
+                <h1 class="text-lg font-bold text-amber-400">Cộng Đồng Phim Public Pro 6.8.3</h1>
                 <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs shadow">Quay lại Studio</a>
             </div>
             <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bảng tin cộng đồng đang kết nối API mạng xã hội...</div>
