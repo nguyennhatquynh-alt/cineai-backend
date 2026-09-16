@@ -14,29 +14,14 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 
-
-
-
-
-
-
-app = FastAPI(title="Cine AI Studio Pro 6.8.8 - Enterprise Ultimate Suite", version="6.8.8")
-
-
-
-
-
-
+app = FastAPI(title="Cine AI Studio Pro 7.1 - Immortal Tree Enterprise", version="7.1.0")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 
-
-
-
-
+ACTIVE_SESSIONS = {}
 
 
 def get_supabase_headers():
@@ -46,59 +31,74 @@ def get_supabase_headers():
         "Content-Type": "application/json",
         "Prefer": "return=representation"
     }
-def load_users():
-    if not SUPABASE_KEY:
-        return {"admin": {"password_hash": hashlib.sha256("admin123".encode()).hexdigest(), "projects": [], "credits": 100}}
+def get_user_profile_leaf(username):
+    if not SUPABASE_KEY: return {"credits": 100, "password_hash": hashlib.sha256("admin123".encode()).hexdigest()}
+    url = f"{SUPABASE_URL}/rest/v1/cineai_tree_leaves?username=eq.{username}&project_id=eq.USER_PROFILE&select=payload&order=created_at.desc&limit=1"
     try:
-        url = f"{SUPABASE_URL}/rest/v1/cineai_store?id=eq.1&select=payload"
-        response = requests.get(url, headers=get_supabase_headers(), timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if data and len(data) > 0 and data[0].get("payload"):
-                return data[0].get("payload", {})
-    except Exception as e:
-        print("Lỗi tải Supabase:", e)
-    return {"admin": {"password_hash": hashlib.sha256("admin123".encode()).hexdigest(), "projects": [], "credits": 100}}
+        res = requests.get(url, headers=get_supabase_headers(), timeout=5)
+        if res.status_code == 200 and res.json():
+            return res.json()[0].get("payload")
+    except Exception: pass
+    
+    default_profile = {
+        "password_hash": hashlib.sha256("admin123".encode()).hexdigest() if username == "admin" else hashlib.sha256("123456".encode()).hexdigest(),
+        "credits": 100 if username == "admin" else 10
+    }
+    grow_new_leaf(username, "USER_PROFILE", default_profile)
+    return default_profile
 
 
+def save_user_profile_leaf(username, profile_data):
+    grow_new_leaf(username, "USER_PROFILE", profile_data)
 
 
-
-
-
-
-def save_users():
-    if not SUPABASE_KEY:
-        return
+def get_user_projects(username):
+    if not SUPABASE_KEY: return []
+    url = f"{SUPABASE_URL}/rest/v1/cineai_tree_leaves?username=eq.{username}&project_id=neq.USER_PROFILE&select=project_id,payload&order=created_at.desc"
     try:
-        url = f"{SUPABASE_URL}/rest/v1/cineai_store"
-        payload = {"id": 1, "payload": USERS_DB}
-        headers = get_supabase_headers()
-        headers["Prefer"] = "resolution=merge-duplicates"
-        requests.post(url, json=payload, headers=headers, timeout=10)
-    except Exception as e:
-        print("Lỗi lưu Supabase:", e)
+        res = requests.get(url, headers=get_supabase_headers(), timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            seen_projects = set()
+            latest_projects = []
+            for leaf in data:
+                pid = leaf.get("project_id")
+                if pid not in seen_projects:
+                    seen_projects.add(pid)
+                    payload = leaf.get("payload")
+                    if payload and not payload.get("metadata", {}).get("deleted"):
+                        latest_projects.append(payload)
+            return latest_projects
+    except Exception as e: print(f"Lỗi đọc lá: {e}")
+    return []
 
 
+def get_project_latest_leaf(project_id):
+    if not SUPABASE_KEY: return None
+    url = f"{SUPABASE_URL}/rest/v1/cineai_tree_leaves?project_id=eq.{project_id}&select=payload&order=created_at.desc&limit=1"
+    try:
+        res = requests.get(url, headers=get_supabase_headers(), timeout=5)
+        if res.status_code == 200 and res.json():
+            return res.json()[0].get("payload")
+    except Exception: pass
+    return None
 
 
-
-
-
-
-USERS_DB = load_users()
-ACTIVE_SESSIONS = {}
-
-
-
-
-
-
-
-
+def grow_new_leaf(username, project_id, payload):
+    if not SUPABASE_KEY: return False
+    url = f"{SUPABASE_URL}/rest/v1/cineai_tree_leaves"
+    data = {
+        "username": username,
+        "project_id": project_id,
+        "payload": payload,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    try:
+        res = requests.post(url, json=data, headers=get_supabase_headers(), timeout=10)
+        return res.status_code == 201
+    except Exception: return False
 def migrate_project_to_tree(p):
-    if "metadata" in p: 
-        return p
+    if "metadata" in p: return p
     new_id = p.get("id") or secrets.token_hex(6)
     return {
         "id": new_id,
@@ -130,2277 +130,874 @@ def migrate_project_to_tree(p):
     }
 
 
-
-
-
-
-
-
-def get_user_projects(username):
-    user_data = USERS_DB.get(username, {})
-    if "projects" not in user_data:
-        user_data["projects"] = []
-    
-    changed = False
-    for i, p in enumerate(user_data["projects"]):
-        if "metadata" not in p:
-            user_data["projects"][i] = migrate_project_to_tree(p)
-            changed = True
-    if changed:
-        save_users()
-    return user_data["projects"]
 def get_gemini_keys():
     raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
     return [k.strip() for k in raw.split(",") if k.strip()]
 
 
-
-
-
-
-
-
 from google import genai
-
-
-
-
-
-
 
 
 def call_gemini_direct(prompt_text):
     keys = get_gemini_keys()
-    if not keys:
-        return None, "⚠️ Chưa cấu hình GEMINI_API_KEY trên Render!"
+    if not keys: return None, "⚠️ Chưa cấu hình GEMINI_API_KEY trên Render!"
     selected_key = random.choice(keys)
-    
     try:
         client = genai.Client(api_key=selected_key)
         models_to_try = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-3.8-flash"]
-        
         for m in models_to_try:
             try:
-                response = client.models.generate_content(
-                    model=m,
-                    contents=prompt_text,
-                )
-                if response and response.text:
-                    return response.text, m
-            except Exception:
-                continue
-                
-        return None, "⚠️ Khóa hiện tại đã vượt giới hạn hạn mức (Quota 429) hoặc chưa kích hoạt Billing."
+                response = client.models.generate_content(model=m, contents=prompt_text)
+                if response and response.text: return response.text, m
+            except Exception: continue
+        return None, "⚠️ Khóa hiện tại đã vượt giới hạn hạn mức."
     except Exception as e:
         return None, f"Lỗi khởi tạo SDK: {str(e)[:120]}"
+
+
 def get_cloud_cache(cache_key: str):
-    if not SUPABASE_KEY:
-        return None
+    if not SUPABASE_KEY: return None
     try:
         url = f"{SUPABASE_URL}/rest/v1/cineai_cache?key=eq.{cache_key}&select=value"
         res = requests.get(url, headers=get_supabase_headers(), timeout=5)
-        if res.status_code == 200 and res.json():
-            return res.json()[0].get("value")
-    except Exception:
-        pass
+        if res.status_code == 200 and res.json(): return res.json()[0].get("value")
+    except Exception: pass
     return None
 
 
-
-
-
-
-
-
 def set_cloud_cache(cache_key: str, value_data):
-    if not SUPABASE_KEY:
-        return
+    if not SUPABASE_KEY: return
     try:
         url = f"{SUPABASE_URL}/rest/v1/cineai_cache"
         payload = {"key": cache_key, "value": value_data, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         headers = get_supabase_headers()
         headers["Prefer"] = "resolution=merge-duplicates"
         requests.post(url, json=payload, headers=headers, timeout=5)
-    except Exception:
-        pass
-
-
-
-
-
-
+    except Exception: pass
 
 
 @app.middleware("http")
 async def self_healing_global_middleware(request: Request, call_next):
     try:
-        response = await call_next(request)
-        return response
+        return await call_next(request)
     except Exception as exc:
         error_trace = str(exc)
         print(f"🔥 [SELF-HEALING CAUGHT EXCEPTION]: {error_trace}")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "self_healing_intercepted",
-                "message": "⚠️ Hệ thống đã tự động bắt lỗi Runtime, cô lập vùng đệm và ghi log an toàn.",
-                "error_details": error_trace
-            }
-        )
-def validate_python_code_ast(code_snippet: str) -> bool:
-    try:
-        ast.parse(code_snippet)
-        return True
-    except SyntaxError:
-        return False
-
-
-
-
-
-
-
-
+        return JSONResponse(status_code=500, content={"status": "self_healing_intercepted", "message": "⚠️ Hệ thống đã tự động bắt lỗi Runtime.", "error_details": error_trace})
 @app.post("/api/cineai/save-draft")
 async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     
     data = await request.json()
     project_id = data.get("id", "").strip()
-    new_title = data.get("title", "").strip()
-    project_header = data.get("header", "").strip()
-    project_story = data.get("story", "").strip()
-    aspect_ratio = data.get("aspect_ratio", "16:9")
-    target_duration = data.get("target_duration", "45p")
-    target_tier = int(data.get("tier", 1))
+    new_title = data.get("title", "Dự án mới").strip()
+    if not new_title: new_title = "Dự án mới"
     
-    if not new_title:
-        return JSONResponse({"status": "error", "message": "⚠️ Tên dự án không được để trống!"}, status_code=400)
-    
-    projects = get_user_projects(username)
-    target_project = None
-    
-    for p in projects:
-        if p.get("id") == project_id:
-            target_project = p
-            break
-            
-    if target_project:
-        target_project["metadata"]["title"] = new_title
-        target_project["metadata"]["header"] = project_header
-        target_project["ideation_core"]["project_raw_story"] = project_story
-        target_project["metadata"]["aspect_ratio"] = aspect_ratio
-        target_project["metadata"]["target_duration"] = target_duration
-        current_highest = target_project["metadata"].get("highest_tier", 1)
-        target_project["metadata"]["highest_tier"] = max(current_highest, target_tier)
-        target_project["metadata"]["current_tier"] = target_tier
-        target_project["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg = f"💾 Đã cập nhật vi mô dự án '{new_title}' thành công!"
-    else:
-        if len(projects) >= 2:
-            return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
+    if not project_id:
+        user_projects = get_user_projects(username)
+        if len(user_projects) >= 2: 
+            return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn 2 dự án thương mại/user!"}, status_code=400)
         
-        new_id = secrets.token_hex(6)
-        target_project = migrate_project_to_tree({
-            "id": new_id,
-            "title": new_title,
-            "header": project_header,
-            "project_raw_story": project_story,
-            "aspect_ratio": aspect_ratio,
-            "target_duration": target_duration,
-            "highest_tier": target_tier,
-            "current_tier": target_tier
+        project_id = secrets.token_hex(6)
+        target_tier = int(data.get("tier", 1))
+        new_payload = migrate_project_to_tree({
+            "id": project_id, "title": new_title, "header": data.get("header", ""),
+            "project_raw_story": data.get("story", ""), "aspect_ratio": data.get("aspect_ratio", "16:9"),
+            "target_duration": data.get("target_duration", "45p"), "highest_tier": target_tier, "current_tier": target_tier
         })
-        projects.append(target_project)
-        msg = f"💾 Đã tạo và lưu Cây Dữ Liệu mới '{new_title}' thành công!"
-        
-    USERS_DB[username]["projects"] = projects
-    save_users()
-    return JSONResponse({
-        "status": "success", 
-        "message": msg, 
-        "saved_id": target_project["id"],
-        "saved_title": target_project["metadata"]["title"],
-        "highest_tier": target_project["metadata"]["highest_tier"],
-        "current_tier": target_tier
-    })
+        grow_new_leaf(username, project_id, new_payload)
+        return JSONResponse({"status": "success", "message": f"💾 Đã tạo Cây Dữ Liệu mới '{new_title}'!", "saved_id": project_id, "saved_title": new_title})
+    
+    target_payload = get_project_latest_leaf(project_id)
+    if not target_payload:
+        return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án trên cây!"}, status_code=404)
+    
+    target_tier = int(data.get("tier", 1))
+    target_payload["metadata"]["title"] = new_title
+    target_payload["metadata"]["header"] = data.get("header", "").strip()
+    target_payload["ideation_core"]["project_raw_story"] = data.get("story", "").strip()
+    target_payload["metadata"]["aspect_ratio"] = data.get("aspect_ratio", "16:9")
+    target_payload["metadata"]["target_duration"] = data.get("target_duration", "45p")
+    target_payload["metadata"]["highest_tier"] = max(target_payload["metadata"].get("highest_tier", 1), target_tier)
+    target_payload["metadata"]["current_tier"] = target_tier
+    target_payload["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    grow_new_leaf(username, project_id, target_payload)
+    return JSONResponse({"status": "success", "message": f"💾 Đã mọc lá dữ liệu mới cho '{new_title}'!", "saved_id": project_id, "saved_title": new_title})
+
+
+@app.post("/api/cineai/delete-project")
+async def delete_project(request: Request, session_id: str = Cookie(None)):
+    username = ACTIVE_SESSIONS.get(session_id)
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    data = await request.json()
+    project_id = data.get("id", "").strip()
+    target_payload = get_project_latest_leaf(project_id)
+    if not target_payload: return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án!"}, status_code=404)
+    
+    target_payload["metadata"]["deleted"] = True
+    grow_new_leaf(username, project_id, target_payload)
+    return JSONResponse({"status": "success", "message": "🗑️ Đã cô lập cành dự án thành công!"})
+
+
 @app.post("/api/cineai/audit-script-assets")
 async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
     project_id = data.get("id", "")
-    
-    projects = get_user_projects(username)
-    target_project = next((p for p in projects if p.get("id") == project_id), None)
-                
-    if not target_project:
-        return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án gốc!"}, status_code=404)
+    target_payload = get_project_latest_leaf(project_id)
+    if not target_payload: return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án!"}, status_code=404)
         
-    raw_story = target_project["ideation_core"].get("project_raw_story", "")
-    if not raw_story:
-        return JSONResponse({"status": "error", "message": "⚠️ Kịch bản còn trống. Vui lòng hoàn tất kịch bản tại Tầng 1!"}, status_code=400)
+    raw_story = target_payload["ideation_core"].get("project_raw_story", "")
+    if not raw_story: return JSONResponse({"status": "error", "message": "⚠️ Kịch bản còn trống!"}, status_code=400)
     
     cache_key = hashlib.md5(raw_story.encode()).hexdigest()
     cached_audit = get_cloud_cache(cache_key)
     if cached_audit:
-        target_project["master_schema"]["assets_audit"] = {"audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "data": cached_audit}
-        save_users()
-        return JSONResponse({"status": "success", "message": "⚡ [Cache Hit] Đã nạp Master Schema từ Cloud Cache!", "audit_data": cached_audit})
-
-
-
-
-
-
+        target_payload["master_schema"]["assets_audit"] = {"audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "data": cached_audit}
+        grow_new_leaf(username, project_id, target_payload)
+        return JSONResponse({"status": "success", "message": "⚡ Đã nạp Master Schema từ Cloud Cache!", "audit_data": cached_audit})
 
 
     system_prompt = (
-        "Bạn là Tổng Đạo Diễn và Giám Đốc Sản Xuất cấp cao của Cine AI Studio Pro 6.8.8 Enterprise.\n"
-        "Nhiệm vụ: Quét sâu kịch bản theo Master Schema toàn diện gồm:\n"
-        "1. 4 Tầng Lưới Lọc Cốt Lõi: Entities (Vạn vật hữu linh/nhân vật), Locations (Bối cảnh), Props (Đạo cụ định mệnh), Audio Signatures (Âm thanh 3D).\n"
-        "2. Ma Trận Biến Thiên Thời Gian (Temporal State Matrix): Phát hiện bước nhảy thời gian ('time_jumps_detected') và phân rã các trạng thái ('temporal_states') theo độ tuổi hoặc sự lão hóa/biến đổi.\n"
-        "3. Khóa Tiến Trình Trạng Thái Đồ Vật (Evolution Item Tokens): Thiết lập chuỗi 'evolution_lineage' cho các vật phẩm có sự nâng cấp, luyện khí, hư hỏng hoặc sửa chữa theo sự kiện.\n"
-        "4. 3 Tầng Khóa Phong Cách Thị Giác ('visual_style_lock'): Định hình Color Grading, Lens Language và Emotional Archetype.\n\n"
-        "Quy tắc phản hồi: Trả về DUY NHẤT một chuỗi JSON thuần hợp lệ (không kèm markdown):\n"
-        "{\n"
-        '  "time_jumps_detected": ["Mốc thời gian 1", "Mốc thời gian 2"],\n'
-        '  "visual_style_lock": {\n'
-        '    "color_grading": "Mô tả bảng màu và ánh sáng chủ đạo",\n'
-        '    "lens_language": "Mô tả ngôn ngữ ống kính và chuyển động máy",\n'
-        '    "emotional_archetype": "Mô tả thần thái và biểu cảm cốt lõi"\n'
-        '  },\n'
-        '  "entities": [{"id": "ASSET_ENT_01", "name": "...", "archetype": "...", "temporal_states": ["Trẻ", "Trưởng thành"], "description": "..."}],\n'
-        '  "locations": [{"id": "ASSET_LOC_01", "name": "...", "temporal_states": ["Mới", "Hoang phế"], "description": "..."}],\n'
-        '  "props": [{"id": "ASSET_PROP_01", "name": "...", "evolution_lineage": ["TOKEN_1", "TOKEN_2"], "description": "..."}],\n'
-        '  "audio_signatures": [{"id": "ASSET_AUD_01", "name": "...", "audio_signature": "Mô tả âm trường 3D"}]\n'
-        "}"
+        "Bạn là Tổng Đạo Diễn Cine AI 7.1 Enterprise. Quét sâu kịch bản theo Master Schema gồm:\n"
+        "1. 4 Tầng Lọc: Entities, Locations, Props, Audio Signatures.\n"
+        "2. Ma Trận Thời Gian: 'time_jumps_detected', 'temporal_states'.\n"
+        "3. Khóa Tiến Trình: 'evolution_lineage'.\n"
+        "4. Khóa Phong Cách: 'visual_style_lock'.\n"
+        "Trả về DUY NHẤT một JSON:\n"
+        '{"time_jumps_detected":["..."],"visual_style_lock":{"color_grading":"...","lens_language":"...","emotional_archetype":"..."},"entities":[{"id":"ENT_01","name":"...","archetype":"...","temporal_states":["..."],"description":"..."}],"locations":[{"id":"LOC_01","name":"...","temporal_states":["..."],"description":"..."}],"props":[{"id":"PROP_01","name":"...","evolution_lineage":["..."],"description":"..."}],"audio_signatures":[{"id":"AUD_01","name":"...","audio_signature":"..."}]}'
     )
-    
-    prompt = system_prompt + f"\n\nKịch bản phim [{target_project['metadata'].get('title', 'Project')}]:\n{raw_story}"
-    raw_res, err_msg = call_gemini_direct(prompt)
-    
-    if not raw_res:
-        return JSONResponse({"status": "error", "message": f"Lỗi phân tích kịch bản: {err_msg}"}, status_code=500)
+    raw_res, err_msg = call_gemini_direct(system_prompt + f"\nKịch bản:\n{raw_story}")
+    if not raw_res: return JSONResponse({"status": "error", "message": f"Lỗi AI: {err_msg}"}, status_code=500)
         
     try:
         clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
         parsed_audit = json.loads(clean_json)
+        set_cloud_cache(cache_key, parsed_audit)
+        target_payload["master_schema"]["assets_audit"] = {"audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "data": parsed_audit}
+        grow_new_leaf(username, project_id, target_payload)
+        return JSONResponse({"status": "success", "message": "✅ Trích xuất Master Schema thành công!", "audit_data": parsed_audit})
     except Exception as e:
-        return JSONResponse({"status": "error", "message": f"Không thể giải mã dữ liệu kiểm kê: {str(e)}"}, status_code=500)
-        
-    set_cloud_cache(cache_key, parsed_audit)
-
-
-
-
-
-
-
-
-    existing_tokens = target_project["master_schema"].get("token_registry", {})
-    target_project["master_schema"]["assets_audit"] = {
-        "audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "data": parsed_audit
-    }
-    save_users()
-    
-    return JSONResponse({
-        "status": "success",
-        "message": "✅ Đã kiểm kê và trích xuất Master Schema 6.8.8 thành công!",
-        "audit_data": parsed_audit,
-        "existing_tokens": existing_tokens
-    })
-
-
-
-
-
-
+        return JSONResponse({"status": "error", "message": f"Không thể giải mã: {str(e)}"}, status_code=500)
 
 
 @app.post("/api/cineai/generate-asset-concept-prompt")
 async def generate_asset_concept_prompt(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-        
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
-    asset_name = data.get("asset_name", "")
-    asset_desc = data.get("asset_description", "")
-    user_tweak = data.get("user_tweak", "")
-    
-    prompt = (
-        f"Bạn là Đạo diễn nghệ thuật (Art Director). Hãy viết 1 visual prompt ngắn gọn (100% tiếng Anh) "
-        f"dùng để tạo ảnh concept mẫu đại diện cho đối tượng sau:\n"
-        f"Đối tượng: {asset_name}\n"
-        f"Mô tả: {asset_desc}\n"
-        f"Ghi chú bổ sung: {user_tweak}\n"
-        f"Yêu cầu: Phong cách điện ảnh cinematic masterpiece 4K, ánh sáng nghệ thuật, "
-        f"nêu bật chi tiết nhận dạng độc bản không bị nhầm lẫn."
-    )
+    prompt = f"Bạn là Art Director. Viết 1 visual prompt ngắn gọn (100% tiếng Anh) cho: {data.get('asset_name')}\nMô tả: {data.get('asset_description')}\nGhi chú: {data.get('user_tweak')}\nYêu cầu: Cinematic masterpiece 4K."
     raw_res, err_msg = call_gemini_direct(prompt)
     return JSONResponse({"status": "success", "concept_prompt": raw_res or err_msg})
-@app.post("/api/cineai/delete-project")
-async def delete_project(request: Request, session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
-    data = await request.json()
-    project_id = data.get("id", "").strip()
-    projects = get_user_projects(username)
-    
-    new_projects = [p for p in projects if p.get("id") != project_id]
-    if len(new_projects) == len(projects):
-        return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án cần xóa!"}, status_code=404)
-        
-    USERS_DB[username]["projects"] = new_projects
-    save_users()
-    return JSONResponse({"status": "success", "message": "🗑️ Đã xóa vĩnh viễn Cây Dữ Liệu dự án thành công!"})
-
-
-
-
-
-
-
-
 @app.post("/api/cineai/upload-asset-explicit")
-async def upload_asset_explicit(
-    file: UploadFile = File(...), 
-    project_id: str = Form(""),
-    session_id: str = Cookie(None)
-):
+async def upload_asset_explicit(file: UploadFile = File(...), project_id: str = Form(""), session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
-    file_name = file.filename.lower()
-    file_content = await file.read()
-    if not (file_name.endswith(".txt") or file_name.endswith(".md")):
-        return JSONResponse({"status": "error", "message": "⚠️ Vui lòng chọn đúng tệp kịch bản (.txt hoặc .md)!"}, status_code=400)
-    
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     try:
-        extracted_text = file_content.decode("utf-8", errors="ignore")
-    except Exception as e:
-        extracted_text = f"Lỗi đọc tệp: {str(e)}"
-    
-    projects = get_user_projects(username)
-    for p in projects:
-        if p.get("id") == project_id:
-            p["ideation_core"]["project_raw_story"] = extracted_text
-            p["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            break
-    save_users()
-    
-    return JSONResponse({
-        "status": "success",
-        "message": f"✅ Nạp và lưu thành công kịch bản từ tệp '{file.filename}'!",
-        "extracted_content": extracted_text
-    })
-
-
-
-
-
-
+        extracted_text = (await file.read()).decode("utf-8", errors="ignore")
+        target_payload = get_project_latest_leaf(project_id)
+        if target_payload:
+            target_payload["ideation_core"]["project_raw_story"] = extracted_text
+            target_payload["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            grow_new_leaf(username, project_id, target_payload)
+            return JSONResponse({"status": "success", "message": f"✅ Đã nạp kịch bản từ tệp '{file.filename}'!", "extracted_content": extracted_text})
+        return JSONResponse({"status": "error", "message": "Không tìm thấy dự án."}, status_code=404)
+    except Exception as e: return JSONResponse({"status": "error", "message": f"Lỗi: {str(e)}"}, status_code=500)
 
 
 @app.post("/api/cineai/upload-visual-token")
-async def upload_visual_token(
-    file: UploadFile = File(...),
-    token_category: str = Form("character"),
-    token_name: str = Form(""),
-    project_id: str = Form(""),
-    session_id: str = Cookie(None)
-):
+async def upload_visual_token(file: UploadFile = File(...), token_category: str = Form("character"), token_name: str = Form(""), project_id: str = Form(""), session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
-    file_name = file.filename.lower()
-    if not (file_name.endswith(".png") or file_name.endswith(".jpg") or file_name.endswith(".jpeg")):
-        return JSONResponse({"status": "error", "message": "⚠️ Vui lòng chọn tệp hình ảnh (.png, .jpg)!"}, status_code=400)
-    
-    clean_cat = token_category.upper()
-    token_id = f"TOKEN_{clean_cat}_{secrets.token_hex(3).upper()}"
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    token_id = f"TOKEN_{token_category.upper()}_{secrets.token_hex(3).upper()}"
     mock_url = f"https://cdn.cineai.studio/tokens/{username}/{project_id}/{file.filename}"
-    
-    projects = get_user_projects(username)
-    for p in projects:
-        if p.get("id") == project_id:
-            p["master_schema"]["token_registry"]["visual_tokens"].append({
-                "token_id": token_id,
-                "category": token_category,
-                "name": token_name or file.filename,
-                "file_url": mock_url,
-                "file_name": file.filename,
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            p["metadata"]["highest_tier"] = max(p["metadata"].get("highest_tier", 1), 2)
-            p["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            break
-    save_users()
-        
-    return JSONResponse({
-        "status": "success", 
-        "message": f"🖼️ Khóa mẫu hình ảnh thành công với mã định danh [{token_id}]!", 
-        "token_id": token_id, 
-        "file_name": file.filename
-    })
-
-
-
-
-
-
+    target_payload = get_project_latest_leaf(project_id)
+    if target_payload:
+        target_payload["master_schema"]["token_registry"]["visual_tokens"].append({"token_id": token_id, "category": token_category, "name": token_name or file.filename, "file_url": mock_url, "file_name": file.filename})
+        target_payload["metadata"]["highest_tier"] = max(target_payload["metadata"].get("highest_tier", 1), 2)
+        grow_new_leaf(username, project_id, target_payload)
+        return JSONResponse({"status": "success", "message": f"🖼️ Khóa ảnh thành công [{token_id}]!", "token_id": token_id})
+    return JSONResponse({"status": "error", "message": "Lỗi định danh dự án"}, status_code=400)
 
 
 @app.post("/api/cineai/upload-audio-token")
-async def upload_audio_token(
-    file: UploadFile = File(...),
-    token_category: str = Form("bgm"),
-    token_name: str = Form(""),
-    project_id: str = Form(""),
-    session_id: str = Cookie(None)
-):
+async def upload_audio_token(file: UploadFile = File(...), token_category: str = Form("bgm"), token_name: str = Form(""), project_id: str = Form(""), session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
-    file_name = file.filename.lower()
-    if not (file_name.endswith(".mp3") or file_name.endswith(".wav")):
-        return JSONResponse({"status": "error", "message": "⚠️ Vui lòng chọn tệp âm thanh (.mp3, .wav)!"}, status_code=400)
-    
-    clean_cat = token_category.upper()
-    token_id = f"TOKEN_AUDIO_{clean_cat}_{secrets.token_hex(3).upper()}"
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    token_id = f"TOKEN_AUD_{token_category.upper()}_{secrets.token_hex(3).upper()}"
     mock_url = f"https://cdn.cineai.studio/audio/{username}/{project_id}/{file.filename}"
-    
-    projects = get_user_projects(username)
-    for p in projects:
-        if p.get("id") == project_id:
-            p["master_schema"]["token_registry"]["audio_tokens"].append({
-                "token_id": token_id,
-                "category": token_category,
-                "name": token_name or file.filename,
-                "file_url": mock_url,
-                "file_name": file.filename,
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            p["metadata"]["highest_tier"] = max(p["metadata"].get("highest_tier", 1), 2)
-            p["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            break
-    save_users()
-        
-    return JSONResponse({
-        "status": "success", 
-        "message": f"🎵 Khóa mẫu âm thanh thành công với mã định danh [{token_id}]!", 
-        "token_id": token_id, 
-        "file_name": file.filename
-    })
+    target_payload = get_project_latest_leaf(project_id)
+    if target_payload:
+        target_payload["master_schema"]["token_registry"]["audio_tokens"].append({"token_id": token_id, "category": token_category, "name": token_name or file.filename, "file_url": mock_url, "file_name": file.filename})
+        target_payload["metadata"]["highest_tier"] = max(target_payload["metadata"].get("highest_tier", 1), 2)
+        grow_new_leaf(username, project_id, target_payload)
+        return JSONResponse({"status": "success", "message": f"🎵 Khóa âm thanh thành công [{token_id}]!", "token_id": token_id})
+    return JSONResponse({"status": "error", "message": "Lỗi định danh dự án"}, status_code=400)
+
+
 @app.post("/api/cineai/chat")
 async def chat_with_director(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"reply": "⚠️ Phiên đăng nhập hết hạn! Vui lòng tải lại trang."}, status_code=401)
+    if not username: return JSONResponse({"reply": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
-    user_message = data.get("message", "")
-    project_id = data.get("id", "")
-    tier = int(data.get("tier", 1))
-    
-    if not user_message:
-        return JSONResponse({"reply": "Vui lòng nhập nội dung trao đổi với Đạo diễn ảo!"})
+    user_message, project_id, tier = data.get("message", ""), data.get("id", ""), int(data.get("tier", 1))
+    if not user_message: return JSONResponse({"reply": "Vui lòng nhập nội dung!"})
     
     if tier == 1:
-        projects = get_user_projects(username)
-        target_project = next((p for p in projects if p.get("id") == project_id), None)
-        
-        current_slots = target_project["ideation_core"].get("ideation_slots", {}) if target_project else {}
+        target_payload = get_project_latest_leaf(project_id)
+        current_slots = target_payload["ideation_core"].get("ideation_slots", {}) if target_payload else {}
         system_persona = (
-            "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 6.8.8 trong không gian 'Ươm mầm ý tưởng'.\n"
-            "Nhiệm vụ tối thượng: Thấu cảm sâu sắc 'vân tâm hồn' (Soul Fingerprint) của user — bao gồm trạng thái cảm xúc tức thời, môi trường xung quanh và bản sắc độc bản của họ.\n"
-            "Hãy dẫn dắt user qua 3 tầng khảo sát tâm lý để trích xuất các biến số điện ảnh:\n"
-            "1. ATMOSPHERE (Không gian, màu sắc, thời tiết, âm thanh thực tại đang bao trùm user)\n"
-            "2. CORE_WOUND (Vết thương lòng hoặc nỗi trăn trở nội tâm sâu kín nhất)\n"
-            "3. TRIGGER_PROP (Đạo cụ định mệnh, vật thể hữu hình neo giữ ký ức)\n"
-            "4. DILEMMA (Điểm xoay chuyển sinh tử, lựa chọn không có đáp án hoàn hảo)\n"
-            "5. CATHARSIS (Hồi kết hướng tới sự chữa lành hoặc giải thoát cảm xúc)\n\n"
-            f"Các Slots hiện có của dự án: {json.dumps(current_slots, ensure_ascii=False)}\n"
-            "Quy tắc phản hồi: Trả về DUY NHẤT một chuỗi JSON thuần hợp lệ (không kèm markdown):\n"
-            "{\n"
-            '  "message": "Câu nói tâm tình chạm cảm xúc, phản ánh đúng tần số vân tâm hồn của user (1-2 câu)",\n'
-            '  "extracted_slots": {"TÊN_SLOT": "Giá trị trích xuất độc bản"},\n'
-            '  "quick_chips": ["Lựa chọn cảm xúc 1", "Lựa chọn cảm xúc 2", "Lựa chọn cảm xúc 3"],\n'
-            '  "is_ready_for_script": true/false\n'
-            "}"
+            "Bạn là Đạo diễn ảo thấu cảm Cine AI 7.1.\n"
+            "Nhiệm vụ: Trích xuất ATMOSPHERE, CORE_WOUND, TRIGGER_PROP, DILEMMA, CATHARSIS.\n"
+            f"Slots hiện có: {json.dumps(current_slots, ensure_ascii=False)}\n"
+            'Trả về JSON: {"message": "...", "extracted_slots": {"...": "..."}, "quick_chips": ["...", "...", "..."], "is_ready_for_script": true}'
         )
-        prompt = system_persona + f"\nUser vừa chia sẻ: {user_message}"
-        raw_res, err_msg = call_gemini_direct(prompt)
-        parsed = None
+        raw_res, err_msg = call_gemini_direct(system_persona + f"\nUser: {user_message}")
         if raw_res:
             try:
-                clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
-                parsed = json.loads(clean_json)
-            except Exception:
-                parsed = None
-        if parsed and isinstance(parsed, dict):
-            new_slots = parsed.get("extracted_slots", {})
-            if target_project and new_slots:
-                target_project["ideation_core"]["ideation_slots"].update(new_slots)
-                save_users()
-            return JSONResponse({
-                "reply": parsed.get("message", "Tôi cảm nhận rõ nhịp đập cảm xúc từ câu chuyện của bạn."),
-                "chips": parsed.get("quick_chips", ["Ký ức ùa về", "Một lối rẽ khác", "Khoảng lặng phía trước"]),
-                "ready": True
-            })
-        else:
-            return JSONResponse({
-                "reply": raw_res or f"⚠️ {err_msg}",
-                "chips": ["Tiếng mưa rơi trên mái tôn", "Căn phòng đêm tĩnh mịch", "Một lời xin lỗi muộn màng"],
-                "ready": True
-            })
+                parsed = json.loads(re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE))
+                if target_payload and parsed.get("extracted_slots"):
+                    target_payload["ideation_core"]["ideation_slots"].update(parsed["extracted_slots"])
+                    grow_new_leaf(username, project_id, target_payload)
+                return JSONResponse({"reply": parsed.get("message", ""), "chips": parsed.get("quick_chips", []), "ready": True})
+            except Exception: pass
+        return JSONResponse({"reply": raw_res or err_msg, "chips": [], "ready": True})
 
 
-
-
-
-
-
-
-    mode_instructions = {
-        2: "Khóa mẫu Thực thể Vạn Vật Hữu Linh, bối cảnh, đạo cụ và âm thanh Audiophile 3D.",
-        3: "Dựng cảnh & chia nhịp phim thành các Scene 30s-150s, ma trận 3 Hồi.",
-        4: "Render toàn tập, Alternate Takes, Timeline Rough-Cut và xuất file phụ đề .SRT."
-    }
-    system_persona = (
-        f"Bạn là Đạo diễn ảo của Cine AI Studio Pro 6.8.8. Trạng thái: {mode_instructions.get(tier, '')} "
-        "Hãy phản hồi ngắn gọn, sắc sảo, chuyên nghiệp."
-    )
-    reply_text, err_msg = call_gemini_direct(system_persona + f"\nÝ kiến: {user_message}")
-    return JSONResponse({"reply": reply_text or f"⚠️ {err_msg}", "chips": []})
-
-
-
-
-
-
+    mode_instructions = {2: "Khóa mẫu Thực thể", 3: "Dựng cảnh 3 Hồi", 4: "Render toàn tập"}
+    reply_text, err_msg = call_gemini_direct(f"Bạn là Đạo diễn ảo 7.1. Trạng thái: {mode_instructions.get(tier, '')}.\nUser: {user_message}")
+    return JSONResponse({"reply": reply_text or err_msg, "chips": []})
 
 
 @app.post("/api/cineai/generate-script-from-slots")
 async def generate_script_from_slots(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    if not username: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
-    project_id = data.get("id", "")
-    aspect_ratio = data.get("aspect_ratio", "16:9")
-    target_duration = data.get("target_duration", "45p")
-    
-    projects = get_user_projects(username)
-    target_project = next((p for p in projects if p.get("id") == project_id), None)
-                
-    slots = target_project["ideation_core"].get("ideation_slots", {}) if target_project else {}
-    slots_text = json.dumps(slots, ensure_ascii=False) if slots else "Ý tưởng tự do mang đậm dấu ấn tâm hồn."
+    project_id, aspect_ratio, target_duration = data.get("id", ""), data.get("aspect_ratio", "16:9"), data.get("target_duration", "45p")
+    target_payload = get_project_latest_leaf(project_id)
+    slots_text = json.dumps(target_payload["ideation_core"].get("ideation_slots", {}), ensure_ascii=False) if target_payload else "Tự do sáng tạo."
     
     prompt = (
-        "Bạn là Nhà biên kịch điện ảnh của Cine AI Studio Pro 6.8.8. Dựa tuyệt đối vào 'vân tâm hồn' (Soul Fingerprint) và các biến số tâm lý đã khai thác:\n"
-        f"{slots_text}\n"
-        f"Định dạng yêu cầu: Khung hình [{aspect_ratio}], Thời lượng [{target_duration}].\n"
-        "Hãy dệt nên một kịch bản 3 Hồi hoàn chỉnh mang màu sắc độc bản, giàu tính tự sự và chữa lành. Trả về DUY NHẤT một chuỗi JSON hợp lệ:\n"
-        "{\n"
-        '  "title": "Tên phim gợi ý đầy chất thơ",\n'
-        '  "header": "Thể loại: ... • Khung hình: ' + aspect_ratio + ' • Thời lượng: ' + target_duration + '",\n'
-        '  "story": "Nội dung câu chuyện 3 Hồi hoàn chỉnh (khoảng 600 - 1200 từ), phản ánh trọn vẹn tâm trạng, nhân vật chính, đạo cụ định mệnh và cao trào tâm lý."\n'
-        "}"
+        "Nhà biên kịch điện ảnh Cine AI 7.1. Dựa vào Soul Fingerprint:\n"
+        f"{slots_text}\nĐịnh dạng: {aspect_ratio}, Thời lượng: {target_duration}.\n"
+        'Trả về JSON: {"title": "...", "header": "...", "story": "Kịch bản 3 hồi..."}'
     )
     raw_res, err = call_gemini_direct(prompt)
-    if not raw_res:
-        return JSONResponse({"status": "error", "message": f"⚠️ {err}"}, status_code=500)
-        
+    if not raw_res: return JSONResponse({"status": "error", "message": f"⚠️ {err}"}, status_code=500)
     try:
-        clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
-        res_data = json.loads(clean_json)
-    except Exception:
-        fallback_title = target_project["metadata"].get("title", "Dự án mới") if target_project else "Dự án mới"
-        res_data = {
-            "title": fallback_title,
-            "header": f"Thể loại: Tâm lý điện ảnh • {aspect_ratio} • {target_duration}",
-            "story": raw_res
-        }
-        
-    if target_project:
-        target_project["metadata"]["title"] = res_data.get("title", target_project["metadata"].get("title"))
-        target_project["metadata"]["header"] = res_data.get("header", "")
-        target_project["ideation_core"]["project_raw_story"] = res_data.get("story", "")
-        target_project["metadata"]["aspect_ratio"] = aspect_ratio
-        target_project["metadata"]["target_duration"] = target_duration
-        save_users()
-        
-    return JSONResponse({"status": "success", "data": res_data})
+        res_data = json.loads(re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE))
+        if target_payload:
+            target_payload["metadata"]["title"] = res_data.get("title", "Dự án mới")
+            target_payload["metadata"]["header"] = res_data.get("header", "")
+            target_payload["ideation_core"]["project_raw_story"] = res_data.get("story", "")
+            grow_new_leaf(username, project_id, target_payload)
+        return JSONResponse({"status": "success", "data": res_data})
+    except Exception as e: return JSONResponse({"status": "error", "message": "Lỗi phân giải kịch bản."}, status_code=500)
+
+
 @app.post("/api/cineai/breakdown-scenes-enterprise")
 async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
+    if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
     data = await request.json()
     project_id = data.get("id", "")
+    target_payload = get_project_latest_leaf(project_id)
+    raw_story = target_payload["ideation_core"].get("project_raw_story", "") if target_payload else ""
+    if not raw_story: return JSONResponse({"reply": "⚠️ Kịch bản trống!"}, status_code=400)
     
-    projects = get_user_projects(username)
-    target_project = next((p for p in projects if p.get("id") == project_id), None)
-    
-    raw_story = target_project["ideation_core"].get("project_raw_story", "") if target_project else ""
-                    
-    if not raw_story:
-        return JSONResponse({"reply": "⚠️ Chưa có nội dung kịch bản thô. Vui lòng hoàn thiện kịch bản tại Tầng 1!"}, status_code=400)
-    
-    pro_prompt = (
-        "Bạn là Tổng đạo diễn của Cine AI Studio Pro 6.8.8 Enterprise. Hãy phân tích kịch bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ, "
-        "được chia theo cấu trúc 3 Hồi (Act I, Act II, Act III). Mỗi cảnh 30s-150s và gắn Master Schema Tokens.\n\n"
-        f"Kịch bản gốc:\n{raw_story}"
-    )
-    
-    raw_res, err_msg = call_gemini_direct(pro_prompt)
-    parsed_scenes = None
+    raw_res, _ = call_gemini_direct(f"Phân tích kịch bản thành Scene 30s-150s, 3 Hồi. Trả về JSON chuẩn:\n{raw_story}")
+    parsed_scenes = {"acts": [{"act_name": "Act I", "scenes": [{"scene_id": 1, "title": "Cảnh 1", "duration_sec": 60, "summary": "N/A"}]}]}
     if raw_res:
-        try:
-            clean_json_str = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
-            parsed_scenes = json.loads(clean_json_str)
-        except Exception:
-            pass
+        try: parsed_scenes = json.loads(re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE))
+        except Exception: pass
 
 
-
-
-
-
-
-
-    if not parsed_scenes:
-        parsed_scenes = {"acts": [{"act_name": "Act I", "scenes": [{"scene_id": 1, "title": "Cảnh khởi đầu", "duration_sec": 60, "summary": "Khởi động mạch phim.", "lock_tokens": {"face_id": "CHAR_DEFAULT", "costume": "COSTUME_DEFAULT", "landscape": "LOC_DEFAULT", "color_grading": "CINEMATIC_LUT"}}]}]}
-
-
-
-
-
-
-
-
-    total_duration = 0
-    act_durations = {"Act I": 0, "Act II": 0, "Act III": 0}
-    if isinstance(parsed_scenes, dict) and "acts" in parsed_scenes:
+    total_dur, act_durs = 0, {}
+    if "acts" in parsed_scenes:
         for act in parsed_scenes["acts"]:
             act_name = act.get("act_name", "Act I")
             for sc in act.get("scenes", []):
                 dur = sc.get("duration_sec", 60)
-                total_duration += dur
-                act_durations[act_name] = act_durations.get(act_name, 0) + dur
-
-
-
-
-
-
+                total_dur += dur
+                act_durs[act_name] = act_durs.get(act_name, 0) + dur
 
 
     structured_data = {
-        "schema_version": "6.8.8-Enterprise",
-        "routing_model": "gemini-flash",
-        "self_healing_applied": True,
-        "pacing_metrics": {"total_duration_sec": total_duration, "act_breakdown": act_durations},
-        "scenes_data": parsed_scenes,
-        "alternate_takes": {},
-        "active_takes": {},
-        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "schema_version": "7.1-Enterprise", "pacing_metrics": {"total_duration_sec": total_dur, "act_breakdown": act_durs},
+        "scenes_data": parsed_scenes, "alternate_takes": {}, "active_takes": {}, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
-    
-    if target_project:
-        target_project["master_schema"]["scene_breakdown_enterprise"] = structured_data
-        target_project["metadata"]["highest_tier"] = max(target_project["metadata"].get("highest_tier", 1), 3)
-        target_project["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        save_users()
+    if target_payload:
+        target_payload["master_schema"]["scene_breakdown_enterprise"] = structured_data
+        target_payload["metadata"]["highest_tier"] = max(target_payload["metadata"].get("highest_tier", 1), 3)
+        grow_new_leaf(username, project_id, target_payload)
+    return JSONResponse({"status": "success", "message": "🌟 Đã dựng cảnh Enterprise!", "metrics": structured_data["pacing_metrics"], "data": parsed_scenes})
+
+
+async def async_render_background_worker(username, project_id, scene_id):
+    target_payload = get_project_latest_leaf(project_id)
+    if target_payload:
+        enterprise_data = target_payload["master_schema"].setdefault("scene_breakdown_enterprise", {})
+        alternate_takes = enterprise_data.setdefault("alternate_takes", {})
+        scene_key = f"scene_{scene_id}"
+        current_takes = alternate_takes.setdefault(scene_key, [])
+        new_take_id = len(current_takes) + 1
         
-    return JSONResponse({
-        "status": "success",
-        "message": "🌟 Đã dựng cảnh & chia nhịp phim cấp độ Enterprise 6.8.8!",
-        "metrics": structured_data["pacing_metrics"],
-        "data": parsed_scenes
-    })
+        current_takes.append({
+            "take_id": new_take_id, "status": "rendered_success_async",
+            "media_url": f"https://cdn.cineai.studio/renders/{project_id}_s{scene_id}_take{new_take_id}.mp4",
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        target_payload["metadata"]["highest_tier"] = max(target_payload["metadata"].get("highest_tier", 1), 4)
+        grow_new_leaf(username, project_id, target_payload)
 
 
-
-
-
-
-
-
-async def async_render_background_worker(username, project_id, scene_id, render_cost):
-    print(f"🔄 [BACKGROUND JOB STARTED]: Đang render ngầm phân cảnh {scene_id} cho dự án '{project_id}' của user '{username}'...")
-    user_data = USERS_DB.get(username, {})
-    if "projects" in user_data:
-        for p in user_data["projects"]:
-            if p.get("id") == project_id:
-                enterprise_data = p["master_schema"].get("scene_breakdown_enterprise", {})
-                if "alternate_takes" not in enterprise_data:
-                    enterprise_data["alternate_takes"] = {}
-                scene_key = f"scene_{scene_id}"
-                if scene_key not in enterprise_data["alternate_takes"]:
-                    enterprise_data["alternate_takes"][scene_key] = []
-                current_takes = enterprise_data["alternate_takes"][scene_key]
-                new_take_id = len(current_takes) + 1
-                
-                new_take_object = {
-                    "take_id": new_take_id,
-                    "status": "rendered_success_async",
-                    "media_url": f"https://cdn.cineai.studio/renders/{project_id}_s{scene_id}_take{new_take_id}.mp4",
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                current_takes.append(new_take_object)
-                p["metadata"]["highest_tier"] = max(p["metadata"].get("highest_tier", 1), 4)
-                save_users()
-                print(f"✅ [BACKGROUND JOB COMPLETED]: Đã hoàn tất render ngầm Scene {scene_id} - Take {new_take_id} cho ID {project_id}!")
-                break
 @app.post("/api/cineai/render-scene-take")
 async def render_scene_take(request: Request, background_tasks: BackgroundTasks, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    if not username: return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     
-    user_data = USERS_DB.get(username, {})
-    current_credits = user_data.get("credits", 10)
+    profile = get_user_profile_leaf(username)
+    current_credits = profile.get("credits", 10)
     render_cost = 5
     if current_credits < render_cost:
-        return JSONResponse({"status": "payment_required", "message": f"⚠️ Số dư Credit không đủ ({current_credits}/{render_cost} credit). Vui lòng nạp thêm qua menu Avatar để tiếp tục render!"}, status_code=402)
+        return JSONResponse({"status": "payment_required", "message": "⚠️ Số dư Credit không đủ!"}, status_code=402)
     
     data = await request.json()
-    project_id = data.get("id", "")
-    scene_id = data.get("scene_id", 1)
+    project_id, scene_id = data.get("id", ""), data.get("scene_id", 1)
     
-    user_data["credits"] = current_credits - render_cost
-    save_users()
-
-
-
-
-
-
-
-
-    background_tasks.add_task(async_render_background_worker, username, project_id, scene_id, render_cost)
-
-
-
-
-
-
-
-
-    return JSONResponse({
-        "status": "success",
-        "message": f"🎬 Đã đưa Phân cảnh {scene_id} vào hàng đợi xử lý ngầm (Async Queue)! Đã trừ {render_cost} credit.",
-        "remaining_credits": user_data["credits"]
-    })
-
-
-
-
-
-
+    profile["credits"] = current_credits - render_cost
+    save_user_profile_leaf(username, profile)
+    
+    background_tasks.add_task(async_render_background_worker, username, project_id, scene_id)
+    return JSONResponse({"status": "success", "message": f"🎬 Đã đưa Phân cảnh {scene_id} vào Render Queue!", "remaining_credits": profile["credits"]})
 
 
 @app.post("/api/cineai/set-active-take")
 async def set_active_take(request: Request, session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
+    if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
     data = await request.json()
-    project_id = data.get("id", "")
-    scene_id = data.get("scene_id", 1)
-    selected_take_id = data.get("take_id", 1)
-    
-    projects = get_user_projects(username)
-    project_data = next((p for p in projects if p.get("id") == project_id), None)
-    if not project_data:
-        return JSONResponse({"reply": "⚠️ Không tìm thấy dự án!"}, status_code=404)
+    project_id, scene_id, selected_take_id = data.get("id", ""), data.get("scene_id", 1), data.get("take_id", 1)
+    target_payload = get_project_latest_leaf(project_id)
+    if not target_payload: return JSONResponse({"reply": "⚠️ Lỗi dự án!"}, status_code=404)
         
-    enterprise_data = project_data["master_schema"].get("scene_breakdown_enterprise", {})
-    scene_key = f"scene_{scene_id}"
-    if "active_takes" not in enterprise_data:
-        enterprise_data["active_takes"] = {}
-    enterprise_data["active_takes"][scene_key] = selected_take_id
-    save_users()
-    return JSONResponse({
-        "status": "success",
-        "message": f"🎯 Đã chọn Take {selected_take_id} làm phiên bản chính thức cho Phân cảnh {scene_id}!",
-        "active_takes": enterprise_data["active_takes"]
-    })
-
-
-
-
-
-
+    enterprise_data = target_payload["master_schema"].setdefault("scene_breakdown_enterprise", {})
+    enterprise_data.setdefault("active_takes", {})[f"scene_{scene_id}"] = selected_take_id
+    grow_new_leaf(username, project_id, target_payload)
+    return JSONResponse({"status": "success", "message": "🎯 Đã chọn Take chính thức!"})
 
 
 @app.get("/api/cineai/get-rough-cut")
 async def get_rough_cut(id: str = "", session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    projects = get_user_projects(username)
-    project_data = next((p for p in projects if p.get("id") == id), None)
-    if not project_data:
-        return JSONResponse({"reply": "⚠️ Không tìm thấy dự án!"}, status_code=404)
+    if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
+    target_payload = get_project_latest_leaf(id)
+    if not target_payload: return JSONResponse({"reply": "Lỗi dự án!"}, status_code=404)
         
-    enterprise_data = project_data["master_schema"].get("scene_breakdown_enterprise", {})
-    scenes_json = enterprise_data.get("scenes_data", {})
-    active_takes = enterprise_data.get("active_takes", {})
-    alternate_takes = enterprise_data.get("alternate_takes", {})
-    rough_cut_timeline = []
-    total_duration = 0
+    enterprise_data = target_payload["master_schema"].get("scene_breakdown_enterprise", {})
+    scenes_json, active_takes, alternate_takes = enterprise_data.get("scenes_data", {}), enterprise_data.get("active_takes", {}), enterprise_data.get("alternate_takes", {})
+    rough_cut_timeline, total_duration = [], 0
     
     if "acts" in scenes_json:
         for act in scenes_json["acts"]:
             act_name = act.get("act_name", "Act I")
             for sc in act.get("scenes", []):
-                s_id = sc.get("scene_id")
-                s_key = f"scene_{s_id}"
-                chosen_take_id = active_takes.get(s_key, 1)
-                take_info = None
-                if s_key in alternate_takes:
-                    for t in alternate_takes[s_key]:
-                        if t.get("take_id") == chosen_take_id:
-                            take_info = t
-                            break
+                s_id, dur = sc.get("scene_id"), sc.get("duration_sec", 60)
+                s_key, chosen_take_id = f"scene_{s_id}", active_takes.get(f"scene_{s_id}", 1)
+                take_info = next((t for t in alternate_takes.get(s_key, []) if t.get("take_id") == chosen_take_id), None)
                 rough_cut_timeline.append({
-                    "act": act_name,
-                    "scene_id": s_id,
-                    "title": sc.get("title"),
-                    "duration_sec": sc.get("duration_sec", 60),
-                    "active_take_id": chosen_take_id,
-                    "media_url": take_info.get("media_url") if take_info else "Chưa render take"
+                    "act": act_name, "scene_id": s_id, "title": sc.get("title"),
+                    "duration_sec": dur, "active_take_id": chosen_take_id, "media_url": take_info.get("media_url") if take_info else "Chưa render"
                 })
-                total_duration += sc.get("duration_sec", 60)
+                total_duration += dur
                 
-    project_data["post_production"]["rough_cut_playlist"] = rough_cut_timeline
-    save_users()
+    target_payload["post_production"]["rough_cut_playlist"] = rough_cut_timeline
+    grow_new_leaf(username, id, target_payload)
+    return JSONResponse({"status": "success", "total_timeline_duration_sec": total_duration, "rough_cut_playlist": rough_cut_timeline})
 
 
-
-
-
-
-
-
-    return JSONResponse({
-        "status": "success",
-        "total_timeline_duration_sec": total_duration,
-        "rough_cut_playlist": rough_cut_timeline
-    })
 @app.get("/api/cineai/export-srt")
 async def export_srt_subtitles(id: str = "", session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    projects = get_user_projects(username)
-    project_data = next((p for p in projects if p.get("id") == id), None)
-    if not project_data:
-        return JSONResponse({"reply": "⚠️ Không tìm thấy dự án!"}, status_code=404)
+    if not username: return JSONResponse({"message": "⚠️ Hết hạn!"}, status_code=401)
+    target_payload = get_project_latest_leaf(id)
+    if not target_payload: return JSONResponse({"reply": "Lỗi dự án!"}, status_code=404)
         
-    enterprise_data = project_data["master_schema"].get("scene_breakdown_enterprise", {})
-    scenes_json = enterprise_data.get("scenes_data", {})
-    srt_content = ""
-    current_time = 0.0
-    idx = 1
-    
-    def format_time(sec):
-        h = int(sec // 3600)
-        m = int((sec % 3600) // 60)
-        s = int(sec % 60)
-        ms = int((sec - int(sec)) * 1000)
-        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-
-
-
-
-
-
-
+    scenes_json = target_payload["master_schema"].get("scene_breakdown_enterprise", {}).get("scenes_data", {})
+    srt_content, current_time, idx = "", 0.0, 1
+    def format_time(sec): return f"{int(sec//3600):02d}:{int((sec%3600)//60):02d}:{int(sec%60):02d},{int((sec-int(sec))*1000):03d}"
     if "acts" in scenes_json:
         for act in scenes_json["acts"]:
             for sc in act.get("scenes", []):
                 dur = float(sc.get("duration_sec", 60))
-                summary = sc.get("summary", "")
-                srt_content += f"{idx}\n{format_time(current_time)} --> {format_time(current_time + dur)}\n[Lip-Sync] {summary}\n\n"
+                srt_content += f"{idx}\n{format_time(current_time)} --> {format_time(current_time + dur)}\n[Lip-Sync] {sc.get('summary', '')}\n\n"
                 current_time += dur
                 idx += 1
-                
-    project_data["post_production"]["subtitles_srt"] = srt_content
-    save_users()
-
-
-
-
-
-
-
-
+    target_payload["post_production"]["subtitles_srt"] = srt_content
+    grow_new_leaf(username, id, target_payload)
     return JSONResponse({"status": "success", "srt_format": srt_content})
-
-
-
-
-
-
 
 
 @app.post("/api/payments/webhook")
 async def sepay_payment_webhook(request: Request):
     try:
         data = await request.json()
-        content = data.get("content", "")
-        transfer_amount = int(data.get("transferAmount", 0))
+        content, transfer_amount = data.get("content", ""), int(data.get("transferAmount", 0))
         match = re.search(r"NAPCREDIT\s+([a-zA-Z0-9_-]+)", content, re.IGNORECASE)
-        if match and match.group(1) in USERS_DB:
+        if match:
             target_username = match.group(1)
-            credits_to_add = int(transfer_amount / 1000)
-            USERS_DB[target_username]["credits"] = USERS_DB[target_username].get("credits", 0) + credits_to_add
-            save_users()
-            return JSONResponse({"success": True, "message": f"Đã cộng {credits_to_add} credit cho user {target_username}"})
-        return JSONResponse({"success": False, "message": "Không khớp cú pháp nạp tiền"})
-    except Exception as e:
-        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+            profile = get_user_profile_leaf(target_username)
+            if profile:
+                credits_to_add = int(transfer_amount / 1000)
+                profile["credits"] = profile.get("credits", 0) + credits_to_add
+                save_user_profile_leaf(target_username, profile)
+                return JSONResponse({"success": True, "message": f"Cộng {credits_to_add} C cho {target_username}"})
+        return JSONResponse({"success": False, "message": "Sai cú pháp"})
+    except Exception as e: return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+def get_studio_html(target_project, user_credits, active_tier, highest_tier, username):
+    p_id = target_project.get("id", "") if target_project else ""
+    p_title = target_project["metadata"]["title"] if target_project else "Dự án mới"
+    p_header = target_project["metadata"]["header"] if target_project else ""
+    p_story = target_project["ideation_core"]["project_raw_story"] if target_project else ""
 
 
+    def gtc(idx): return "bg-amber-500 text-slate-950 pointer-events-none" if idx == active_tier else ("bg-slate-800 text-slate-200 hover:bg-slate-700" if idx <= highest_tier else "bg-slate-950 text-slate-600 pointer-events-none opacity-40")
+    t1_cls, t2_cls, t3_cls, t4_cls = gtc(1), gtc(2), gtc(3), gtc(4)
+    t1_vis, t2_vis, t3_vis, t4_vis = ("block" if active_tier==1 else "hidden"), ("block" if active_tier==2 else "hidden"), ("block" if active_tier==3 else "hidden"), ("block" if active_tier==4 else "hidden")
+    
+    tokens_html = ""
+    if target_project:
+        for vt in target_project["master_schema"]["token_registry"].get("visual_tokens", []): tokens_html += f'<span class="bg-indigo-950 border border-indigo-800 text-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold">🖼️ {vt.get("token_id")}</span> '
+        for at in target_project["master_schema"]["token_registry"].get("audio_tokens", []): tokens_html += f'<span class="bg-emerald-950 border border-emerald-800 text-emerald-300 text-[10px] px-2 py-0.5 rounded-full font-bold">🎵 {at.get("token_id")}</span> '
 
 
-
-
-
-
-@app.post("/api/payments/stripe-webhook")
-async def stripe_payment_webhook(request: Request):
-    try:
-        event_data = await request.json()
-        if event_data.get("type") == "payment_intent.succeeded":
-            intent = event_data.get("data", {}).get("object", {})
-            metadata = intent.get("metadata", {})
-            target_username = metadata.get("username")
-            amount_received = int(intent.get("amount_received", 0))
-            if target_username and target_username in USERS_DB:
-                credits_to_add = int(amount_received / 100 * 10)
-                USERS_DB[target_username]["credits"] = USERS_DB[target_username].get("credits", 0) + credits_to_add
-                save_users()
-                return JSONResponse({"status": "success", "message": f"Đã cộng {credits_to_add} credit qua Apple/Google Pay for user {target_username}"})
-        return JSONResponse({"status": "ignored"})
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
-def get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, username):
-    def get_tier_classes(idx):
-        if idx == active_tier:
-            return "bg-amber-500 text-slate-950 shadow-md pointer-events-none"
-        if idx <= highest_tier:
-            return "bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer"
-        return "bg-slate-950 text-slate-600 pointer-events-none opacity-40"
-
-
-
-
-
-
-
-
-    t1_cls = get_tier_classes(1)
-    t2_cls = get_tier_classes(2)
-    t3_cls = get_tier_classes(3)
-    t4_cls = get_tier_classes(4)
-    t1_vis = "block" if active_tier == 1 else "hidden"
-    t2_vis = "block" if active_tier == 2 else "hidden"
-    t3_vis = "block" if active_tier == 3 else "hidden"
-    t4_vis = "block" if active_tier == 4 else "hidden"
-    enc_id = target_project.get("id", "")
-
-
-
-
-
-
-    tmpl = """
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 6.8.8 Enterprise</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
+    tmpl = f"""
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cine AI Studio Pro 7.1 Immortal Tree</title><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-24">
         <div class="max-w-4xl mx-auto space-y-3">
-            
-            <!-- HEADER DÒNG 1: LOGO & AVATAR CÁ NHÂN TÍCH HỢP NẠP CREDIT -->
             <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative">
-                <div class="flex items-center gap-2">
-                    <span class="text-xl">🎬</span>
-                    <h1 class="text-sm sm:text-base font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 6.8.8</h1>
-                </div>
-                
-                <div class="relative">
-                    <button onclick="toggleProfileMenu()" class="w-9 h-9 rounded-full bg-slate-800 border-2 border-amber-400/80 flex items-center justify-center hover:bg-slate-700 transition shadow">
-                        <span class="text-sm">👤</span>
-                    </button>
-                    <!-- DROPDOWN MENU TÍCH HỢP NẠP CREDIT -->
-                    <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-2xl z-50 space-y-2.5">
-                        <div class="border-b border-slate-800 pb-2">
-                            <p class="text-xs font-bold text-slate-200">USER_NAME_VAL</p>
-                            <p class="text-[11px] text-emerald-400 font-bold mt-0.5">💰 Số dư: USER_CREDITS_VAL Credit</p>
-                        </div>
-                        <button onclick="openTopUpModal()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1">
-                            💳 Nạp Thêm Credit
-                        </button>
-                        <a href="/logout" class="block w-full text-center bg-rose-950/80 hover:bg-rose-900 border border-rose-800/80 text-rose-200 py-1.5 rounded-xl text-xs font-bold transition">Đăng Xuất</a>
+                <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-sm sm:text-base font-black text-amber-400 uppercase">Cine AI Studio Pro 7.1</h1></div>
+                <div class="relative"><button onclick="document.getElementById('profile-dropdown').classList.toggle('hidden')" class="w-9 h-9 rounded-full bg-slate-800 border-2 border-amber-400 flex items-center justify-center hover:bg-slate-700">👤</button>
+                    <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-2xl z-50">
+                        <p class="text-xs font-bold text-slate-200">{username}</p>
+                        <p class="text-[11px] text-emerald-400 font-bold mb-2">💰 Số dư: {user_credits} Credit</p>
+                        <button onclick="document.getElementById('topup-modal').classList.remove('hidden'); document.getElementById('profile-dropdown').classList.add('hidden');" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 rounded-xl text-xs mb-2">💳 Nạp Thêm Credit</button>
+                        <a href="/logout" class="block w-full text-center bg-rose-950 hover:bg-rose-900 text-rose-200 py-1.5 rounded-xl text-xs font-bold">Đăng Xuất</a>
                     </div>
                 </div>
             </div>
 
 
-
-
-
-
-
-
-            <!-- THANH HIỂN THỊ TÊN DỰ ÁN TOÀN CỤC (GLOBAL PROJECT CONTEXT BANNER) -->
-            <div class="bg-slate-900/90 border border-amber-500/30 p-3 rounded-2xl flex items-center justify-between shadow-lg">
-                <div class="flex items-center gap-2 overflow-hidden">
-                    <span class="text-amber-400 text-xs sm:text-sm whitespace-nowrap">🎞️ Dự án hiện hành:</span>
-                    <span id="global-project-title-display" class="text-amber-300 font-black text-xs sm:text-sm truncate">PROJECT_TITLE_VAL</span>
-                </div>
-                <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-bold border border-amber-500/20 whitespace-nowrap">Tầng ACTIVE_TIER_VAL</span>
+            <div class="bg-slate-900/90 border border-amber-500/30 p-3 rounded-2xl flex justify-between shadow-lg items-center">
+                <div class="flex items-center gap-2"><span class="text-amber-400 text-xs">🎞️ Dự án hiện hành:</span><span id="global-project-title-display" class="text-amber-300 font-black text-xs truncate max-w-[150px]">{p_title}</span></div>
+                <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-bold border border-amber-500/20">Tầng {active_tier}</span>
             </div>
 
 
-
-
-
-
-
-
-            <!-- HEADER DÒNG 2: 3 NÚT TIỆN ÍCH (+ DỰ ÁN MỚI, THƯ VIỆN, TRỢ LÝ ẢO) -->
             <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                <a href="/?new_project=1" class="bg-amber-500 hover:bg-amber-400 text-slate-950 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">➕ Dự Án Mới</a>
-                <a href="/library" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">📁 Thư Viện</a>
-                <button onclick="openDrawer('chat')" class="bg-indigo-600/80 hover:bg-indigo-600 text-white py-2 rounded-xl transition shadow flex items-center justify-center gap-1">🤖 Trợ Lý Ảo</button>
+                <a href="/?new_project=1" class="bg-amber-500 text-slate-950 py-2 rounded-xl flex items-center justify-center">➕ Dự Án Mới</a>
+                <a href="/library" class="bg-slate-900 border border-slate-800 text-slate-200 py-2 rounded-xl flex items-center justify-center">📁 Thư Viện</a>
+                <button onclick="openDrawer('chat')" class="bg-indigo-600 text-white py-2 rounded-xl flex items-center justify-center">🤖 Trợ Lý Ảo</button>
             </div>
 
 
-
-
-
-
-
-
-            <!-- HEADER DÒNG 3: BREADCRUMB 4 TẦNG TRUY VẾT BẰNG ID -->
-            <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-[10px] sm:text-xs font-bold">
-                <a href="/?load_id=ENC_ID_VAL&tier=1" class="py-2 rounded-xl transition T1_CLS_VAL">1. Kịch Bản</a>
-                <a href="/?load_id=ENC_ID_VAL&tier=2" class="py-2 rounded-xl transition T2_CLS_VAL">2. Casting & Đạo cụ</a>
-                <a href="/?load_id=ENC_ID_VAL&tier=3" class="py-2 rounded-xl transition T3_CLS_VAL">3. Dựng cảnh & nhịp</a>
-                <a href="/?load_id=ENC_ID_VAL&tier=4" class="py-2 rounded-xl transition T4_CLS_VAL">4. Render</a>
+            <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-[10px] font-bold mt-3">
+                <a href="/?load_id={p_id}&tier=1" class="py-2 rounded-xl {t1_cls}">1. Kịch Bản</a>
+                <a href="/?load_id={p_id}&tier=2" class="py-2 rounded-xl {t2_cls}">2. Casting & Đạo cụ</a>
+                <a href="/?load_id={p_id}&tier=3" class="py-2 rounded-xl {t3_cls}">3. Dựng cảnh</a>
+                <a href="/?load_id={p_id}&tier=4" class="py-2 rounded-xl {t4_cls}">4. Render</a>
             </div>
-
-
-
-
-
-
-
-
-            <!-- HEADER DÒNG 4: 2 THẺ TRIGGER TẦNG 1 (CÂU CHUYỆN CỦA BẠN & ƯƠM MẦM Ý TƯỞNG) -->
-            <div id="tier1-nav-switcher" class="T1_VIS_VAL grid grid-cols-2 gap-2">
-                <button onclick="openDrawer('script')" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 p-3.5 rounded-2xl text-left transition shadow flex items-center justify-between group">
-                    <div>
-                        <span class="text-xs font-black text-slate-100 group-hover:text-amber-300">📜 Câu chuyện của bạn</span>
-                        <span class="text-[10px] text-slate-400 block mt-0.5">Đọc & chỉnh sửa kịch bản</span>
-                    </div>
-                    <span class="text-xs text-amber-400 font-bold">Mở ▼</span>
-                </button>
-                <button onclick="openDrawer('chat')" class="bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/60 p-3.5 rounded-2xl text-left transition shadow flex items-center justify-between group">
-                    <div>
-                        <span class="text-xs font-black text-indigo-200 group-hover:text-white">✨ Ươm mầm ý tưởng</span>
-                        <span class="text-[10px] text-indigo-400 block mt-0.5">Trò chuyện cùng đạo diễn</span>
-                    </div>
-                    <span class="text-xs text-indigo-300 font-bold">Mở ▼</span>
-                </button>
-            </div>
-    """
-    tmpl = tmpl.replace("USER_NAME_VAL", username)
-    tmpl = tmpl.replace("USER_CREDITS_VAL", str(user_credits))
-    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"])
-    tmpl = tmpl.replace("ENC_ID_VAL", enc_id)
-    tmpl = tmpl.replace("ACTIVE_TIER_VAL", str(active_tier))
-    tmpl = tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls)
-    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis)
-    return tmpl, t1_vis, t2_vis, t3_vis, t4_vis
-def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, tokens_html):
-    tmpl = """
-            <!-- ===================== MÀN HÌNH TẦNG 1: DRAWER MODALS ===================== -->
-            <div id="screen-tier-1" class="T1_VIS_VAL space-y-3">
-                <div class="bg-slate-900 p-4 rounded-3xl border border-slate-800 text-center space-y-2">
-                    <h2 class="text-xs font-bold text-amber-400 uppercase">📽️ Không Gian Sáng Tạo Tầng 1</h2>
-                    <p class="text-[11px] text-slate-400 leading-tight">Chạm vào các thẻ ở phía trên để mở bảng tương tác "Câu chuyện của bạn" hoặc "Ươm mầm ý tưởng" dạng màn hình thu gọn.</p>
+            <!-- MÀN HÌNH TẦNG 1 -->
+            <div id="screen-tier-1" class="{t1_vis} space-y-3 mt-3">
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="openDrawer('script')" class="bg-slate-900 border border-slate-700 p-3.5 rounded-2xl text-left shadow"><span class="text-xs font-black text-slate-100">📜 Câu chuyện của bạn</span><span class="text-[10px] text-slate-400 block">Mở chỉnh sửa kịch bản</span></button>
+                    <button onclick="openDrawer('chat')" class="bg-indigo-950/40 border border-indigo-800/60 p-3.5 rounded-2xl text-left shadow"><span class="text-xs font-black text-indigo-200">✨ Ươm mầm ý tưởng</span><span class="text-[10px] text-indigo-400 block">Đạo diễn ảo AI</span></button>
                 </div>
+                <div class="bg-slate-900 p-4 rounded-3xl border border-slate-800 text-center"><h2 class="text-xs font-bold text-amber-400">📽️ Tầng 1: Không Gian Kịch Bản</h2><p class="text-[11px] text-slate-400 mt-2">Chạm vào các thẻ ở phía trên để thao tác.</p></div>
             </div>
 
 
-
-
-
-
-
-
-            <!-- DRAWER 1: CÂU CHUYỆN CỦA BẠN -->
+            <!-- DRAWER SCRIPT -->
             <div id="drawer-script" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
-                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl animate-in slide-in-from-bottom">
-                    <div class="flex justify-between items-center border-b border-slate-800 pb-2.5">
-                        <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">📜 Câu Chuyện Của Bạn</h3>
-                        <button onclick="saveAndCloseScriptDrawer()" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center hover:bg-slate-700">✕</button>
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Tên Dự Án Phim:</label>
-                        <input type="text" id="project-title" oninput="document.getElementById('global-project-title-display').innerText = this.value || 'Dự án mới'" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-amber-300 font-bold">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Đề Mục / Logline:</label>
-                        <input type="text" id="project-header" value="PROJECT_HEADER_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200">
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 bg-slate-950 p-2.5 rounded-2xl border border-slate-800">
-                        <div>
-                            <label class="block text-[10px] font-bold text-amber-400 uppercase mb-1">🎬 Khung Hình:</label>
-                            <select id="film-aspect-ratio" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200 font-semibold">
-                                <option value="16:9">16:9 • Điện Ảnh</option>
-                                <option value="9:16">9:16 • Dọc (Reels)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-amber-400 uppercase mb-1">⏱️ Thời Lượng:</label>
-                            <select id="film-duration" onchange="updateEstimateBadge()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200 font-semibold">
-                                <option value="45p">45 Phút (~30 cảnh)</option>
-                                <option value="15p">15 Phút (~10 cảnh)</option>
-                                <option value="3p">3 Phút (~3 cảnh)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="p-2.5 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
-                        <span class="text-[11px] text-slate-400 block font-semibold">Nạp tệp kịch bản (.txt, .md):</span>
-                        <div class="flex gap-2">
-                            <input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-xs text-slate-400 cursor-pointer">
-                            <button onclick="uploadStoryFile()" class="bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition">Nạp File</button>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nội Dung Kịch Bản:</label>
-                        <textarea id="project-story" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition leading-relaxed">PROJECT_STORY_VAL</textarea>
-                    </div>
-                    <button onclick="saveAndCloseScriptDrawer()" class="w-full bg-amber-500 text-slate-950 font-black py-3 rounded-xl text-xs shadow">💾 Lưu Lại & Thu Gọn</button>
+                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2"><h3 class="text-xs font-bold text-amber-400">📜 Kịch Bản</h3><button onclick="closeDrawer('script')" class="text-slate-300 font-bold">✕</button></div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Tên Dự Án Phim:</label>
+                    <input type="text" id="project-title" value="{p_title}" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-amber-300 font-bold">
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Đề Mục / Logline:</label>
+                    <input type="text" id="project-header" value="{p_header}" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200">
+                    <div class="flex gap-2 items-center mt-2"><input type="file" id="file-story" accept=".txt,.md" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-1.5 text-xs"><button onclick="uploadStoryFile()" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-bold">Nạp File</button></div>
+                    <textarea id="project-story" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 mt-2">{p_story}</textarea>
+                    <button onclick="saveAndCloseScriptDrawer()" class="w-full bg-amber-500 text-slate-950 font-black py-3 rounded-xl text-xs mt-2">💾 Lưu Lại & Thu Gọn</button>
                 </div>
             </div>
 
 
-
-
-
-
-
-
-            <!-- DRAWER 2: ƯƠM MẦM Ý TƯỞNG -->
+            <!-- DRAWER CHAT -->
             <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
-                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl animate-in slide-in-from-bottom">
+                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                        <span class="text-xs font-bold text-amber-400 uppercase">✨ Ươm Mầm Ý Tưởng</span>
-                        <div class="flex gap-2 items-center">
-                            <button onclick="autoGenerateScriptFromSlots()" class="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black px-3 py-1 rounded-xl text-[10px] shadow animate-pulse">🪄 Phù Phép Thành Kịch Bản</button>
-                            <button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center hover:bg-slate-700">✕</button>
-                        </div>
-                    </div>
-                    <div id="chat-box" class="bg-slate-950 h-52 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2 leading-relaxed">
-                        <p class="text-blue-200">Chào bạn! Hãy chia sẻ những rung động, bối cảnh hoặc cảm xúc đầu tiên để chúng ta cùng ươm mầm nên câu chuyện nhé.</p>
-                    </div>
-                    <div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-1">
-                        <button onclick="selectChip(this.innerText)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">Tiếng mưa rơi trên mái tôn</button>
-                        <button onclick="selectChip(this.innerText)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">Căn phòng đêm tĩnh mịch</button>
-                        <button onclick="focusCustomInput()" class="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2.5 py-1 rounded-xl text-[11px] font-bold transition">✍️ Lựa chọn khác...</button>
-                    </div>
-                    <div class="flex gap-2 pt-1">
-                        <input type="text" id="chat-input" placeholder="Nhập tâm sự hoặc chọn gợi ý..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 transition" onkeypress="if(event.key==='Enter') sendChat()">
-                        <button onclick="sendChat()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 rounded-xl font-bold text-xs text-white transition shadow">Gửi</button>
-                    </div>
-                </div>
-            </div>
-
-
-
-
-
-
-
-
-            <!-- ===================== MÀN HÌNH TẦNG 2: CASTING & ĐẠO CỤ ===================== -->
-            <div id="screen-tier-2" class="T2_VIS_VAL space-y-3">
-                <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                    <div class="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                        <span class="text-xs font-bold text-amber-400">✨ Ươm Mầm Ý Tưởng</span>
                         <div>
-                            <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">🎨 Tầng 2: Casting & Đạo Cụ</h2>
-                            <p class="text-[10px] text-slate-400">Khóa mẫu thực thể nhân vật, bối cảnh và đạo cụ định mệnh.</p>
-                        </div>
-                        <button onclick="runAuditAssets()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-xl text-[11px] transition shadow flex items-center gap-1">🔍 Quét Kịch Bản</button>
-                    </div>
-                    <div id="audit-checklist-tray" class="space-y-2 max-h-72 overflow-y-auto pr-1">
-                        <div class="text-center py-6 text-slate-500 text-xs">
-                            Bấm nút <b>"🔍 Quét Kịch Bản"</b> để AI trích xuất Casting và Đạo cụ!
+                            <button onclick="autoGenerateScriptFromSlots()" class="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black px-2 py-1 rounded-xl text-[10px] mr-2">🪄 Sinh Kịch Bản</button>
+                            <button onclick="closeDrawer('chat')" class="text-slate-300 font-bold">✕</button>
                         </div>
                     </div>
-                    <div class="p-2.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-1.5">
-                        <span class="text-[10px] font-bold text-slate-400 block uppercase">Kho Token Đã Khóa Của Dự Án:</span>
-                        <div id="tokens-tray" class="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">TOKENS_HTML_VAL</div>
-                    </div>
+                    <div id="chat-box" class="bg-slate-950 h-52 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2"><p class="text-blue-200">Chào bạn! Đạo diễn ảo 7.1 đã sẵn sàng.</p></div>
+                    <div class="flex gap-2 pt-1"><input type="text" id="chat-input" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs text-slate-100" placeholder="Trò chuyện..." onkeypress="if(event.key==='Enter') sendChat()"><button onclick="sendChat()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Gửi</button></div>
                 </div>
             </div>
 
 
-
-
-
-
-
-
-            <!-- ===================== MÀN HÌNH TẦNG 3: DỰNG CẢNH & CHIA NHỊP ===================== -->
-            <div id="screen-tier-3" class="T3_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">🎬 Tầng 3: Dựng Cảnh & Chia Nhịp Phim</h2>
-                <button onclick="runBreakdown()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded-2xl text-xs shadow-lg transition">🚀 Kích Hoạt AI Dựng Cảnh & Chia Nhịp</button>
-                <div id="breakdown-result" class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 max-h-40 overflow-y-auto">Chưa dựng cảnh. Hãy bấm nút phía trên.</div>
+            <!-- TẦNG 2 -->
+            <div id="screen-tier-2" class="{t2_vis} bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl mt-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                    <div><h2 class="text-xs font-bold text-amber-400">🎨 Tầng 2: Casting & Đạo Cụ</h2><p class="text-[10px] text-slate-400">Khóa mẫu thực thể.</p></div>
+                    <button onclick="runAuditAssets()" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl text-[11px] shadow">🔍 Quét Kịch Bản</button>
+                </div>
+                <div id="audit-checklist-tray" class="space-y-2 max-h-72 overflow-y-auto"><div class="text-center py-6 text-slate-500 text-xs">Bấm nút "🔍 Quét Kịch Bản" để AI trích xuất Casting và Đạo cụ!</div></div>
+                <div class="p-2.5 bg-slate-950/80 rounded-2xl border border-slate-800"><span class="text-[10px] font-bold text-slate-400 block uppercase mb-1">Kho Token Đã Khóa:</span><div id="tokens-tray" class="flex flex-wrap gap-1.5">{tokens_html or "<p class='text-slate-500 text-[11px] italic'>Chưa có token nào.</p>"}</div></div>
             </div>
 
 
+            <!-- TẦNG 3 -->
+            <div id="screen-tier-3" class="{t3_vis} bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl mt-3">
+                <h2 class="text-xs font-bold text-amber-400">🎬 Tầng 3: Dựng Cảnh & Chia Nhịp</h2>
+                <button onclick="runBreakdown()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3 rounded-2xl text-xs shadow-lg">🚀 Kích Hoạt AI Dựng Cảnh</button>
+                <div id="breakdown-result" class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 max-h-40 overflow-y-auto">Chưa dựng cảnh. Bấm kích hoạt phía trên.</div>
+            </div>
 
 
-
-
-
-
-            <!-- ===================== MÀN HÌNH TẦNG 4 ===================== -->
-            <div id="screen-tier-4" class="T4_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">🎞️ Tầng 4: Phòng Dựng & Render</h2>
-                <button onclick="renderScene(1)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-3 rounded-2xl text-xs shadow transition">🎬 Render Phân Cảnh Mẫu (5 C)</button>
-                <button onclick="fetchTimeline()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-2xl text-xs transition">🎞️ Xem Timeline Rough-Cut</button>
-                <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-2xl text-xs transition">📜 Xuất Phụ Đề .SRT</button>
+            <!-- TẦNG 4 -->
+            <div id="screen-tier-4" class="{t4_vis} bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl mt-3">
+                <h2 class="text-xs font-bold text-amber-400">🎞️ Tầng 4: Phòng Dựng & Render</h2>
+                <button onclick="renderScene(1)" class="w-full bg-emerald-600 text-slate-950 font-black py-3 rounded-2xl text-xs shadow">🎬 Gửi Render Scene (VEO 4K)</button>
+                <button onclick="fetchTimeline()" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-2xl text-xs">🎞️ Xem Timeline Rough-Cut</button>
+                <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-2xl text-xs">📜 Xuất Phụ Đề .SRT</button>
             </div>
         </div>
 
 
+        <!-- MODAL NẠP CREDIT -->
+        <div id="topup-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl max-w-md w-full space-y-4 shadow-2xl text-slate-100">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3"><h3 class="text-sm font-bold text-amber-400 uppercase">💳 Nạp Credit Vào Ví Sáng Tạo</h3><button onclick="document.getElementById('topup-modal').classList.add('hidden')" class="text-slate-400 font-bold">✕</button></div>
+                <div class="space-y-2.5 text-xs text-slate-300">
+                    <p class="font-semibold">Cổng Nội Địa (SePay & VietQR):</p>
+                    <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800">Chuyển khoản tự động. Cú pháp: <code class="text-amber-400">NAPCREDIT {username}</code> (1.000đ = 1 Credit).</div>
+                </div>
+            </div>
+        </div>
 
 
-
-
-
-
-        <!-- CỤM 2 NÚT HÀNH ĐỘNG CỐ ĐỊNH ĐÁY -->
-        <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40">
+        <!-- FIXED FOOTER -->
+        <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 p-3 z-40 border-t border-slate-800">
             <div class="max-w-4xl mx-auto flex gap-2">
-                <button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition shadow">💾 Cất Giữ Tâm Huyết</button>
-                <button onclick="proceedToTier(ACTIVE_TIER_VAL + 1)" class="w-2/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs transition shadow-lg uppercase tracking-wider">Bước vào thế giới phim ➔</button>
+                <button onclick="saveDraftCurrent({active_tier})" class="w-1/3 bg-slate-800 text-slate-200 font-bold py-3.5 rounded-2xl text-xs">💾 Lưu Thay Đổi</button>
+                <button onclick="proceedToTier({active_tier} + 1)" class="w-2/3 bg-amber-500 text-slate-950 font-black py-3.5 rounded-2xl text-xs">TIẾP THEO ➔</button>
             </div>
         </div>
     """
-    tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"])
-    tmpl = tmpl.replace("PROJECT_HEADER_VAL", target_project["metadata"]["header"])
-    tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
-    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
-    tmpl = tmpl.replace("TOKENS_HTML_VAL", tokens_html or "<p class='text-slate-500 text-[11px] italic'>Chưa có token nào.</p>")
     return tmpl
-def get_studio_javascript():
-    return """
+def get_studio_javascript(project_id, active_tier):
+    return f"""
         <script>
-            let currentActiveTier = """ + str(active_tier if 'active_tier' in locals() else 1) + """;
-            let currentProjectId = "` + target_project.get('id', '') + `";
-            let autoSaveTimer = null;
-
-
-
-
-
-
-
-
-            window.addEventListener('DOMContentLoaded', () => {
-                const localBackup = localStorage.getItem('cineai_backup_' + currentProjectId);
-                if (localBackup) {
-                    try {
-                        const parsed = JSON.parse(localBackup);
-                        const storyEl = document.getElementById('project-story');
-                        if (storyEl && !storyEl.value && parsed.story) {
-                            storyEl.value = parsed.story;
-                        }
-                    } catch(e) {}
-                }
-                
-                ['project-title', 'project-header', 'project-story'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        el.addEventListener('input', () => {
-                            triggerDebouncedAutoSave();
-                            backupToLocalStorage();
-                        });
-                    }
-                });
-            });
-
-
-
-
-
-
-
-
-            async function saveAndCloseScriptDrawer() {
-                await saveDraftCurrent(currentActiveTier);
-                closeDrawer('script');
-            }
-
-
-
-
-
-
-
-
-            function backupToLocalStorage() {
-                const title = document.getElementById('project-title')?.value || "Dự án mới";
-                const story = document.getElementById('project-story')?.value || "";
-                localStorage.setItem('cineai_backup_' + currentProjectId, JSON.stringify({title, story, time: new Date().toISOString()}));
-            }
-
-
-
-
-
-
-
-
-            function triggerDebouncedAutoSave() {
-                clearTimeout(autoSaveTimer);
-                autoSaveTimer = setTimeout(() => {
-                    silentAutoSave();
-                }, 3000);
-            }
-
-
-
-
-
-
-
-
-            async function silentAutoSave() {
-                const titleEl = document.getElementById('project-title');
-                const headerEl = document.getElementById('project-header');
-                const storyEl = document.getElementById('project-story');
-                const ratioEl = document.getElementById('film-aspect-ratio');
-                const durEl = document.getElementById('film-duration');
-
-
-
-
-
-
-
-
-                if(!titleEl) return;
-                const title = titleEl.value.trim();
-                const header = headerEl ? headerEl.value : "";
-                const story = storyEl ? storyEl.value : "";
-                const ratio = ratioEl ? ratioEl.value : "16:9";
-                const dur = durEl ? durEl.value : "45p";
-
-
-
-
-
-
-
-
-                try {
-                    await fetch('/api/cineai/save-draft', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({id: currentProjectId, title: title, header: header, story: story, aspect_ratio: ratio, target_duration: dur, tier: currentActiveTier})
-                    });
-                } catch(e) {
-                    console.log("Auto-save offline mode active");
-                }
-            }
-
-
-
-
-
-
-
-
-            function toggleProfileMenu() {
-                const m = document.getElementById('profile-dropdown');
-                if(m) m.classList.toggle('hidden');
-            }
-
-
-
-
-
-
-
-
-            function openDrawer(type) {
-                const el = document.getElementById('drawer-' + type);
-                if(el) el.classList.remove('hidden');
-            }
-
-
-
-
-
-
-
-
-            function closeDrawer(type) {
-                const el = document.getElementById('drawer-' + type);
-                if(el) el.classList.add('hidden');
-            }
-
-
-
-
-
-
-
-
-            function openTopUpModal() {
-                toggleProfileMenu();
-                let modal = document.getElementById('topup-modal');
-                if (!modal) {
-                    modal = document.createElement('div');
-                    modal.id = 'topup-modal';
-                    modal.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50';
-                    modal.innerHTML = `
-                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl max-w-md w-full space-y-4 shadow-2xl text-slate-100">
-                            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                                <h3 class="text-sm font-bold text-amber-400 uppercase">💳 Nạp Credit Vào Ví Sáng Tạo</h3>
-                                <button onclick="document.getElementById('topup-modal').remove()" class="text-slate-400 hover:text-slate-100 font-bold text-sm">✕</button>
-                            </div>
-                            <div class="space-y-2.5 text-xs text-slate-300">
-                                <p class="font-semibold text-slate-200">Chọn phương thức thanh toán nhanh:</p>
-                                <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
-                                    <div class="font-bold text-amber-300">🇻🇳 Cổng Nội Địa (SePay & VietQR):</div>
-                                    <p class="text-[11px] text-slate-400">Chuyển khoản ngân hàng tự động. Cú pháp: <code class="bg-slate-900 text-amber-400 px-1.5 py-0.5 rounded font-mono">NAPCREDIT TÊN_USER</code> (1.000đ = 1 Credit).</p>
-                                </div>
-                                <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
-                                    <div class="font-bold text-indigo-400">🌍 Quốc tế (Apple Pay / Google Pay):</div>
-                                    <p class="text-[11px] text-slate-400">Thanh toán tự động 1 chạm bảo mật qua Stripe Elements ($1 = 10 Credit).</p>
-                                </div>
-                            </div>
-                            <button onclick="document.getElementById('topup-modal').remove()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-xl text-xs transition">Đóng</button>
-                        </div>
-                    `;
-                    document.body.appendChild(modal);
-                }
-            }
-
-
-
-
-
-
-
-
-            function updateEstimateBadge() {
-                const durEl = document.getElementById('film-duration');
-                const badge = document.getElementById('cost-estimate-badge');
-                if(!durEl || !badge) return;
-                const dur = durEl.value;
-                if (dur === '45p') badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim 45 phút cần ~30 phân cảnh (ước tính ~150 Credit).';
-                else if (dur === '15p') badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim 15 phút cần ~10 phân cảnh (ước tính ~50 Credit).';
-                else badge.innerHTML = '💡 <b>Dự toán quy mô:</b> Phim ngắn 3 phút cần ~3 phân cảnh (ước tính ~15 Credit).';
-            }
-
-
-
-
-
-
-
-
-            function selectChip(text) {
-                const input = document.getElementById('chat-input');
-                if(input) input.value = text;
-                sendChat();
-            }
-
-
-
-
-
-
-
-
-            function focusCustomInput() {
-                const input = document.getElementById('chat-input');
-                if(input) {
-                    input.placeholder = "Nhập ý tưởng riêng của bạn...";
-                    input.focus();
-                }
-            }
-            async function runAuditAssets() {
-                const tray = document.getElementById('audit-checklist-tray');
-                tray.innerHTML = "<div class='text-center py-4 text-amber-400 text-xs animate-pulse'>⏳ Đang quét Casting & Đạo cụ...</div>";
-                try {
-                    const res = await fetch('/api/cineai/audit-script-assets', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({id: currentProjectId})
-                    });
-                    const d = await res.json();
-                    if(d.status === 'success') {
-                        renderAuditChecklist(d.audit_data);
-                    } else {
-                        tray.innerHTML = `<div class='text-rose-400 text-xs p-3 text-center'>${d.message}</div>`;
-                    }
-                } catch(e) {
-                    tray.innerHTML = "<div class='text-rose-400 text-xs p-3 text-center'>⚠️ Lỗi kết nối kiểm kê!</div>";
-                }
-            }
-
-
-
-
-
-
-
-
-            function renderAuditChecklist(audit) {
-                const tray = document.getElementById('audit-checklist-tray');
-                let html = '';
-                
-                if (audit.time_jumps_detected && audit.time_jumps_detected.length > 0) {
-                    html += `<div class="bg-indigo-950/40 p-2.5 rounded-xl border border-indigo-800/50 mb-2">
-                        <span class="text-[10px] font-bold text-indigo-300 uppercase block">⏳ Bước nhảy thời gian phát hiện:</span>
-                        <p class="text-[11px] text-slate-200 mt-0.5">${audit.time_jumps_detected.join(' • ')}</p>
-                    </div>`;
-                }
-
-
-
-
-
-
-
-
-                const renderCard = (item, catLabel, catType) => `
-                    <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <span class="text-[10px] font-bold bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-800/60">${catLabel}</span>
-                                <h4 class="text-xs font-black text-slate-100 mt-1">${item.name}</h4>
-                            </div>
-                            <span class="text-[10px] text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/60">⚠️ Chưa Khóa</span>
-                        </div>
-                        <p class="text-[11px] text-slate-400 leading-tight">${item.description || item.audio_signature || ''}</p>
-                        ${item.temporal_states ? `<p class='text-[10px] text-emerald-400'>🔄 Trạng thái thời gian: ${item.temporal_states.join(', ')}</p>` : ''}
-                        ${item.evolution_lineage ? `<p class='text-[10px] text-purple-400'>⚔️ Tiến trình đồ vật: ${item.evolution_lineage.join(' ➔ ')}</p>` : ''}
-                        <div class="flex gap-1.5 pt-1">
-                            <label class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition">
-                                📁 Tải Tệp Lên
-                                <input type="file" class="hidden" onchange="uploadDirectAsset(this, '${catType}', '${item.name}')">
-                            </label>
-                            <button onclick="requestConcept('${item.name}', '${item.description || ''}')" class="flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 py-1.5 rounded-xl text-[10px] font-bold border border-amber-500/30 transition">
-                                ✨ AI Phác Họa
-                            </button>
-                        </div>
-                    </div>
-                `;
-
-
-
-
-
-
-
-
-                (audit.entities || []).forEach(e => html += renderCard(e, e.archetype || 'Thực thể', 'character'));
-                (audit.locations || []).forEach(l => html += renderCard(l, 'Bối cảnh', 'landscape'));
-                (audit.props || []).forEach(p => html += renderCard(p, 'Đạo cụ định mệnh', 'costume'));
-                (audit.audio_signatures || []).forEach(a => html += renderCard(a, 'Âm thanh 3D', 'bgm'));
-
-
-
-
-
-
-
-
-                tray.innerHTML = html || "<div class='text-slate-500 text-xs text-center py-4'>Không phát hiện đối tượng nào.</div>";
-            }
-
-
-
-
-
-
-
-
-            async function uploadDirectAsset(inputElement, category, assetName) {
-                if(!inputElement.files || inputElement.files.length === 0) return;
-                const file = inputElement.files[0];
-                const isAudio = category === 'bgm' || category === 'voice';
-                const endpoint = isAudio ? '/api/cineai/upload-audio-token' : '/api/cineai/upload-visual-token';
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('token_category', category);
-                formData.append('token_name', assetName);
-                formData.append('project_id', currentProjectId);
-
-
-
-
-
-
-
-
-                try {
-                    const res = await fetch(endpoint, {method: 'POST', body: formData});
-                    const d = await res.json();
-                    alert(d.message);
-                    if(d.status === 'success') location.reload();
-                } catch(e) {
-                    alert('Lỗi nạp tệp khóa token!');
-                }
-            }
-
-
-
-
-
-
-
-
-            async function requestConcept(name, desc) {
-                const tweak = prompt("Nhập yêu cầu bổ sung cho đối tượng (hoặc để trống):", "Chất lượng điện ảnh 4K");
-                if (tweak === null) return;
-                try {
-                    const res = await fetch('/api/cineai/generate-asset-concept-prompt', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({asset_name: name, asset_description: desc, user_tweak: tweak})
-                    });
-                    const d = await res.json();
-                    alert("🎨 AI đã sinh Visual Prompt khóa mẫu thành công:\\n\\n" + d.concept_prompt);
-                } catch(e) {
-                    alert('Lỗi tạo concept!');
-                }
-            }
-
-
-
-
-
-
-
-
-            async function proceedToTier(targetTier) {
+            let currentActiveTier = {active_tier};
+            let currentProjectId = "{project_id}";
+
+
+            function openDrawer(type) {{ document.getElementById('drawer-' + type)?.classList.remove('hidden'); }}
+            function closeDrawer(type) {{ document.getElementById('drawer-' + type)?.classList.add('hidden'); }}
+            
+            async function saveAndCloseScriptDrawer() {{ await saveDraftCurrent(currentActiveTier); closeDrawer('script'); }}
+
+
+            async function saveDraftCurrent(tier) {{
+                const payload = {{
+                    id: currentProjectId || "",
+                    title: document.getElementById('project-title')?.value.trim() || "Dự án mới",
+                    header: document.getElementById('project-header')?.value || "",
+                    story: document.getElementById('project-story')?.value || "",
+                    aspect_ratio: "16:9",
+                    target_duration: "45p",
+                    tier: tier
+                }};
+                try {{
+                    const res = await fetch('/api/cineai/save-draft', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(payload) }});
+                    const data = await res.json();
+                    if(data.status === 'success') {{
+                        currentProjectId = data.saved_id;
+                        document.getElementById('global-project-title-display').innerText = data.saved_title;
+                        alert(data.message);
+                    }} else alert(data.message);
+                }} catch(e) {{ alert('⚠️ Lỗi kết nối khi lưu!'); }}
+            }}
+
+
+            async function proceedToTier(targetTier) {{
                 if (targetTier > 4) targetTier = 4;
                 await saveDraftCurrent(targetTier);
                 window.location.href = '/?load_id=' + encodeURIComponent(currentProjectId) + '&tier=' + targetTier;
-            }
+            }}
 
 
-
-
-
-
-
-
-                        async function saveDraftCurrent(tier) {
-                const titleEl = document.getElementById('project-title');
-                const headerEl = document.getElementById('project-header');
-                const storyEl = document.getElementById('project-story');
-                const ratioEl = document.getElementById('film-aspect-ratio');
-                const durEl = document.getElementById('film-duration');
-
-
-                const title = titleEl ? titleEl.value.trim() : "Dự án mới";
-                const header = headerEl ? headerEl.value : "";
-                const story = storyEl ? storyEl.value : "";
-                const ratio = ratioEl ? ratioEl.value : "16:9";
-                const dur = durEl ? durEl.value : "45p";
-
-
-                // Đảm bảo luôn gửi kèm currentProjectId để backend cập nhật đúng cây dữ liệu vi mô
-                const payloadData = {
-                    id: currentProjectId || "",
-                    title: title,
-                    header: header,
-                    story: story,
-                    aspect_ratio: ratio,
-                    target_duration: dur,
-                    tier: tier
-                };
-
-
-                try {
-                    const res = await fetch('/api/cineai/save-draft', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(payloadData)
-                    });
-                    const data = await res.json();
-                    if(data.status === 'success') {
-                        currentProjectId = data.saved_id; // Cập nhật lại ID chuẩn từ server trả về
-                        document.getElementById('global-project-title-display').innerText = data.saved_title;
-                        alert(data.message || "Đã lưu nháp thành công!");
-                    } else {
-                        alert(data.message || "Lỗi lưu dữ liệu!");
-                    }
-                } catch(e) {
-                    alert('⚠️ Lỗi kết nối khi lưu nháp!');
-                }
-            }
-
-
-
-
-
-
-
-
-
-
-            async function uploadStoryFile() {
+            async function uploadStoryFile() {{
                 const fileInput = document.getElementById('file-story');
-                if(!fileInput || fileInput.files.length === 0) return alert('⚠️ Vui lòng chọn tệp kịch bản (.txt, .md)!');
+                if(!fileInput || fileInput.files.length === 0) return alert('⚠️ Vui lòng chọn tệp (.txt, .md)!');
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
                 formData.append('project_id', currentProjectId);
-                try {
-                    const res = await fetch('/api/cineai/upload-asset-explicit', {method: 'POST', body: formData});
+                try {{
+                    const res = await fetch('/api/cineai/upload-asset-explicit', {{method: 'POST', body: formData}});
                     const data = await res.json();
-                    if(data.status === 'success') {
-                        const storyEl = document.getElementById('project-story');
-                        if(storyEl) storyEl.value = data.extracted_content;
+                    if(data.status === 'success') {{
+                        document.getElementById('project-story').value = data.extracted_content;
                         alert(data.message);
                         saveDraftCurrent(1);
-                    } else alert(data.message);
-                } catch(e) { alert('Lỗi nạp tệp kịch bản!'); }
-            }
-            async function runBreakdown() {
-                const box = document.getElementById('breakdown-result');
-                if(box) box.innerHTML = "⏳ Đang gọi AI dựng cảnh & chia nhịp...";
-                const res = await fetch('/api/cineai/breakdown-scenes-enterprise', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id: currentProjectId})
-                });
-                const data = await res.json();
-                if(box && data.status === 'success') {
-                    box.innerHTML = "✅ Dựng cảnh thành công! Tổng thời lượng: " + data.metrics.total_duration_sec + " giây.<br><pre class='text-[10px] text-slate-400 mt-2 whitespace-pre-wrap'>" + JSON.stringify(data.data, null, 2) + "</pre>";
-                } else if(box) {
-                    box.innerHTML = data.reply || "Lỗi dựng cảnh.";
-                }
-            }
+                    }} else alert(data.message);
+                }} catch(e) {{ alert('Lỗi nạp tệp kịch bản!'); }}
+            }}
 
 
-
-
-
-
-
-
-            async function renderScene(id) {
-                const res = await fetch('/api/cineai/render-scene-take', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id: currentProjectId, scene_id: id})
-                });
-                const data = await res.json();
-                alert(data.message || "Đã gửi render!");
-            }
-
-
-
-
-
-
-
-
-            async function fetchTimeline() {
-                const res = await fetch('/api/cineai/get-rough-cut?id=' + encodeURIComponent(currentProjectId));
-                const data = await res.json();
-                alert('🎞️ Rough-Cut Timeline: ' + (data.total_timeline_duration_sec || 0) + ' giây.');
-            }
-
-
-
-
-
-
-
-
-            async function exportSrtSubtitles() {
-                const res = await fetch('/api/cineai/export-srt?id=' + encodeURIComponent(currentProjectId));
-                const data = await res.json();
-                if(data.srt_format) {
-                    const blob = new Blob([data.srt_format], {type: 'text/plain'});
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    const title = document.getElementById('project-title')?.value || "cine_ai";
-                    a.download = title + '_subtitles.srt';
-                    a.click();
-                } else alert('Chưa có dữ liệu phân cảnh để xuất phụ đề!');
-            }
-
-
-
-
-
-
-
-
-            async function sendChat() {
+            async function sendChat() {{
                 const input = document.getElementById('chat-input');
                 const box = document.getElementById('chat-box');
-                if(!input || !box) return;
                 const text = input.value.trim();
                 if(!text) return;
-
-
-
-
-
-
-
-
                 box.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-2.5 rounded-xl inline-block text-slate-100 max-w-[85%] text-left">' + text + '</span></div>';
-                input.value = '';
-                box.scrollTop = box.scrollHeight;
-
-
-
-
-
-
-
-
-                try {
-                    const res = await fetch('/api/cineai/chat', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({message: text, id: currentProjectId, tier: 1})
-                    });
+                input.value = ''; box.scrollTop = box.scrollHeight;
+                try {{
+                    const res = await fetch('/api/cineai/chat', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{message: text, id: currentProjectId, tier: currentActiveTier}}) }});
                     const data = await res.json();
-                    box.innerHTML += '<div class="bg-blue-950/60 border border-blue-800/50 p-3 rounded-xl text-blue-200 leading-relaxed max-w-[85%]" style="overflow-wrap: anywhere;">' + (data.reply || "Đã tiếp nhận.") + '</div>';
+                    box.innerHTML += '<div class="bg-blue-950/60 p-3 rounded-xl text-blue-200 mt-2 max-w-[85%]" style="overflow-wrap:anywhere;">' + (data.reply || "Tiếp nhận.") + '</div>';
                     box.scrollTop = box.scrollHeight;
-                } catch(e) {
-                    box.innerHTML += '<div class="bg-rose-950/60 p-2.5 rounded-xl text-rose-200">⚠️ Lỗi kết nối Đạo diễn ảo!</div>';
-                }
-            }
+                }} catch(e) {{ box.innerHTML += '<div class="text-rose-400 mt-2">Lỗi AI!</div>'; }}
+            }}
 
 
-
-
-
-
-
-
-            async function autoGenerateScriptFromSlots() {
+            async function autoGenerateScriptFromSlots() {{
                 const box = document.getElementById('chat-box');
-                if(box) box.innerHTML += '<div class="text-amber-300 font-bold">🪄 Đang phù phép thành kịch bản...</div>';
-                
-                try {
-                    const res = await fetch('/api/cineai/generate-script-from-slots', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({id: currentProjectId, aspect_ratio: "16:9", target_duration: "45p"})
-                    });
-                    const resData = await res.json();
-                    if (resData.status === 'success') {
-                        const titleEl = document.getElementById('project-title');
-                        const headerEl = document.getElementById('project-header');
-                        const storyEl = document.getElementById('project-story');
-                        
-                        if(titleEl) {
-                            titleEl.value = resData.data.title;
-                            document.getElementById('global-project-title-display').innerText = resData.data.title;
-                        }
-                        if(headerEl) headerEl.value = resData.data.header;
-                        if(storyEl) storyEl.value = resData.data.story;
-                        
-                        // Force save directly to sync state
+                box.innerHTML += '<div class="text-amber-300 font-bold mt-2">🪄 Đang phù phép kịch bản...</div>';
+                try {{
+                    const res = await fetch('/api/cineai/generate-script-from-slots', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: currentProjectId}}) }});
+                    const data = await res.json();
+                    if(data.status === 'success') {{
+                        document.getElementById('project-title').value = data.data.title;
+                        document.getElementById('project-header').value = data.data.header;
+                        document.getElementById('project-story').value = data.data.story;
                         await saveDraftCurrent(currentActiveTier);
-                        
-                        closeDrawer('chat');
-                        openDrawer('script');
-                        alert('🎉 Kịch bản đã được khởi tạo thành công và đổ vào "Câu chuyện của bạn"!');
-                    } else {
-                        alert(resData.message || "Lỗi tổng hợp kịch bản.");
-                    }
-                } catch(e) { 
-                    alert('Lỗi tạo kịch bản tự động!'); 
-                }
-            }
+                        closeDrawer('chat'); openDrawer('script');
+                        alert('🎉 Kịch bản đã được khởi tạo!');
+                    }} else alert(data.message);
+                }} catch(e) {{ alert('Lỗi tạo kịch bản!'); }}
+            }}
+            async function runAuditAssets() {{
+                const tray = document.getElementById('audit-checklist-tray');
+                tray.innerHTML = "<div class='text-center py-4 text-amber-400 text-xs animate-pulse'>⏳ Đang quét Master Schema...</div>";
+                try {{
+                    const res = await fetch('/api/cineai/audit-script-assets', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: currentProjectId}}) }});
+                    const d = await res.json();
+                    if(d.status === 'success') renderAuditChecklist(d.audit_data);
+                    else tray.innerHTML = `<div class='text-rose-400 text-xs text-center'>${{d.message}}</div>`;
+                }} catch(e) {{ tray.innerHTML = "<div class='text-rose-400 text-xs text-center'>⚠️ Lỗi kết nối kiểm kê!</div>"; }}
+            }}
+
+
+            function renderAuditChecklist(audit) {{
+                let html = '';
+                const renderCard = (item, catLabel, catType) => `
+                    <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2 mt-2">
+                        <span class="text-[10px] font-bold bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-md">${{catLabel}}</span>
+                        <h4 class="text-xs font-black text-slate-100">${{item.name}}</h4>
+                        <p class="text-[11px] text-slate-400 leading-tight">${{item.description || item.audio_signature || ''}}</p>
+                        <div class="flex gap-1.5 pt-1">
+                            <label class="flex-1 bg-slate-800 text-slate-200 text-center py-1.5 rounded-xl text-[10px] font-bold cursor-pointer">📁 Tải Lên<input type="file" class="hidden" onchange="uploadDirectAsset(this, '${{catType}}', '${{item.name}}')"></label>
+                            <button onclick="requestConcept('${{item.name}}')" class="flex-1 bg-amber-500/20 text-amber-400 py-1.5 rounded-xl text-[10px] font-bold border border-amber-500/30">✨ AI Concept</button>
+                        </div>
+                    </div>`;
+                (audit.entities || []).forEach(e => html += renderCard(e, e.archetype || 'Thực thể', 'character'));
+                (audit.locations || []).forEach(l => html += renderCard(l, 'Bối cảnh', 'landscape'));
+                (audit.props || []).forEach(p => html += renderCard(p, 'Đạo cụ', 'costume'));
+                (audit.audio_signatures || []).forEach(a => html += renderCard(a, 'Âm thanh 3D', 'bgm'));
+                document.getElementById('audit-checklist-tray').innerHTML = html || "<div class='text-slate-500 text-xs text-center py-4'>Không phát hiện Token.</div>";
+            }}
+
+
+            async function uploadDirectAsset(inputElement, category, assetName) {{
+                if(!inputElement.files || inputElement.files.length === 0) return;
+                const file = inputElement.files[0];
+                const endpoint = (category === 'bgm' || category === 'voice') ? '/api/cineai/upload-audio-token' : '/api/cineai/upload-visual-token';
+                const formData = new FormData();
+                formData.append('file', file); formData.append('token_category', category);
+                formData.append('token_name', assetName); formData.append('project_id', currentProjectId);
+                try {{
+                    const res = await fetch(endpoint, {{method: 'POST', body: formData}});
+                    const d = await res.json();
+                    alert(d.message); if(d.status === 'success') location.reload();
+                }} catch(e) {{ alert('Lỗi nạp tệp khóa token!'); }}
+            }}
+
+
+            async function requestConcept(name) {{
+                const tweak = prompt("Ghi chú bổ sung (VD: 4K Cinematic):", "");
+                if (tweak === null) return;
+                try {{
+                    const res = await fetch('/api/cineai/generate-asset-concept-prompt', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{asset_name: name, asset_description: "", user_tweak: tweak}}) }});
+                    const d = await res.json();
+                    alert("🎨 Visual Prompt:\\n\\n" + d.concept_prompt);
+                }} catch(e) {{ alert('Lỗi tạo concept!'); }}
+            }}
+
+
+            async function runBreakdown() {{
+                const box = document.getElementById('breakdown-result');
+                box.innerHTML = "⏳ Đang gọi AI dựng cảnh 3 Hồi...";
+                try {{
+                    const res = await fetch('/api/cineai/breakdown-scenes-enterprise', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: currentProjectId}}) }});
+                    const data = await res.json();
+                    if(data.status === 'success') box.innerHTML = "✅ Dựng cảnh thành công! Tổng thời lượng: " + data.metrics.total_duration_sec + " giây.<br><pre class='text-[10px] text-slate-400 mt-2 whitespace-pre-wrap'>" + JSON.stringify(data.data, null, 2) + "</pre>";
+                    else box.innerHTML = data.message || "Lỗi dựng cảnh.";
+                }} catch(e) {{ box.innerHTML = "Lỗi kết nối AI Dựng cảnh!"; }}
+            }}
+
+
+            async function renderScene(id) {{
+                try {{
+                    const res = await fetch('/api/cineai/render-scene-take', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: currentProjectId, scene_id: id}}) }});
+                    const data = await res.json(); alert(data.message);
+                }} catch(e) {{ alert("Lỗi gửi lệnh Render!"); }}
+            }}
+
+
+            async function fetchTimeline() {{
+                try {{
+                    const res = await fetch('/api/cineai/get-rough-cut?id=' + encodeURIComponent(currentProjectId));
+                    const data = await res.json(); alert('🎞️ Timeline: ' + (data.total_timeline_duration_sec || 0) + ' giây.');
+                }} catch(e) {{ alert("Lỗi tải Timeline!"); }}
+            }}
+
+
+            async function exportSrtSubtitles() {{
+                try {{
+                    const res = await fetch('/api/cineai/export-srt?id=' + encodeURIComponent(currentProjectId));
+                    const data = await res.json();
+                    if(data.srt_format) {{
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(new Blob([data.srt_format], {{type: 'text/plain'}}));
+                        a.download = 'subtitles.srt'; a.click();
+                    }} else alert('Chưa có dữ liệu xuất phụ đề!');
+                }} catch(e) {{ alert("Lỗi xuất SRT!"); }}
+            }}
         </script>
-    </body>
-    </html>
+    </body></html>
     """
 @app.get("/", response_class=HTMLResponse)
 async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = None, new_project: str = None):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
+    if not username: return RedirectResponse(url="/login", status_code=303)
     
-    user_data = USERS_DB.get(username, {})
-    user_credits = user_data.get("credits", 10)
     projects = get_user_projects(username)
-    
     target_project = None
+    
     if new_project == "1":
-        new_title = f"Dự án mới #{len(projects) + 1}"
-        target_project = migrate_project_to_tree({"id": secrets.token_hex(6), "title": new_title})
+        new_id = secrets.token_hex(6)
+        target_project = migrate_project_to_tree({"id": new_id, "title": f"Dự án mới #{len(projects) + 1}"})
+        grow_new_leaf(username, new_id, target_project)
         projects.insert(0, target_project)
-        USERS_DB[username]["projects"] = projects[:2]
-        save_users()
     elif load_id:
-        for p in projects:
-            if p.get("id") == load_id:
-                target_project = p
-                break
+        target_project = get_project_latest_leaf(load_id)
     elif projects:
         target_project = projects[0]
         
     if not target_project:
-        target_project = migrate_project_to_tree({
-            "id": secrets.token_hex(6),
-            "title": "Dự án phim mới"
-        })
-        projects.append(target_project)
-        USERS_DB[username]["projects"] = projects
-        save_users()
-
-
+        new_id = secrets.token_hex(6)
+        target_project = migrate_project_to_tree({"id": new_id, "title": "Dự án phim mới"})
+        grow_new_leaf(username, new_id, target_project)
 
 
     if tier:
         target_project["metadata"]["highest_tier"] = max(target_project["metadata"].get("highest_tier", 1), tier)
         active_tier = tier
-        save_users()
+        grow_new_leaf(username, target_project.get("id"), target_project)
     else:
         active_tier = target_project["metadata"].get("highest_tier", 1)
+        
     highest_tier = target_project["metadata"].get("highest_tier", 1)
+    profile = get_user_profile_leaf(username)
 
 
-
-
-    tokens_html = ""
-    visual_tokens = target_project["master_schema"]["token_registry"].get("visual_tokens", [])
-    audio_tokens = target_project["master_schema"]["token_registry"].get("audio_tokens", [])
-    for vt in visual_tokens:
-        tokens_html += f'<span class="bg-indigo-950 border border-indigo-800 text-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold">🖼️ {vt.get("token_id")} ({vt.get("name") or vt.get("category")})</span>'
-    for at in audio_tokens:
-        tokens_html += f'<span class="bg-emerald-950 border border-emerald-800 text-emerald-300 text-[10px] px-2 py-0.5 rounded-full font-bold">🎵 {at.get("token_id")} ({at.get("name") or at.get("category")})</span>'
-
-
-
-
-    p1, t1_vis, t2_vis, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, username)
-    p2 = get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, tokens_html)
-    p3 = get_studio_javascript()
-    p3 = p3.replace("ACTIVE_TIER_VAL", str(active_tier))
-    p3 = p3.replace("HIGHEST_TIER_VAL", str(highest_tier))
-
-
-
-
-    return HTMLResponse(content=p1 + p2 + p3)
-
-
-
-
-
-
+    html_content = get_studio_html(target_project, profile.get("credits", 10), active_tier, highest_tier, username)
+    js_content = get_studio_javascript(target_project.get("id", ""), active_tier)
+    
+    return HTMLResponse(content=html_content + js_content)
 
 
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
-    user_data = USERS_DB.get(username, {})
-    user_projects = get_user_projects(username)
-    user_credits = user_data.get("credits", 0)
+    if not username: return RedirectResponse(url="/login", status_code=303)
     
     projects_html = ""
-    for p in user_projects:
-        title = p.get("metadata", {}).get("title", "Dự án chưa đặt tên")
-        p_id = p.get("id", "")
-        h_tier = p.get("metadata", {}).get("highest_tier", 1)
-        header = p.get("metadata", {}).get("header", "Đang cập nhật")
-        updated = p.get("metadata", {}).get("updated_at", "Vừa xong")
-        
+    for p in get_user_projects(username):
         projects_html += f"""
-        <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-            <div class="flex justify-between items-start">
-                <div>
-                    <span class="text-[11px] font-black bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 uppercase tracking-wide">
-                        🌟 Tiến độ: Tầng {h_tier}
-                    </span>
-                    <h3 class="text-base sm:text-lg font-black text-slate-100 mt-2">{title}</h3>
-                    <p class="text-xs text-slate-400 mt-0.5">{header}</p>
-                </div>
+        <div class='bg-slate-900 p-5 mt-3 rounded-2xl border border-slate-800 shadow-lg'>
+            <h3 class='text-amber-400 font-bold text-lg'>{p.get('metadata', {}).get('title')}</h3>
+            <p class='text-xs text-slate-400 mb-3'>{p.get('metadata', {}).get('header')}</p>
+            <div class='flex gap-2'>
+                <a href='/?load_id={p.get('id')}' class='bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs'>Vào Sân Khấu ➔</a>
+                <button onclick="if(confirm('Xóa dự án này?')) fetch('/api/cineai/delete-project', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: '{p.get('id')}'}})}}).then(()=>location.reload())" class='bg-rose-950 text-rose-200 px-4 py-2 rounded-xl text-xs font-bold'>Xóa</button>
             </div>
-            <div class="flex justify-between items-center pt-2 border-t border-slate-800/80">
-                <span class="text-[11px] text-slate-500">Cập nhật: {updated}</span>
-                <div class="flex gap-2">
-                    <a href="/?load_id={p_id}" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-2xl text-xs uppercase shadow transition flex items-center gap-1">
-                        🎬 Vào Sân Khấu
-                    </a>
-                    <button onclick="confirmDelete('{p_id}', '{title}')" class="bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-200 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition">
-                        🗑️ Xóa
-                    </button>
-                </div>
-            </div>
-        </div>
-        """
-
-
-
-
-    library_template = """
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Thư Viện Tâm Huyết - Cine AI Studio Pro 6.8.8</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans pb-16">
-        <div class="max-w-3xl mx-auto space-y-4">
-            <!-- HEADER THƯ VIỆN -->
-            <div class="flex justify-between items-center bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl">
-                <div>
-                    <h1 class="text-base sm:text-lg font-black text-amber-400 uppercase tracking-wide">📁 Thư Viện Tâm Huyết</h1>
-                    <p class="text-xs text-slate-400 mt-0.5">Hạn mức: PROJECT_COUNT_VAL/2 dự án • Ví: USER_CREDITS_VAL Credit</p>
-                </div>
-                <div class="flex gap-2">
-                    <a href="/?new_project=1" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs transition shadow flex items-center gap-1">
-                        ➕ Tạo Dự Án
-                    </a>
-                    <a href="/" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-4 py-2.5 rounded-2xl text-xs transition flex items-center gap-1">
-                        🏠 Studio
-                    </a>
-                </div>
-            </div>
-
-
-
-
-            <!-- DANH SÁCH DỰ ÁN -->
-            <div class="space-y-3">
-                PROJECTS_LIST_VAL
-            </div>
-        </div>
-        <script>
-            async function confirmDelete(id, title) {
-                if(confirm("Bạn có chắc chắn muốn xóa vĩnh viễn dự án '" + title + "' không?")) {
-                    const res = await fetch('/api/cineai/delete-project', {
-                        method: 'POST', 
-                        headers: {'Content-Type': 'application/json'}, 
-                        body: JSON.stringify({id: id})
-                    });
-                    const d = await res.json();
-                    alert(d.message);
-                    location.reload();
-                }
-            }
-        </script>
-    </body>
-    </html>
-    """
-    
-    library_template = library_template.replace("PROJECT_COUNT_VAL", str(len(user_projects)))
-    library_template = library_template.replace("USER_CREDITS_VAL", str(user_credits))
-    library_template = library_template.replace("PROJECTS_LIST_VAL", projects_html or "<div class='bg-slate-900 p-8 rounded-3xl border border-slate-800 text-center text-slate-500 text-xs'>Chưa có dự án nào trong thư viện. Hãy bấm 'Tạo Dự Án' để bắt đầu!</div>")
-    return HTMLResponse(content=library_template)
-
-
-
-
-
-
+        </div>"""
+        
+    profile = get_user_profile_leaf(username)
+    return HTMLResponse(content=f"<html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-white p-4 sm:p-6 font-sans'><div class='max-w-3xl mx-auto'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-4'><h1 class='text-base font-bold text-amber-400 uppercase'>📁 Thư Viện Cây Bất Tử</h1><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 px-3 py-2 rounded-xl text-xs font-bold'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-xs font-bold'>🏠 Studio</a></div></div>{projects_html or '<p class=\"text-slate-500 text-sm text-center py-10\">Chưa có dự án nào.</p>'}</div></body></html>")
 
 
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
-async def login_handler(request: Request, tab: str = "login", error: str = None, success: str = None):
+async def login_handler(request: Request, error: str = None):
     if request.method == "POST":
         form_data = await request.form()
-        username = form_data.get("username", "").strip()
-        password = form_data.get("password", "").strip()
-        
-        user_info = USERS_DB.get(username)
+        username, password = form_data.get("username", "").strip(), form_data.get("password", "").strip()
+        profile = get_user_profile_leaf(username)
         pwd_hash = hashlib.sha256(password.encode()).hexdigest()
-        if (username == "admin" and password == "admin123") or (user_info and user_info.get("password_hash") == pwd_hash):
+        
+        if (username == "admin" and password == "admin123") or (profile and profile.get("password_hash") == pwd_hash):
             session_id = secrets.token_hex(16)
             ACTIVE_SESSIONS[session_id] = username
             resp = RedirectResponse(url="/", status_code=303)
             resp.set_cookie(key="session_id", value=session_id)
             return resp
         return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu!"), status_code=303)
-
-
-
-
-    is_reg = (tab == "register")
-    is_forgot = (tab == "forgot")
-    form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
-    title_text = "Tạo Tài Khoản Mới" if is_reg else ("Khôi Phục Mật Khẩu" if is_forgot else "Đăng Nhập Hệ Thống")
+        
+    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3 rounded-xl text-rose-200 text-xs font-bold text-center mb-4">{error}</div>' if error else ''
     
-    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
-    succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
-
-
-
-
-    login_template = """
-    <!DOCTYPE html><html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác Thực - Cine AI Studio Pro 6.8.8</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
-        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
-            <div class="text-center space-y-1">
-                <h2 class="text-xl sm:text-2xl font-black text-amber-400">PAGE_TITLE_VAL</h2>
-                <p class="text-xs text-slate-400">Cine AI Studio Pro 6.8.8 Enterprise</p>
-            </div>
-            ALERT_ERR_VAL ALERT_SUCC_VAL
-            <form method="POST" action="FORM_ACTION_VAL" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Tên tài khoản:</label>
-                    <input type="text" name="username" required placeholder="Nhập tên đăng nhập..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Mật khẩu:</label>
-                    <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
-                </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xác Nhận</button>
+    return HTMLResponse(content=f"""
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Xác Thực - Cine AI 7.1</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="bg-slate-950 flex items-center justify-center min-h-screen p-4 font-sans">
+        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm shadow-2xl">
+            <h2 class="text-2xl font-black text-amber-400 text-center mb-1">Cine AI 7.1</h2><p class="text-[11px] text-slate-400 text-center mb-6 uppercase tracking-wider">Immortal Tree Core</p>
+            {err_html}
+            <form method="POST" action="/login" class="space-y-4">
+                <input type="text" name="username" required placeholder="Tên đăng nhập" class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-amber-500">
+                <input type="password" name="password" required placeholder="Mật khẩu" class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-amber-500">
+                <button type="submit" class="w-full bg-amber-500 text-slate-950 font-black py-4 rounded-2xl shadow-lg mt-2 uppercase tracking-wide">Vào Hệ Thống</button>
             </form>
-            <div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800">
-                <a href="/login" class="hover:underline text-amber-400 font-semibold">Đăng nhập</a>
-                <a href="/login?tab=register" class="hover:underline">Đăng ký (+10 C)</a>
-                <a href="/login?tab=forgot" class="hover:underline">Quên mật khẩu?</a>
-            </div>
-        </div>
-    </body></html>
-    """
-    login_template = login_template.replace("PAGE_TITLE_VAL", title_text)
-    login_template = login_template.replace("ALERT_ERR_VAL", err_html)
-    login_template = login_template.replace("ALERT_SUCC_VAL", succ_html)
-    login_template = login_template.replace("FORM_ACTION_VAL", form_action)
-    return HTMLResponse(content=login_template)
-
-
-
-
-
-
-
-
-@app.post("/register")
-async def register_post(username: str = Form(...), password: str = Form(...)):
-    if username in USERS_DB:
-        return RedirectResponse(url="/login?tab=register&error=" + urllib.parse.quote("⚠️ Tên tài khoản đã tồn tại!"), status_code=303)
-    USERS_DB[username] = {"password_hash": hashlib.sha256(password.encode()).hexdigest(), "projects": [], "credits": 10}
-    save_users()
-    session_id = secrets.token_hex(16)
-    ACTIVE_SESSIONS[session_id] = username
-    resp = RedirectResponse(url="/", status_code=303)
-    resp.set_cookie(key="session_id", value=session_id)
-    return resp
-
-
-
-
-
-
-
-
-@app.post("/forgot-password")
-async def forgot_password_post(username: str = Form(...), password: str = Form(...)):
-    if username not in USERS_DB:
-        return RedirectResponse(url="/login?tab=forgot&error=" + urllib.parse.quote("⚠️ Tên tài khoản không tồn tại!"), status_code=303)
-    USERS_DB[username]["password_hash"] = hashlib.sha256(password.encode()).hexdigest()
-    save_users()
-    return RedirectResponse(url="/login?success=" + urllib.parse.quote("🎉 Đổi mật khẩu thành công! Vui lòng đăng nhập."), status_code=303)
-
-
-
-
-
-
-
-
-@app.get("/logout")
-async def logout(session_id: str = Cookie(None)):
-    if session_id in ACTIVE_SESSIONS:
-        del ACTIVE_SESSIONS[session_id]
-    resp = RedirectResponse(url="/login", status_code=303)
-    resp.delete_cookie(key="session_id")
-    return resp
-
-
-
-
-
-
-
-
-@app.get("/community", response_class=HTMLResponse)
-async def community_page(session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return RedirectResponse(url="/login", status_code=303)
-    return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Cộng Đồng - Cine AI Studio Pro 6.8.8</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 text-slate-100 min-h-screen p-5 font-sans">
-        <div class="max-w-4xl mx-auto space-y-4">
-            <div class="flex justify-between items-center bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
-                <h1 class="text-lg font-bold text-amber-400">Cộng Đồng Phim Public Pro 6.8.8</h1>
-                <a href="/" class="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs shadow">Quay lại Studio</a>
-            </div>
-            <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-xs text-slate-400 text-center py-10">Bảng tin cộng đồng đang kết nối API mạng xã hội...</div>
         </div>
     </body></html>
     """)
 
 
-
-
-
-
+@app.get("/logout")
+async def logout(session_id: str = Cookie(None)):
+    if session_id in ACTIVE_SESSIONS: del ACTIVE_SESSIONS[session_id]
+    resp = RedirectResponse(url="/login", status_code=303)
+    resp.delete_cookie(key="session_id")
+    return resp
 
 
 if __name__ == "__main__":
