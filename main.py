@@ -984,8 +984,11 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     t2_cls = get_tier_classes(2)
     t3_cls = get_tier_classes(3)
     t4_cls = get_tier_classes(4)
+    t1_vis = "block" if active_tier == 1 else "hidden"
+    t2_vis = "block" if active_tier == 2 else "hidden"
+    t3_vis = "block" if active_tier == 3 else "hidden"
+    t4_vis = "block" if active_tier == 4 else "hidden"
     enc_id = target_project.get("id", "")
-
 
 
 
