@@ -959,7 +959,7 @@ async def library_page(session_id: str = Cookie(None)):
 
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
-async def login_handler(request: Request, error: str = None):
+async def login_handler(request: Request, tab: str = "login", error: str = None, success: str = None):
     if request.method == "POST":
         form_data = await request.form()
         username, password = form_data.get("username", "").strip(), form_data.get("password", "").strip()
@@ -973,23 +973,86 @@ async def login_handler(request: Request, error: str = None):
             resp.set_cookie(key="session_id", value=session_id)
             return resp
         return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu!"), status_code=303)
-        
-    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3 rounded-xl text-rose-200 text-xs font-bold text-center mb-4">{error}</div>' if error else ''
+
+
+    is_reg = (tab == "register")
+    is_forgot = (tab == "forgot")
+    form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
+    title_text = "Tạo Tài Khoản Mới" if is_reg else ("Khôi Phục Mật Khẩu" if is_forgot else "Đăng Nhập Hệ Thống")
     
-    return HTMLResponse(content=f"""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Xác Thực - Cine AI 7.1</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 flex items-center justify-center min-h-screen p-4 font-sans">
-        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm shadow-2xl">
-            <h2 class="text-2xl font-black text-amber-400 text-center mb-1">Cine AI 7.1</h2><p class="text-[11px] text-slate-400 text-center mb-6 uppercase tracking-wider">Immortal Tree Core</p>
-            {err_html}
-            <form method="POST" action="/login" class="space-y-4">
-                <input type="text" name="username" required placeholder="Tên đăng nhập" class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-amber-500">
-                <input type="password" name="password" required placeholder="Mật khẩu" class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-amber-500">
-                <button type="submit" class="w-full bg-amber-500 text-slate-950 font-black py-4 rounded-2xl shadow-lg mt-2 uppercase tracking-wide">Vào Hệ Thống</button>
+    err_html = f'<div class="bg-rose-950/80 border border-rose-800 p-3.5 rounded-2xl text-rose-200 text-xs font-bold text-center mb-4">{error}</div>' if error else ''
+    succ_html = f'<div class="bg-emerald-950/80 border border-emerald-800 p-3.5 rounded-2xl text-emerald-200 text-xs font-bold text-center mb-4">{success}</div>' if success else ''
+
+
+    login_template = f"""
+    <!DOCTYPE html><html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{title_text} - Cine AI 7.1</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4 sm:p-6 font-sans">
+        <div class="bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-800 w-full max-w-sm sm:max-w-md space-y-6 shadow-2xl">
+            <div class="text-center space-y-1">
+                <h2 class="text-xl sm:text-2xl font-black text-amber-400">{title_text}</h2>
+                <p class="text-xs text-slate-400">Cine AI Studio Pro 7.1 • Immortal Tree</p>
+            </div>
+            {err_html} {succ_html}
+            <form method="POST" action="{form_action}" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Tên tài khoản:</label>
+                    <input type="text" name="username" required placeholder="Nhập tên đăng nhập..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1.5">Mật khẩu:</label>
+                    <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition shadow-inner">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-sm uppercase shadow-xl transition tracking-wider">Xác Nhận</button>
             </form>
+            <div class="flex justify-between text-xs text-slate-400 pt-3 border-t border-slate-800">
+                <a href="/login" class="hover:underline text-amber-400 font-semibold">Đăng nhập</a>
+                <a href="/login?tab=register" class="hover:underline">Đăng ký (+10 C)</a>
+                <a href="/login?tab=forgot" class="hover:underline">Quên mật khẩu?</a>
+            </div>
         </div>
     </body></html>
-    """)
+    """
+    return HTMLResponse(content=login_template)
+
+
+@app.post("/register")
+async def register_post(username: str = Form(...), password: str = Form(...)):
+    username = username.strip()
+    profile = get_user_profile_leaf(username)
+    # Kiểm tra xem tài khoản đã tồn tại hay chưa (nếu có password_hash khác mặc định)
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    new_profile = {
+        "password_hash": pwd_hash,
+        "credits": 10
+    }
+    save_user_profile_leaf(username, new_profile)
+    
+    session_id = secrets.token_hex(16)
+    ACTIVE_SESSIONS[session_id] = username
+    resp = RedirectResponse(url="/", status_code=303)
+    resp.set_cookie(key="session_id", value=session_id)
+    return resp
+
+
+@app.post("/forgot-password")
+async def forgot_password_post(username: str = Form(...), password: str = Form(...)):
+    username = username.strip()
+    profile = get_user_profile_leaf(username)
+    if not profile:
+        return RedirectResponse(url="/login?tab=forgot&error=" + urllib.parse.quote("⚠️ Tên tài khoản không tồn tại trên hệ thống!"), status_code=303)
+    
+    profile["password_hash"] = hashlib.sha256(password.encode()).hexdigest()
+    save_user_profile_leaf(username, profile)
+    return RedirectResponse(url="/login?success=" + urllib.parse.quote("🎉 Đổi mật khẩu thành công! Vui lòng đăng nhập."), status_code=303)
+
+
 
 
 @app.get("/logout")
