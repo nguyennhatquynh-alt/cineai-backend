@@ -593,7 +593,12 @@ def get_studio_javascript():
                 closeDrawer('script');
             }
             
-            async function proceedSmartAutoFallback(currentTier) {
+                        async function proceedSmartAutoFallback(currentTier) {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = "⏳ Đang kiến tạo thế giới phim...";
+                btn.disabled = true;
+
                 await saveDraftCurrent(currentTier);
                 try {
                     await fetch('/api/cineai/auto-fallback-complete', {
