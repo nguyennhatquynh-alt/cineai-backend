@@ -463,11 +463,7 @@ def get_studio_javascript():
                     const data = await res.json(); alert(data.message);
                 } finally { btn.innerHTML = orig; btn.classList.remove("animate-pulse"); btn.disabled = false; }
             }
-    """
-    # ==============================================================================
-# CINE AI STUDIO PRO 7.3.3 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 4B/4)
-# ==============================================================================
-
+    
             function selectChip(text) { const input = document.getElementById('chat-input'); if(input) { input.value = text; sendChatStreaming(); } }
 
             function toggleVoiceInput() {
