@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS PRODUCTION SUITE (PHẦN 1)
+# CINE AI STUDIO PRO 7.2.5 - VENUS FULL-FEATURE (PHẦN 1)
 # ==============================================================================
 
 import os
@@ -168,6 +168,8 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         target_project["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         msg = f"💾 Đã cập nhật dự án '{new_title}' thành công!"
     else:
+        if len(projects) >= 2:
+            return JSONResponse({"status": "limit_reached", "message": "⚠️ Đã đạt giới hạn tối đa 2 dự án thương mại cho mỗi user!"}, status_code=400)
         new_id = secrets.token_hex(6)
         target_project = migrate_project_to_tree({
             "id": new_id, "title": new_title, "header": project_header,
@@ -285,7 +287,7 @@ async def generate_script_from_slots(request: Request, session_id: str = Cookie(
         save_users()
     return JSONResponse({"status": "success", "data": res_data})
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS PRODUCTION SUITE (PHẦN 2)
+# CINE AI STUDIO PRO 7.2.5 - VENUS FULL-FEATURE (PHẦN 2A)
 # ==============================================================================
 
 @app.post("/api/cineai/breakdown-scenes-enterprise")
@@ -537,6 +539,9 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
     tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     return tmpl
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.2.5 - VENUS FULL-FEATURE (PHẦN 2B)
+# ==============================================================================
 
 def get_studio_javascript():
     return """
@@ -673,9 +678,11 @@ async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = 
     
     target_project = None
     if new_project == "1":
+        if len(projects) >= 2:
+            return RedirectResponse(url="/library", status_code=303)
         target_project = migrate_project_to_tree({"id": secrets.token_hex(6), "title": f"Dự án mới #{len(projects)+1}"})
         projects.insert(0, target_project)
-        USERS_DB[username]["projects"] = projects[:2]
+        USERS_DB[username]["projects"] = projects
         save_users()
     elif load_id:
         target_project = next((p for p in projects if p.get("id") == load_id), None)
@@ -704,53 +711,129 @@ async def library_page(session_id: str = Cookie(None)):
     username = ACTIVE_SESSIONS.get(session_id)
     if not username:
         return RedirectResponse(url="/login", status_code=303)
+    user_data = USERS_DB.get(username, {})
     user_projects = get_user_projects(username)
+    user_credits = user_data.get("credits", 0)
+    
     projects_html = ""
     for p in user_projects:
-        title = p.get("metadata", {}).get("title", "Dự án")
+        title = p.get("metadata", {}).get("title", "Dự án chưa đặt tên")
         p_id = p.get("id", "")
         h_tier = p.get("metadata", {}).get("highest_tier", 1)
+        header = p.get("metadata", {}).get("header", "Đang cập nhật")
+        updated = p.get("metadata", {}).get("updated_at", "Vừa xong")
+        
         projects_html += f"""
-        <div class="bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3">
-            <h3 class="text-base font-black text-slate-100">{title} (Tầng {h_tier})</h3>
-            <div class="flex gap-2">
-                <a href="/?load_id={p_id}" class="bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs">Mở Dự Án</a>
+        <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+            <div>
+                <span class="text-[11px] font-black bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 uppercase">Tiến độ: Tầng {h_tier}</span>
+                <h3 class="text-base font-black text-slate-100 mt-2">{title}</h3>
+                <p class="text-xs text-slate-400">{header}</p>
+            </div>
+            <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+                <span class="text-[11px] text-slate-500">Cập nhật: {updated}</span>
+                <div class="flex gap-2">
+                    <a href="/?load_id={p_id}" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase shadow">Mở Sân Khấu</a>
+                    <button onclick="confirmDelete('{p_id}', '{title}')" class="bg-rose-950 text-rose-200 px-3 py-2 rounded-xl text-xs font-bold">Xóa</button>
+                </div>
             </div>
         </div>
         """
+
     return HTMLResponse(content=f"""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 text-slate-100 p-6"><div class="max-w-2xl mx-auto space-y-4">
-    <div class="flex justify-between items-center bg-slate-900 p-4 rounded-3xl">
-        <h1 class="text-amber-400 font-black">📁 Thư Viện</h1><a href="/" class="bg-slate-800 px-4 py-2 rounded-xl text-xs">Studio</a>
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="bg-slate-950 text-slate-100 p-4 sm:p-6 font-sans"><div class="max-w-3xl mx-auto space-y-4">
+    <div class="flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800">
+        <div>
+            <h1 class="text-base font-black text-amber-400 uppercase">📁 Thư Viện Tâm Huyết</h1>
+            <p class="text-xs text-slate-400">Hạn mức: {len(user_projects)}/2 dự án • Ví: {user_credits} Credit</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/?new_project=1" class="bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs">➕ Tạo Mới</a>
+            <a href="/" class="bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs">🏠 Studio</a>
+        </div>
     </div>
-    {projects_html}</div></body></html>
+    <div class="space-y-3">{projects_html or "<div class='bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs'>Chưa có dự án nào.</div>"}</div></div>
+    <script>
+    async function confirmDelete(id, title) {{
+        if(confirm("Xóa vĩnh viễn dự án '" + title + "'?")) {{
+            const res = await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}});
+            const d = await res.json(); alert(d.message); location.reload();
+        }}
+    }}
+    </script></body></html>
     """)
 
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
-async def login_handler(request: Request, error: str = None):
+async def login_handler(request: Request, tab: str = "login", error: str = None, success: str = None):
     if request.method == "POST":
         form = await request.form()
         u, p = form.get("username", "").strip(), form.get("password", "").strip()
+        user_info = USERS_DB.get(u)
         pwd_hash = hashlib.sha256(p.encode()).hexdigest()
-        if (u == "admin" and p == "admin123") or (USERS_DB.get(u, {}).get("password_hash") == pwd_hash):
+        if (u == "admin" and p == "admin123") or (user_info and user_info.get("password_hash") == pwd_hash):
             sid = secrets.token_hex(16)
             ACTIVE_SESSIONS[sid] = u
             resp = RedirectResponse(url="/", status_code=303)
             resp.set_cookie(key="session_id", value=sid)
             return resp
-        return RedirectResponse(url="/login?error=Sai+thông+tin", status_code=303)
-    return HTMLResponse(content="""
-    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen">
-    <form method="POST" class="bg-slate-900 p-6 rounded-3xl border border-slate-800 w-80 space-y-4">
-    <h2 class="text-amber-400 font-black text-center">ĐĂNG NHẬP VENUS</h2>
-    <input type="text" name="username" placeholder="Tài khoản" required class="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 text-xs">
-    <input type="password" name="password" placeholder="Mật khẩu" required class="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 text-xs">
-    <button type="submit" class="w-full bg-amber-500 text-slate-950 font-black py-3 rounded-xl text-xs">VÀO HỆ THỐNG</button>
-    </form></body></html>
+        return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai tên đăng nhập hoặc mật khẩu!"), status_code=303)
+
+    is_reg = (tab == "register")
+    is_forgot = (tab == "forgot")
+    form_action = "/register" if is_reg else ("/forgot-password" if is_forgot else "/login")
+    title_text = "Tạo Tài Khoản Mới" if is_reg else ("Khôi Phục Mật Khẩu" if is_forgot else "Đăng Nhập Hệ Thống")
+    err_html = f'<div class="bg-rose-950 p-3 rounded-xl text-rose-200 text-xs font-bold text-center">{error}</div>' if error else ''
+    succ_html = f'<div class="bg-emerald-950 p-3 rounded-xl text-emerald-200 text-xs font-bold text-center">{success}</div>' if success else ''
+
+    return HTMLResponse(content=f"""
+    <!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl">
+        <div class="text-center space-y-1">
+            <h2 class="text-xl font-black text-amber-400">{title_text}</h2>
+            <p class="text-xs text-slate-400">Cine AI Studio Pro 7.2.5 • Venus Suite</p>
+        </div>
+        {err_html} {succ_html}
+        <form method="POST" action="{form_action}" class="space-y-3">
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Tài khoản:</label>
+                <input type="text" name="username" required placeholder="Nhập tên..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Mật khẩu:</label>
+                <input type="password" name="password" required placeholder="Nhập mật khẩu..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100">
+            </div>
+            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow">Xác Nhận</button>
+        </form>
+        <div class="flex justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
+            <a href="/login" class="text-amber-400 font-semibold">Đăng nhập</a>
+            <a href="/login?tab=register">Đăng ký (+10 C)</a>
+            <a href="/login?tab=forgot">Quên mật khẩu?</a>
+        </div>
+    </div></body></html>
     """)
+
+@app.post("/register")
+async def register_post(username: str = Form(...), password: str = Form(...)):
+    if username in USERS_DB:
+        return RedirectResponse(url="/login?tab=register&error=" + urllib.parse.quote("⚠️ Tài khoản đã tồn tại!"), status_code=303)
+    USERS_DB[username] = {"password_hash": hashlib.sha256(password.encode()).hexdigest(), "projects": [], "credits": 10}
+    save_users()
+    sid = secrets.token_hex(16)
+    ACTIVE_SESSIONS[sid] = username
+    resp = RedirectResponse(url="/", status_code=303)
+    resp.set_cookie(key="session_id", value=sid)
+    return resp
+
+@app.post("/forgot-password")
+async def forgot_password_post(username: str = Form(...), password: str = Form(...)):
+    if username not in USERS_DB:
+        return RedirectResponse(url="/login?tab=forgot&error=" + urllib.parse.quote("⚠️ Tài khoản không tồn tại!"), status_code=303)
+    USERS_DB[username]["password_hash"] = hashlib.sha256(password.encode()).hexdigest()
+    save_users()
+    return RedirectResponse(url="/login?success=" + urllib.parse.quote("🎉 Đổi mật khẩu thành công!"), status_code=303)
 
 @app.get("/logout")
 async def logout(session_id: str = Cookie(None)):
@@ -763,3 +846,4 @@ async def logout(session_id: str = Cookie(None)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
