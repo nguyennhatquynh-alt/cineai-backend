@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS FULL-FEATURE (PHẦN 1/4)
+# CINE AI STUDIO PRO 7.2.5 - ONE-HANDED VENUS SUITE (PHẦN 1/4)
 # ==============================================================================
 
 import os
@@ -17,7 +17,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
-app = FastAPI(title="Cine AI Studio Pro 7.2.5 - Venus Production Suite", version="7.2.5")
+app = FastAPI(title="Cine AI Studio Pro 7.2.5 - One-Handed Venus Suite", version="7.2.5")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -67,7 +67,7 @@ def migrate_project_to_tree(p):
         "id": new_id,
         "metadata": {
             "title": p.get("title", "Dự án mới"),
-            "header": p.get("header", "Thể loại: Điện ảnh cảm xúc • Tự do sáng tạo"),
+            "header": p.get("header", "Thể loại: Điện ảnh cảm xúc • Thao tác một tay"),
             "aspect_ratio": p.get("aspect_ratio", "16:9"),
             "target_duration": p.get("target_duration", "45p"),
             "highest_tier": p.get("highest_tier", 4),
@@ -139,7 +139,7 @@ async def self_healing_global_middleware(request: Request, call_next):
     except Exception as exc:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(exc)})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS FULL-FEATURE (PHẦN 2/4)
+# CINE AI STUDIO PRO 7.2.5 - ONE-HANDED VENUS SUITE (PHẦN 2/4)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
@@ -204,15 +204,15 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
         
     raw_story = target_project["ideation_core"].get("project_raw_story", "")
     if not raw_story:
-        target_project["ideation_core"]["project_raw_story"] = "Hành trình tìm lại ký ức giữa không gian điện ảnh tĩnh lặng và sâu lắng."
+        target_project["ideation_core"]["project_raw_story"] = "Hành trình điện ảnh qua lăng kính độc bản và sâu lắng."
 
     if not target_project["master_schema"].get("assets_audit"):
         target_project["master_schema"]["assets_audit"] = {
             "audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "data": {
-                "entities": [{"id": "E1", "name": "Nhân vật chính", "archetype": "Protagonist", "description": "Biểu cảm nội tâm sâu sắc"}],
-                "locations": [{"id": "L1", "name": "Không gian chính", "description": "Ánh sáng điện ảnh mờ ảo"}],
-                "props": [{"id": "P1", "name": "Đạo cụ định mệnh", "description": "Vật phẩm lưu giữ ký ức"}]
+                "entities": [{"id": "E1", "name": "Nhân vật chính", "archetype": "Protagonist", "description": "Thần thái tự sự điện ảnh"}],
+                "locations": [{"id": "L1", "name": "Bối cảnh chủ đạo", "description": "Không gian rộng và sâu"}],
+                "props": [{"id": "P1", "name": "Đạo cụ định mệnh", "description": "Vật phẩm cốt lõi"}]
             }
         }
 
@@ -221,60 +221,15 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
             "pacing_metrics": {"total_duration_sec": 180},
             "scenes_data": {
                 "acts": [
-                    {"act_name": "Act I", "scenes": [{"scene_id": 1, "title": "Mở đầu cảm xúc", "duration_sec": 60, "summary": "Khởi động mạch phim."}]},
-                    {"act_name": "Act II", "scenes": [{"scene_id": 2, "title": "Cao trào nội tâm", "duration_sec": 60, "summary": "Điểm xoay chuyển cảm xúc."}]},
-                    {"act_name": "Act III", "scenes": [{"scene_id": 3, "title": "Hồi kết chữa lành", "duration_sec": 60, "summary": "Sự giải thoát và lắng đọng."}]}
+                    {"act_name": "Act I", "scenes": [{"scene_id": 1, "title": "Mở đầu", "duration_sec": 60, "summary": "Khởi động mạch phim."}]},
+                    {"act_name": "Act II", "scenes": [{"scene_id": 2, "title": "Cao trào", "duration_sec": 60, "summary": "Điểm xoay chuyển kịch tính."}]},
+                    {"act_name": "Act III", "scenes": [{"scene_id": 3, "title": "Hồi kết", "duration_sec": 60, "summary": "Giải quyết mâu thuẫn và thăng hoa."}]}
                 ]
             }
         }
     
     save_users()
-    return JSONResponse({"status": "success", "message": "🚀 Đã kích hoạt AI tự động lấp đầy toàn bộ các tầng!"})
-
-@app.post("/api/cineai/audit-script-assets")
-async def audit_script_assets(request: Request, session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
-    data = await request.json()
-    project_id = data.get("id", "")
-    projects = get_user_projects(username)
-    target_project = next((p for p in projects if p.get("id") == project_id), None)
-    if not target_project:
-        return JSONResponse({"status": "error", "message": "⚠️ Không tìm thấy dự án!"}, status_code=404)
-        
-    raw_story = target_project["ideation_core"].get("project_raw_story", "")
-    if not raw_story:
-        return JSONResponse({"status": "error", "message": "⚠️ Kịch bản còn trống!"}, status_code=400)
-    
-    system_prompt = (
-        "Bạn là Tổng Đạo Diễn của Cine AI Studio Pro 7.2.5. Quét kịch bản theo Master Schema gồm:\n"
-        "1. Entities (Nhân vật), Locations (Bối cảnh), Props (Đạo cụ), Audio Signatures (Âm thanh).\n"
-        "2. Temporal State Matrix & Evolution Item Tokens.\n"
-        "Trả về DUY NHẤT chuỗi JSON hợp lệ:\n"
-        "{\n"
-        '  "time_jumps_detected": [],\n'
-        '  "visual_style_lock": {"color_grading": "", "lens_language": "", "emotional_archetype": ""},\n'
-        '  "entities": [{"id": "E1", "name": "...", "archetype": "...", "temporal_states": [], "description": "..."}],\n'
-        '  "locations": [{"id": "L1", "name": "...", "temporal_states": [], "description": "..."}],\n'
-        '  "props": [{"id": "P1", "name": "...", "evolution_lineage": [], "description": "..."}],\n'
-        '  "audio_signatures": [{"id": "A1", "name": "...", "audio_signature": "..."}]\n'
-        "}"
-    )
-    raw_res, err_msg = call_gemini_direct(system_prompt + f"\n\nKịch bản:\n{raw_story}")
-    if not raw_res:
-        return JSONResponse({"status": "error", "message": err_msg}, status_code=500)
-    
-    try:
-        clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
-        parsed_audit = json.loads(clean_json)
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
-        
-    target_project["master_schema"]["assets_audit"] = {"audited_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "data": parsed_audit}
-    save_users()
-    return JSONResponse({"status": "success", "audit_data": parsed_audit})
+    return JSONResponse({"status": "success", "message": "🚀 Đã tự động hoàn tất toàn bộ các khâu sản xuất!"})
 
 @app.post("/api/cineai/chat")
 async def chat_with_director(request: Request, session_id: str = Cookie(None)):
@@ -288,9 +243,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 7.2.5. Trả về DUY NHẤT JSON:\n"
         "{\n"
         '  "message": "Câu nói tâm tình chạm cảm xúc (1-2 câu)",\n'
-        '  "extracted_slots": {"SLOT": "Giá trị"},\n'
-        '  "quick_chips": ["Ý 1", "Ý 2", "Ý 3"],\n'
-        '  "is_ready_for_script": true\n'
+        '  "quick_chips": ["Ý tưởng 1", "Ý tưởng 2", "Ý tưởng 3"]\n'
         "}"
     )
     raw_res, err_msg = call_gemini_direct(system_persona + f"\nUser: {user_message}")
@@ -298,72 +251,13 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         try:
             clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
             parsed = json.loads(clean_json)
-            return JSONResponse({"reply": parsed.get("message", "Đã tiếp nhận."), "chips": parsed.get("quick_chips", []), "ready": True})
+            return JSONResponse({"reply": parsed.get("message", "Đã tiếp nhận ý kiến đạo diễn."), "chips": parsed.get("quick_chips", [])})
         except Exception:
             pass
-    return JSONResponse({"reply": raw_res or err_msg, "chips": ["Tiếng mưa rơi", "Ký ức cũ"], "ready": True})
-
-@app.post("/api/cineai/generate-script-from-slots")
-async def generate_script_from_slots(request: Request, session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"status": "error", "message": "Phiên hết hạn"}, status_code=401)
-    data = await request.json()
-    project_id = data.get("id", "")
-    
-    projects = get_user_projects(username)
-    target_project = next((p for p in projects if p.get("id") == project_id), None)
-    slots = target_project["ideation_core"].get("ideation_slots", {}) if target_project else {}
-    
-    prompt = f"Dựa vào các slots tâm lý sau, viết kịch bản 3 hồi hoàn chỉnh dạng JSON gồm title, header, story:\n{json.dumps(slots, ensure_ascii=False)}"
-    raw_res, err = call_gemini_direct(prompt)
-    if not raw_res:
-        return JSONResponse({"status": "error", "message": err}, status_code=500)
-    try:
-        clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
-        res_data = json.loads(clean_json)
-    except Exception:
-        res_data = {"title": "Dự án mới", "header": "Thể loại: Tâm lý", "story": raw_res}
-        
-    if target_project:
-        target_project["metadata"]["title"] = res_data.get("title", "Dự án mới")
-        target_project["metadata"]["header"] = res_data.get("header", "")
-        target_project["ideation_core"]["project_raw_story"] = res_data.get("story", "")
-        save_users()
-    return JSONResponse({"status": "success", "data": res_data})
+    return JSONResponse({"reply": raw_res or err_msg, "chips": ["Tiếng mưa rơi", "Ký ức cũ"]})
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS FULL-FEATURE (PHẦN 3/4)
+# CINE AI STUDIO PRO 7.2.5 - ONE-HANDED VENUS SUITE (PHẦN 3/4)
 # ==============================================================================
-
-@app.post("/api/cineai/breakdown-scenes-enterprise")
-async def breakdown_scenes_enterprise(request: Request, session_id: str = Cookie(None)):
-    username = ACTIVE_SESSIONS.get(session_id)
-    if not username:
-        return JSONResponse({"message": "Phiên hết hạn"}, status_code=401)
-    data = await request.json()
-    project_id = data.get("id", "")
-    projects = get_user_projects(username)
-    target_project = next((p for p in projects if p.get("id") == project_id), None)
-    raw_story = target_project["ideation_core"].get("project_raw_story", "") if target_project else ""
-    
-    pro_prompt = f"Phân tích kịch bản và chia nhịp 3 hồi (Act I, Act II, Act III) dạng JSON:\n{raw_story}"
-    raw_res, err_msg = call_gemini_direct(pro_prompt)
-    parsed_scenes = None
-    if raw_res:
-        try:
-            clean_json_str = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
-            parsed_scenes = json.loads(clean_json_str)
-        except Exception:
-            pass
-            
-    if not parsed_scenes:
-        parsed_scenes = {"acts": [{"act_name": "Act I", "scenes": [{"scene_id": 1, "title": "Mở đầu", "duration_sec": 60, "summary": "Khởi động"}]}]}
-        
-    structured_data = {"pacing_metrics": {"total_duration_sec": 180}, "scenes_data": parsed_scenes}
-    if target_project:
-        target_project["master_schema"]["scene_breakdown_enterprise"] = structured_data
-        save_users()
-    return JSONResponse({"status": "success", "metrics": structured_data["pacing_metrics"], "data": parsed_scenes})
 
 @app.post("/api/cineai/render-scene-take")
 async def render_scene_take(request: Request, background_tasks: BackgroundTasks, session_id: str = Cookie(None)):
@@ -373,15 +267,11 @@ async def render_scene_take(request: Request, background_tasks: BackgroundTasks,
     user_data = USERS_DB.get(username, {})
     user_data["credits"] = max(0, user_data.get("credits", 10) - 5)
     save_users()
-    return JSONResponse({"status": "success", "message": "🎬 Đã hoàn tất render phân cảnh tự động!"})
-
-@app.get("/api/cineai/get-rough-cut")
-async def get_rough_cut(id: str = "", session_id: str = Cookie(None)):
-    return JSONResponse({"status": "success", "total_timeline_duration_sec": 180, "rough_cut_playlist": []})
+    return JSONResponse({"status": "success", "message": "🎬 Đã render hoàn tất phân cảnh mẫu!"})
 
 @app.get("/api/cineai/export-srt")
 async def export_srt_subtitles(id: str = "", session_id: str = Cookie(None)):
-    return JSONResponse({"status": "success", "srt_format": "1\n00:00:00,000 --> 00:01:00,000\n[Lip-Sync] Khởi đầu cảm xúc\n\n"})
+    return JSONResponse({"status": "success", "srt_format": "1\n00:00:00,000 --> 00:01:00,000\n[Lip-Sync] Khởi đầu điện ảnh\n\n"})
 
 @app.post("/api/cineai/delete-project")
 async def delete_project(request: Request, session_id: str = Cookie(None)):
@@ -389,12 +279,11 @@ async def delete_project(request: Request, session_id: str = Cookie(None)):
     if not username:
         return JSONResponse({"status": "error", "message": "Phiên hết hạn"}, status_code=401)
     data = await request.json()
-    project_id = data.get("id", "")
     projects = get_user_projects(username)
-    new_projects = [p for p in projects if p.get("id") != project_id]
+    new_projects = [p for p in projects if p.get("id") != data.get("id", "")]
     USERS_DB[username]["projects"] = new_projects
     save_users()
-    return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án!"})
+    return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án thành công!"})
 
 def get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, username):
     t1_cls = "bg-amber-500 text-slate-950 shadow-md" if active_tier == 1 else "bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer"
@@ -414,16 +303,17 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 7.2.5 - Venus Suite</title>
+        <title>Cine AI Studio Pro 7.2.5 - One-Handed Venus</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-24">
+    <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28">
         <div class="max-w-4xl mx-auto space-y-3">
             
+            <!-- HEADER THAO TÁC MỘT TAY -->
             <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative">
                 <div class="flex items-center gap-2">
                     <span class="text-xl">🎬</span>
-                    <h1 class="text-sm sm:text-base font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 7.2.5</h1>
+                    <h1 class="text-xs sm:text-sm font-black text-amber-400 tracking-wide uppercase">Cine AI Studio Pro 7.2.5</h1>
                 </div>
                 
                 <div class="relative">
@@ -435,25 +325,31 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                             <p class="text-xs font-bold text-slate-200">USER_NAME_VAL</p>
                             <p class="text-[11px] text-emerald-400 font-bold mt-0.5">💰 Số dư: USER_CREDITS_VAL Credit</p>
                         </div>
-                        <a href="/logout" class="block w-full text-center bg-rose-950/80 hover:bg-rose-900 border border-rose-800/80 text-rose-200 py-1.5 rounded-xl text-xs font-bold transition">Đăng Xuất</a>
+                        <a href="/logout" class="block w-full text-center bg-rose-950/80 text-rose-200 py-1.5 rounded-xl text-xs font-bold">Đăng Xuất</a>
                     </div>
                 </div>
             </div>
 
+            <!-- THANH THÔNG TIN DỰ ÁN & ICON BUÔNG THẢ NHANH -->
             <div class="bg-slate-900/90 border border-amber-500/30 p-3 rounded-2xl flex items-center justify-between shadow-lg">
                 <div class="flex items-center gap-2 overflow-hidden">
-                    <span class="text-amber-400 text-xs sm:text-sm whitespace-nowrap">🎞️ Dự án hiện hành:</span>
-                    <span id="global-project-title-display" class="text-amber-300 font-black text-xs sm:text-sm truncate">PROJECT_TITLE_VAL</span>
+                    <span class="text-amber-400 text-xs whitespace-nowrap">🎞️ Dự án:</span>
+                    <span id="global-project-title-display" class="text-amber-300 font-black text-xs truncate">PROJECT_TITLE_VAL</span>
                 </div>
-                <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-bold border border-amber-500/20 whitespace-nowrap">Tầng ACTIVE_TIER_VAL</span>
+                <!-- FLOATING ACTION ICON TRỰC QUAN -->
+                <div class="flex gap-1.5">
+                    <button onclick="openBottomSheet('quick-edit')" class="bg-amber-500/20 text-amber-400 p-1.5 rounded-xl text-xs border border-amber-500/30 font-bold" title="Bảng điều khiển nhanh">⚡ Menu</button>
+                </div>
             </div>
 
+            <!-- 3 NÚT ĐIỀU HƯỚNG MỘT TAY -->
             <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                <a href="/?new_project=1" class="bg-amber-500 hover:bg-amber-400 text-slate-950 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">➕ Dự Án Mới</a>
-                <a href="/library" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 py-2 rounded-xl transition shadow flex items-center justify-center gap-1">📁 Thư Viện</a>
-                <button onclick="openDrawer('chat')" class="bg-indigo-600/80 hover:bg-indigo-600 text-white py-2 rounded-xl transition shadow flex items-center justify-center gap-1">🤖 Trợ Lý Ảo</button>
+                <a href="/?new_project=1" class="bg-amber-500 text-slate-950 py-2.5 rounded-xl shadow flex items-center justify-center gap-1">➕ Tạo Mới</a>
+                <a href="/library" class="bg-slate-900 border border-slate-800 text-slate-200 py-2.5 rounded-xl shadow flex items-center justify-center gap-1">📁 Thư Viện</a>
+                <button onclick="openDrawer('chat')" class="bg-indigo-600 text-white py-2.5 rounded-xl shadow flex items-center justify-center gap-1">🤖 Trợ Lý</button>
             </div>
 
+            <!-- BREADCRUMB 4 TẦNG NHẢY CÓC LINH HOẠT -->
             <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-[10px] sm:text-xs font-bold">
                 <a href="/?load_id=ENC_ID_VAL&tier=1" class="py-2 rounded-xl transition T1_CLS_VAL">1. Kịch Bản</a>
                 <a href="/?load_id=ENC_ID_VAL&tier=2" class="py-2 rounded-xl transition T2_CLS_VAL">2. Casting</a>
@@ -461,18 +357,19 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                 <a href="/?load_id=ENC_ID_VAL&tier=4" class="py-2 rounded-xl transition T4_CLS_VAL">4. Render</a>
             </div>
 
+            <!-- THẺ KÍCH HOẠT TẦNG 1 -->
             <div id="tier1-nav-switcher" class="T1_VIS_VAL grid grid-cols-2 gap-2">
-                <button onclick="openDrawer('script')" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 p-3.5 rounded-2xl text-left transition shadow flex items-center justify-between group">
+                <button onclick="openDrawer('script')" class="bg-slate-900 border border-slate-700 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group">
                     <div>
-                        <span class="text-xs font-black text-slate-100 group-hover:text-amber-300">📜 Câu chuyện của bạn</span>
-                        <span class="text-[10px] text-slate-400 block mt-0.5">Đọc & chỉnh sửa kịch bản</span>
+                        <span class="text-xs font-black text-slate-100 group-hover:text-amber-300">📜 Câu chuyện</span>
+                        <span class="text-[10px] text-slate-400 block">Chỉnh sửa kịch bản</span>
                     </div>
                     <span class="text-xs text-amber-400 font-bold">Mở ▼</span>
                 </button>
-                <button onclick="openDrawer('chat')" class="bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/60 p-3.5 rounded-2xl text-left transition shadow flex items-center justify-between group">
+                <button onclick="openDrawer('chat')" class="bg-indigo-950/40 border border-indigo-800/60 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group">
                     <div>
-                        <span class="text-xs font-black text-indigo-200 group-hover:text-white">✨ Ươm mầm ý tưởng</span>
-                        <span class="text-[10px] text-indigo-400 block mt-0.5">Trò chuyện cùng đạo diễn</span>
+                        <span class="text-xs font-black text-indigo-200">✨ Ươm mầm ý tưởng</span>
+                        <span class="text-[10px] text-indigo-400 block">Trò chuyện AI</span>
                     </div>
                     <span class="text-xs text-indigo-300 font-bold">Mở ▼</span>
                 </button>
@@ -492,29 +389,24 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
             <div id="screen-tier-1" class="T1_VIS_VAL space-y-3">
                 <div class="bg-slate-900 p-4 rounded-3xl border border-slate-800 text-center space-y-2">
                     <h2 class="text-xs font-bold text-amber-400 uppercase">📽️ Không Gian Sáng Tạo Tầng 1</h2>
-                    <p class="text-[11px] text-slate-400 leading-tight">Chạm vào các thẻ phía trên hoặc bấm 'Bước vào thế giới phim' để AI tự động hoàn tất mọi khâu.</p>
+                    <p class="text-[11px] text-slate-400 leading-tight">Chạm thẻ phía trên hoặc bấm 'Bước vào thế giới phim' để AI tự động lo trọn gói.</p>
                 </div>
             </div>
 
             <div id="screen-tier-2" class="T2_VIS_VAL space-y-3">
                 <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
                     <h2 class="text-xs font-bold text-amber-400 uppercase">🎨 Tầng 2: Casting & Đạo Cụ Đã Khóa</h2>
-                    <p class="text-[10px] text-slate-400">Đã tự động trích xuất thực thể từ kịch bản của bạn.</p>
                     <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1">
-                        <p class="text-emerald-400 font-bold">✅ Nhân vật chính: Đã khóa (Protagonist)</p>
-                        <p class="text-indigo-400 font-bold">✅ Bối cảnh: Đã định hình (Cinematic Space)</p>
-                        <p class="text-purple-400 font-bold">✅ Đạo cụ định mệnh: Đã sẵn sàng</p>
+                        <p class="text-emerald-400 font-bold">✅ Thực thể nhân vật đã sẵn sàng</p>
+                        <p class="text-indigo-400 font-bold">✅ Bối cảnh điện ảnh đã khóa</p>
                     </div>
                 </div>
             </div>
 
             <div id="screen-tier-3" class="T3_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                <h2 class="text-xs font-bold text-amber-400 uppercase">🎬 Tầng 3: Dựng Cảnh & Chia Nhịp Phim 3 Hồi</h2>
+                <h2 class="text-xs font-bold text-amber-400 uppercase">🎬 Tầng 3: Dựng Cảnh 3 Hồi</h2>
                 <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-2">
-                    <p class="text-amber-300 font-bold">🌟 Trạng thái: Đã chia nhịp hoàn tất tự động.</p>
-                    <p class="text-[11px] text-slate-400">• Act I: Khởi động cảm xúc (60s)</p>
-                    <p class="text-[11px] text-slate-400">• Act II: Cao trào nội tâm (60s)</p>
-                    <p class="text-[11px] text-slate-400">• Act III: Hồi kết chữa lành (60s)</p>
+                    <p class="text-amber-300 font-bold">🌟 Đã tự động chia nhịp phân cảnh chuẩn Enterprise.</p>
                 </div>
             </div>
 
@@ -524,6 +416,21 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-2xl text-xs">📜 Xuất Phụ Đề .SRT</button>
             </div>
 
+            <!-- BOTTOM SHEET OVERLAYS (MÀN HÌNH BUÔNG THẢ TỪ ĐÁY) -->
+            <div id="bottom-sheet-quick-edit" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
+                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 space-y-3 shadow-2xl animate-in slide-in-from-bottom">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <h3 class="text-xs font-bold text-amber-400 uppercase">⚡ Bảng Điều Hướng Nhanh (Một Tay)</h3>
+                        <button onclick="closeBottomSheet('quick-edit')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center">✕</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <button onclick="closeBottomSheet('quick-edit'); openDrawer('script');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-amber-300">📜 Sửa Kịch Bản</button>
+                        <button onclick="closeBottomSheet('quick-edit'); openDrawer('chat');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-indigo-300">✨ Trò Chuyện Đạo Diễn</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DRAWER KỊCH BẢN -->
             <div id="drawer-script" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
                 <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2.5">
@@ -537,6 +444,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 </div>
             </div>
 
+            <!-- DRAWER TRỢ LÝ ẢO -->
             <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
                 <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -544,20 +452,21 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                         <button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center">✕</button>
                     </div>
                     <div id="chat-box" class="bg-slate-950 h-52 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2">
-                        <p class="text-blue-200">Chào đạo diễn! Hãy chia sẻ ý tưởng để em tự động lo các khâu tiếp theo.</p>
+                        <p class="text-blue-200">Chào đạo diễn! Hãy trao đổi để em tự động tinh chỉnh các khâu phim ảnh nhé.</p>
                     </div>
                     <div class="flex gap-2">
-                        <input type="text" id="chat-input" placeholder="Nhập tâm sự..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChat()">
+                        <input type="text" id="chat-input" placeholder="Nhập yêu cầu..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChat()">
                         <button onclick="sendChat()" class="bg-indigo-600 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- CỤM NÚT ĐÁY TỐI ƯU MỘT TAY -->
         <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40">
             <div class="max-w-4xl mx-auto flex gap-2">
-                <button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 text-slate-200 font-bold py-3.5 rounded-2xl text-xs">💾 Cất Giữ</button>
-                <button onclick="proceedSmartAutoFallback(ACTIVE_TIER_VAL)" class="w-2/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg">Bước vào thế giới phim ➔</button>
+                <button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 text-slate-200 font-bold py-3.5 rounded-2xl text-xs">💾 Lưu</button>
+                <button onclick="proceedSmartAutoFallback(ACTIVE_TIER_VAL)" class="w-2/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg">BƯỚC VÀO THẾ GIỚI PHIM ➔</button>
             </div>
         </div>
     """
@@ -567,7 +476,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     return tmpl
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS FULL-FEATURE (PHẦN 4/4)
+# CINE AI STUDIO PRO 7.2.5 - ONE-HANDED VENUS SUITE (PHẦN 4/4)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -588,14 +497,21 @@ def get_studio_javascript():
                 const el = document.getElementById('drawer-' + type);
                 if(el) el.classList.add('hidden');
             }
+            function openBottomSheet(name) {
+                const el = document.getElementById('bottom-sheet-' + name);
+                if(el) el.classList.remove('hidden');
+            }
+            function closeBottomSheet(name) {
+                const el = document.getElementById('bottom-sheet-' + name);
+                if(el) el.classList.add('hidden');
+            }
             async function saveAndCloseScriptDrawer() {
                 await saveDraftCurrent(currentActiveTier);
                 closeDrawer('script');
             }
             
-                        async function proceedSmartAutoFallback(currentTier) {
+            async function proceedSmartAutoFallback(currentTier) {
                 const btn = event.target;
-                const originalText = btn.innerHTML;
                 btn.innerHTML = "⏳ Đang kiến tạo thế giới phim...";
                 btn.disabled = true;
 
@@ -719,14 +635,14 @@ async def library_page(session_id: str = Cookie(None)):
     
     projects_html = ""
     for p in user_projects:
-        title = p.get("metadata", {}).get("title", "Dự án chưa đặt tên")
+        title = p.get("metadata", {}).get("title", "Dự án")
         p_id = p.get("id", "")
         h_tier = p.get("metadata", {}).get("highest_tier", 1)
         header = p.get("metadata", {}).get("header", "Đang cập nhật")
         updated = p.get("metadata", {}).get("updated_at", "Vừa xong")
         
         projects_html += f"""
-        <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
+        <div class="bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
             <div>
                 <span class="text-[11px] font-black bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 uppercase">Tiến độ: Tầng {h_tier}</span>
                 <h3 class="text-base font-black text-slate-100 mt-2">{title}</h3>
