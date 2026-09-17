@@ -598,10 +598,30 @@ async def library_page(session_id: str = Cookie(None)):
     projects_html = ""
     for p in user_projects:
         pub_badge = "<span class='bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] ml-2 border border-indigo-500/30'>🌐 CỘNG ĐỒNG</span>" if p.get("metadata", {}).get("is_public") else ""
-        projects_html += f"<div class='bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl'><div><span class='text-[11px] font-black bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 uppercase'>Tầng {p.get('metadata', {}).get('highest_tier', 1)}</span>{pub_badge}<h3 class='text-base font-black text-slate-100 mt-2'>{p.get('metadata', {}).get('title', 'Dự án')}</h3></div><div class='flex justify-between items-center pt-2 border-t border-slate-800'><span class='text-[10px] text-slate-500'>{p.get('metadata', {}).get('updated_at', '')}</span><div class='flex gap-2'><a href='/?load_id={p.get(\"id\", \"\")}' class='bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase shadow'>Sân Khấu</a><button onclick=\"confirmDelete('{p.get(\"id\", \"\")}', '{p.get(\"metadata\", {}).get(\"title\", \"\जै\")}')\" class='bg-rose-950 text-rose-200 px-3 py-2 rounded-xl text-xs font-bold'>Xóa</button></div></div></div>"
+        p_id = p.get("id", "")
+        p_title = p.get("metadata", {}).get("title", "Dự án")
+        p_tier = p.get('metadata', {}).get('highest_tier', 1)
+        p_updated = p.get('metadata', {}).get('updated_at', '')
+        
+        projects_html += f"""
+        <div class='bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl'>
+            <div>
+                <span class='text-[11px] font-black bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 uppercase'>Tầng {p_tier}</span>
+                {pub_badge}
+                <h3 class='text-base font-black text-slate-100 mt-2'>{p_title}</h3>
+            </div>
+            <div class='flex justify-between items-center pt-2 border-t border-slate-800'>
+                <span class='text-[10px] text-slate-500'>{p_updated}</span>
+                <div class='flex gap-2'>
+                    <a href='/?load_id={p_id}' class='bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase shadow'>Sân Khấu</a>
+                    <button onclick="confirmDelete('{p_id}', '{p_title}')" class='bg-rose-950 text-rose-200 px-3 py-2 rounded-xl text-xs font-bold'>Xóa</button>
+                </div>
+            </div>
+        </div>
+        """
 
-    return HTMLResponse(content=f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Thư Viện Cá Nhân v7.3.1</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base font-black text-amber-400 uppercase'>📁 Thư Viện Cá Nhân v7.3.1</h1></div><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs'>🏠 Studio</a></div></div><div class='space-y-3'>{projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs\">Chưa có dự án.</div>'}</div></div><script>async function confirmDelete(id, title) {{ if(confirm(\"Xóa '\" + title + \"'?\")) {{ await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}}); location.reload(); }} }}</script></body></html>")
-
+    return HTMLResponse(content=f"""<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Thư Viện Cá Nhân v7.3.1</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base font-black text-amber-400 uppercase'>📁 Thư Viện Cá Nhân v7.3.1</h1></div><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs'>🏠 Studio</a></div></div><div class='space-y-3'>{projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs\">Chưa có dự án.</div>'}</div></div><script>async function confirmDelete(id, title) {{ if(confirm("Xóa '" + title + "'?")) {{ await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}}); location.reload(); }} }}</script></body></html>""")
+    
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
 async def login_handler(request: Request, tab: str = "login", error: str = None, success: str = None):
