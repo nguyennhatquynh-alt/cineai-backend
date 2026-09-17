@@ -360,7 +360,7 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
 async def delete_project(request: Request, session_id: str = Cookie(None)):
     current_user = ACTIVE_SESSIONS.get(session_id)
     data = await request.json()
-    USERS_DB[current_user]["projects"] = [p for p in get_user_projects(current_user) if p.get("id"] != data.get("id", "")]
+    USERS_DB[current_user]["projects"] = [p for p in get_user_projects(current_user) if p.get("id") != data.get("id", "")]
     save_users(); return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án!"})
     # ==============================================================================
 # CINE AI STUDIO PRO 7.3.5 - KNOWLEDGE TRAPPER MASTER RELEASE (PHẦN 4/5)
