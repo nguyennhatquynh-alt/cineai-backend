@@ -47,7 +47,6 @@ def migrate_project_to_tree(p):
     meta = p.get("metadata", {}); post_prod = p.get("post_production", {})
     master_schema = p.get("master_schema", {})
     
-    # Tích hợp Global Asset Registry chứa Vaccine (Cơ chế 3) & Continuity Lock (Cơ chế 4)
     if "global_asset_registry" not in master_schema:
         master_schema["global_asset_registry"] = {
             "characters": {"Hero_01": {"name": "Nhân vật chính", "negative_prompt": "deformed eyes, extra fingers"}},
@@ -153,7 +152,6 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         raw_story = data.get("story", "").strip()
         target_project["ideation_core"]["project_raw_story"] = raw_story
         
-        # === ĐAN CHÉO CƠ CHẾ 2: TOKEN COMPRESSION LOOP ===
         if len(raw_story) > 250:
             target_project["ideation_core"]["compressed_dna"] = f"[DNA Tóm tắt v7.3.3]: {raw_story[:120]}... [Đã nén tối ưu token]"
         else:
@@ -220,7 +218,7 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
     current_user = ACTIVE_SESSIONS.get(session_id)
     if not current_user: return JSONResponse({"error": "Phiên hết hạn"}, status_code=401)
     data = await request.json()
-    target_project = next((p for p in get_user_projects(current_user) if p.get("id") == data.get("id", "")), None)
+    target_project = next((p for p in get_user_projects(current_user) if p.get("id"] == data.get("id", "")), None)
     if not target_project: return JSONResponse({"error": "Not found"}, status_code=404)
         
     if not target_project["ideation_core"].get("project_raw_story"): target_project["ideation_core"]["project_raw_story"] = "Hành trình điện ảnh tự sự."
@@ -232,7 +230,7 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
     if not current_user: return JSONResponse({"error": "Unauthorized"}, status_code=401)
     data = await request.json()
     user_message = data.get("message", ""); current_tier = int(data.get("tier", 1))
-    target_project = next((p for p in get_user_projects(current_user) if p.get("id") == data.get("id", "")), None)
+    target_project = next((p for p in get_user_projects(current_user) if p.get("id"] == data.get("id", "")), None)
     if not target_project: return JSONResponse({"error": "Not found"}, status_code=404)
     
     compressed_context = target_project["ideation_core"].get("compressed_dna", "")
@@ -268,7 +266,6 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
     project_id = data.get("id")
     scene_type = data.get("scene_type", "dynamic")
     
-    # === ĐAN CHÉO CƠ CHẾ 1: LAZY EVALUATION (SINH TẠO TRÌ HOÃN) ===
     if scene_type == "static_dialogue":
         cost = 0
         render_msg = "💡 [Lazy Evaluation]: Cảnh hội thoại tĩnh kích hoạt Ken Burns Effect ngầm — TIẾT KIỆM 100% Chi phí API Video!"
@@ -466,7 +463,8 @@ def get_studio_javascript():
                     const data = await res.json(); alert(data.message);
                 } finally { btn.innerHTML = orig; btn.classList.remove("animate-pulse"); btn.disabled = false; }
             }
-            # ==============================================================================
+    """
+    # ==============================================================================
 # CINE AI STUDIO PRO 7.3.3 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 4B/4)
 # ==============================================================================
 
@@ -618,4 +616,3 @@ async def logout(session_id: str = Cookie(None)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    
