@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 1/5)
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 1/10)
 # ==============================================================================
 
 import os
@@ -22,6 +22,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 def get_supabase_headers(): return {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 2/10)
+# ==============================================================================
 
 def load_users():
     if not SUPABASE_KEY: return {"admin": {"password_hash": hashlib.sha256("admin123".encode()).hexdigest(), "projects": [], "credits": 100}}
@@ -40,12 +43,15 @@ def save_users():
 
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
+# ==============================================================================
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 3/10)
+# ==============================================================================
 
 class PermanentImmortalKnowledgeBranch:
     """
     Cành Vĩnh Viễn trên Cây Bất Tử v7.5.0:
-    Đảm bảo mọi tri thức bẫy được lưu thẳng lên Supabase Cloud, phình to vĩnh viễn
-    và không bao giờ bị mất khi server restart. Khai thác khoa học cho toàn bộ hệ thống.
+    Lưu trữ tri thức vĩnh viễn trên Supabase Cloud, phình to theo thời gian
+    và khai thác khoa học để nuôi dưỡng AI.
     """
     @staticmethod
     def absorb_into_permanent_branch(project: Dict[str, Any], tier_id: int, category_key: str, expert_data: Dict[str, Any]) -> None:
@@ -88,11 +94,10 @@ def find_project_by_id(projects: List[Dict[str, Any]], project_id: str) -> Optio
     if not project_id: return None
     return next((p for p in projects if p.get("id") == project_id), None)
     # ==============================================================================
-# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 2/5)
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 4/10)
 # ==============================================================================
 
 class MasterDirectorEngine:
-    """Động cơ Đạo diễn v7.5.0: Quản lý DNA khởi thủy và bẫy tri thức vào cành vĩnh viễn."""
     @staticmethod
     def generate_genesis_dna(tier_id: int, context_hint: str) -> Dict[str, Any]:
         if tier_id == 1:
@@ -195,7 +200,7 @@ async def self_healing_global_middleware(request: Request, call_next):
     try: return await call_next(request)
     except Exception as exc: return JSONResponse(status_code=500, content={"status": "error", "message": f"Auto-heal v7.5.0: {str(exc)}"})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 3/5)
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 5/10)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
@@ -241,8 +246,6 @@ async def trap_knowledge_payload(request: Request, session_id: str = Cookie(None
     if not target_project: return JSONResponse({"status": "error", "message": "Không tìm thấy dự án."}, status_code=404)
 
     expert_payload = MasterDirectorEngine.generate_genesis_dna(tier_id, category_key)
-    
-    # 🌟 GHI KHẮC VÀO CÀNH VĨNH VIỄN TRÊN CÂY BẤT TỬ & ĐẨY LÊN SUPABASE CLOUD
     immortal_registry.absorb_into_permanent_branch(target_project, tier_id, category_key, expert_payload)
     save_users()
     
@@ -270,10 +273,13 @@ async def spin_off_project(request: Request, session_id: str = Cookie(None)):
         "title": f"{source_project['metadata']['title']} - Phần Tiếp (Season 2)",
         "header": source_project['metadata']['header'],
         "story": f"Kế thừa Cành Vĩnh Viễn từ dự án: {source_project['metadata']['title']}",
-        "master_schema": source_project["master_schema"] # Kế thừa toàn bộ Cành Vĩnh Viễn sang Season 2
+        "master_schema": source_project["master_schema"]
     })
     projects.insert(0, new_project); USERS_DB[current_user]["projects"] = projects; save_users()
     return JSONResponse({"status": "success", "message": "✨ Đã tạo Spin-off Season 2 kế thừa toàn bộ Cành Vĩnh Viễn v7.5.0!", "new_id": new_p_id})
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 6/10)
+# ==============================================================================
 
 @app.post("/api/cineai/ecosystem/cloud-sync")
 async def sync_to_cloud(request: Request, session_id: str = Cookie(None)):
@@ -322,7 +328,6 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
     target_project = find_project_by_id(projects, data.get("id", ""))
     if not target_project: return JSONResponse({"error": "Not found"}, status_code=404)
     
-    # 🌟 KHAI THÁC KHOA HỌC TỪ CÀNH VĨNH VIỄN ĐỂ BƠM VÀO PROMPT CHO GEMINI
     scientific_context = immortal_registry.extract_scientific_context(target_project)
     base_prompt = TIER_SYSTEM_PROMPTS.get(current_tier, TIER_SYSTEM_PROMPTS[1])
     system_prompt = f"{base_prompt}\n--- Kho Tri Thức Trường Tồn (Cành Vĩnh Viễn v7.5.0) ---\n{scientific_context}\nUser: {user_message}\nHãy đóng vai chuyên gia đạo diễn tư duy sâu sắc dựa trên kho tri thức đã tích lũy."
@@ -380,7 +385,7 @@ async def delete_project(request: Request, session_id: str = Cookie(None)):
     USERS_DB[current_user]["projects"] = [p for p in projects if p.get("id") != data.get("id", "")]
     save_users(); return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án!"})
     # ==============================================================================
-# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 4/5)
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 7/10)
 # ==============================================================================
 
 def get_studio_html_block_1(target_project, user_credits, active_tier, username, pub_text):
@@ -421,6 +426,9 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, username,
             <a href="/?load_id=ENC_ID_VAL&tier=3" class="py-2 rounded-xl T3_CLS_VAL">3. Dựng cảnh</a><a href="/?load_id=ENC_ID_VAL&tier=4" class="py-2 rounded-xl T4_CLS_VAL">4. Render</a></div>"""
     tmpl = tmpl.replace("USER_NAME_VAL", username).replace("USER_CREDITS_VAL", str(user_credits)).replace("TOTAL_NODES_VAL", str(total_nodes)).replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("ENC_ID_VAL", enc_id).replace("PUB_TEXT_VAL", pub_text)
     return tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls), t1_vis, t2_vis, t3_vis, t4_vis
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 8/10)
+# ==============================================================================
 
 def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier):
     chat_history = target_project["ideation_core"].get("chat_history", [])
@@ -489,7 +497,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
     tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
     return tmpl.replace("HISTORY_HTML_VAL", history_html).replace("ACTIVE_TIER_VAL", str(active_tier))
     # ==============================================================================
-# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 5A/5)
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 9/10)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -653,7 +661,7 @@ def get_studio_javascript():
         </script>
     """
     # ==============================================================================
-# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 5B/5)
+# CINE AI STUDIO PRO 7.5.0 - PERMANENT IMMORTAL KNOWLEDGE BRANCH (PHẦN 10/10)
 # ==============================================================================
 
 @app.get("/", response_class=HTMLResponse)
