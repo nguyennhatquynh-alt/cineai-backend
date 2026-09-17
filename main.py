@@ -745,20 +745,87 @@ async def library_page(session_id: str = Cookie(None)):
         """
 
     return HTMLResponse(content=f"""<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Thư Viện Cá Nhân v7.5.0</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base font-black text-amber-400 uppercase'>📁 Thư Viện Cá Nhân v7.5.0</h1></div><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs'>🏠 Studio</a></div></div><div class='space-y-3'>{projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs\">Chưa có dự án.</div>'}</div></div><script>async function confirmDelete(id, title) {{ if(confirm("Xóa '" + title + "'?")) {{ await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}}); location.reload(); }} }}</script></body></html>""")
-
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
 async def login_handler(request: Request, tab: str = "login", error: str = None, success: str = None):
     if request.method == "POST":
-        form = await request.form(); u = form.get("username", "").strip(); p = form.get("password", "").strip()
-        pwd_hash = hashlib.sha256(p.encode()).hexdigest()
-        if (u == "admin" and p == "admin123") or (USERS_DB.get(u) and USERS_DB[u].get("password_hash") == pwd_hash):
-            sid = secrets.token_hex(16); ACTIVE_SESSIONS[sid] = u
-            resp = RedirectResponse(url="/", status_code=303); resp.set_cookie(key="session_id", value=sid); return resp
-        return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai thông tin!"), status_code=303)
+        form = await request.form()
+        action = form.get("action", "login")
+        u = form.get("username", "").strip()
+        p = form.get("password", "").strip()
+        
+        if not u:
+            return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Vui lòng nhập tài khoản!"), status_code=303)
+            
+        if action == "register":
+            if u in USERS_DB:
+                return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Tài khoản đã tồn tại!"), status_code=303)
+            # Đăng ký tài khoản mới với 100 Credit và kho tri thức trống
+            USERS_DB[u] = {
+                "password_hash": hashlib.sha256(p.encode()).hexdigest(),
+                "projects": [],
+                "credits": 100
+            }
+            save_users()
+            return RedirectResponse(url="/login?success=" + urllib.parse.quote("✨ Đăng ký thành công! Hãy đăng nhập."), status_code=303)
+            
+        elif action == "forgot":
+            if u not in USERS_DB and u != "admin":
+                return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Tài khoản không tồn tại trong hệ thống!"), status_code=303)
+            # Cấp lại mật khẩu mặc định an toàn
+            new_pass = "cineai123"
+            target_user = "admin" if u == "admin" else u
+            USERS_DB[target_user]["password_hash"] = hashlib.sha256(new_pass.encode()).hexdigest()
+            save_users()
+            return RedirectResponse(url=f"/login?success=" + urllib.parse.quote(f"🔑 Đã cấp lại mật khẩu mới: {new_pass}"), status_code=303)
+            
+        else: # Login thông thường
+            pwd_hash = hashlib.sha256(p.encode()).hexdigest()
+            if (u == "admin" and p == "admin123") or (USERS_DB.get(u) and USERS_DB[u].get("password_hash") == pwd_hash):
+                sid = secrets.token_hex(16); ACTIVE_SESSIONS[sid] = u
+                resp = RedirectResponse(url="/", status_code=303); resp.set_cookie(key="session_id", value=sid); return resp
+            return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai tài khoản hoặc mật khẩu!"), status_code=303)
     
-    html = f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'><div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'><div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>Đăng Nhập Studio</h2><p class='text-xs text-slate-400'>Cine AI 7.5.0 Permanent Branch</p></div><form method='POST' action='/login' class='space-y-3'><div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><div><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><button type='submit' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow'>Vào Studio v7.5.0</button></form></div></body></html>"
+    err_html = f"<div class='bg-rose-950/80 border border-rose-800 text-rose-200 p-3 rounded-xl text-xs text-center font-bold mb-3'>{error}</div>" if error else ""
+    succ_html = f"<div class='bg-emerald-950/80 border border-emerald-800 text-emerald-200 p-3 rounded-xl text-xs text-center font-bold mb-3'>{success}</div>" if success else ""
+    
+    html = f"""<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Cine AI Studio - Đăng Nhập</title><script src='https://cdn.tailwindcss.com'></script></head>
+    <body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'>
+    <div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'>
+        <div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>🎬 Cine AI Studio Pro</h2><p class='text-xs text-slate-400'>Permanent Immortal Knowledge Branch v7.5.0</p></div>
+        {err_html}{succ_html}
+        <div class='flex bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs font-bold text-center'>
+            <button onclick="switchTab('login')" id='btn-login' class='flex-1 py-2.5 rounded-xl bg-amber-500 text-slate-950 shadow'>Đăng Nhập</button>
+            <button onclick="switchTab('register')" id='btn-register' class='flex-1 py-2.5 rounded-xl text-slate-400 hover:text-slate-200'>Đăng Ký</button>
+            <button onclick="switchTab('forgot')" id='btn-forgot' class='flex-1 py-2.5 rounded-xl text-slate-400 hover:text-slate-200'>Quên MK</button>
+        </div>
+        <form method='POST' action='/login' class='space-y-3 pt-1'>
+            <input type='hidden' name='action' id='form-action' value='login'>
+            <div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản / Email:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div>
+            <div id='password-field-box'><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' id='password-input' class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div>
+            <button type='submit' id='submit-btn' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow transition-all'>Vào Studio v7.5.0</button>
+        </form>
+    </div>
+    <script>
+        function switchTab(tab) {
+            document.getElementById('btn-login').className = 'flex-1 py-2.5 rounded-xl ' + (tab==='login'?'bg-amber-500 text-slate-950 shadow':'text-slate-400');
+            document.getElementById('btn-register').className = 'flex-1 py-2.5 rounded-xl ' + (tab==='register'?'bg-emerald-500 text-slate-950 shadow':'text-slate-400');
+            document.getElementById('btn-forgot').className = 'flex-1 py-2.5 rounded-xl ' + (tab==='forgot'?'bg-indigo-600 text-white shadow':'text-slate-400');
+            
+            const act = document.getElementById('form-action');
+            const btn = document.getElementById('submit-btn');
+            const pwdBox = document.getElementById('password-field-box');
+            const pwdInput = document.getElementById('password-input');
+            
+            act.value = tab;
+            if(tab === 'login') { pwdBox.style.display = 'block'; pwdInput.required = true; btn.innerText = 'Vào Studio v7.5.0'; btn.className = 'w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow transition-all'; }
+            else if(tab === 'register') { pwdBox.style.display = 'block'; pwdInput.required = true; btn.innerText = 'Tạo Tài Khoản Mới'; btn.className = 'w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow transition-all'; }
+            else if(tab === 'forgot') { pwdBox.style.display = 'none'; pwdInput.required = false; btn.innerText = 'Cấp Lại Mật Khẩu Mới'; btn.className = 'w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl text-xs uppercase shadow transition-all'; }
+        }
+    </script>
+    </body></html>"""
     return HTMLResponse(content=html)
+    
 
 @app.get("/logout")
 async def logout(session_id: str = Cookie(None)):
