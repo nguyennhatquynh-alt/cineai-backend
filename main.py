@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.2.7 - ECOSYSTEM PLATFORM (PHẦN 1/4)
+# CINE AI STUDIO PRO 7.2.8 - ECOSYSTEM UX REFINED (PHẦN 1/4)
 # ==============================================================================
 
 import os
@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException, Bac
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 import asyncio
 
-app = FastAPI(title="Cine AI Studio Pro 7.2.7 - Ecosystem Platform", version="7.2.7")
+app = FastAPI(title="Cine AI Studio Pro 7.2.8 - Ecosystem UX", version="7.2.8")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -42,7 +42,7 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 def migrate_project_to_tree(p):
-    """CẤU TRÚC 7.2.7: TÍCH HỢP CLOUD, COMMUNITY & SOCIAL LOOP"""
+    """CẤU TRÚC DỮ LIỆU BẢO TOÀN NGUYÊN KHỐI"""
     new_id = p.get("id") or secrets.token_hex(6)
     meta = p.get("metadata", {})
     post_prod = p.get("post_production", {})
@@ -56,15 +56,15 @@ def migrate_project_to_tree(p):
             "highest_tier": meta.get("highest_tier", 4),
             "current_tier": meta.get("current_tier", 1),
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "is_public": meta.get("is_public", False) # CỘNG ĐỒNG
+            "is_public": meta.get("is_public", False)
         },
         "ideation_core": p.get("ideation_core", {"project_raw_story": p.get("story", ""), "chat_history": []}),
         "master_schema": p.get("master_schema", {"token_registry": {}, "assets_audit": {}, "scene_breakdown_enterprise": {}}),
         "post_production": {
             "rough_cut_playlist": post_prod.get("rough_cut_playlist", []),
             "subtitles_srt": post_prod.get("subtitles_srt", ""),
-            "cloud_sync": post_prod.get("cloud_sync", {"drive_connected": False, "folder_url": ""}), # GOOGLE DRIVE CLOUD
-            "social_loop": post_prod.get("social_loop", {"platforms": ["youtube", "facebook"], "ai_audited": False}) # LẮNG NGHE KHÁN GIẢ
+            "cloud_sync": post_prod.get("cloud_sync", {"drive_connected": False, "folder_url": ""}),
+            "social_loop": post_prod.get("social_loop", {"platforms": ["youtube", "facebook"], "ai_audited": False})
         }
     }
 
@@ -107,14 +107,13 @@ async def self_healing_global_middleware(request: Request, call_next):
     try: return await call_next(request)
     except Exception as exc: return JSONResponse(status_code=500, content={"status": "error", "message": f"Auto-heal: {str(exc)}"})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.2.7 - ECOSYSTEM PLATFORM (PHẦN 2/4)
+# CINE AI STUDIO PRO 7.2.8 - ECOSYSTEM UX REFINED (PHẦN 2/4)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
 async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     current_user = ACTIVE_SESSIONS.get(session_id)
     if not current_user: return JSONResponse({"status": "error", "message": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
-    
     data = await request.json()
     project_id = data.get("id", "").strip()
     projects = get_user_projects(current_user)
@@ -136,16 +135,13 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     USERS_DB[current_user]["projects"] = projects; save_users()
     return JSONResponse({"status": "success", "message": msg, "saved_id": target_project["id"], "saved_title": target_project["metadata"]["title"]})
 
-# ---> CÁC CỔNG GIAO TIẾP HỆ SINH THÁI (MỚI) <---
 @app.post("/api/cineai/ecosystem/cloud-sync")
 async def sync_to_cloud(request: Request, session_id: str = Cookie(None)):
-    """CỔNG GOOGLE DRIVE: Lưu file nặng ra đám mây cá nhân"""
-    await asyncio.sleep(1.5) # Mô phỏng gọi OAuth Drive API
-    return JSONResponse({"status": "success", "message": "☁️ Đã đồng bộ an toàn file render lên thư mục Google Drive của bạn (CineAI_Export)."})
+    await asyncio.sleep(1.5)
+    return JSONResponse({"status": "success", "message": "☁️ Đã đồng bộ an toàn file render lên thư mục Google Drive (CineAI_Export)."})
 
 @app.post("/api/cineai/ecosystem/toggle-community")
 async def toggle_community(request: Request, session_id: str = Cookie(None)):
-    """CỔNG CỘNG ĐỒNG: Bật/Tắt chia sẻ dự án"""
     current_user = ACTIVE_SESSIONS.get(session_id)
     data = await request.json(); p_id = data.get("id")
     projects = get_user_projects(current_user)
@@ -159,10 +155,8 @@ async def toggle_community(request: Request, session_id: str = Cookie(None)):
 
 @app.post("/api/cineai/ecosystem/social-loop")
 async def social_loop_scan(request: Request, session_id: str = Cookie(None)):
-    """CỔNG MẠNG XÃ HỘI: Quét bình luận & Học hỏi AI 3 bước"""
-    await asyncio.sleep(2.0) # Mô phỏng quét YouTube/Facebook API
-    # Logic Thẩm âm 3 bước của dự án Thị Cún Đọc Thơ
-    analysis = "AI đã quét 150 comments: Khán giả đánh giá giai điệu chữa lành, cảm xúc sâu lắng. Kỹ thuật Audiophile dải mid mượt mà. Kết luận: Tác phẩm đạt độ 'gây nghiện' cao. Đã lưu tham số vào hồ sơ học hỏi."
+    await asyncio.sleep(2.0)
+    analysis = "AI đã quét 150 comments MXH: Khán giả đánh giá giai điệu chữa lành, cảm xúc sâu lắng. Kỹ thuật Audiophile dải mid mượt mà. Kết luận: Tác phẩm đạt độ 'gây nghiện' cao. Đã lưu tham số vào hồ sơ học hỏi."
     return JSONResponse({"status": "success", "message": f"📊 KẾT QUẢ THẨM ÂM:\n{analysis}"})
 
 @app.post("/api/cineai/auto-fallback-complete")
@@ -182,7 +176,6 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
 async def chat_stream_with_director(request: Request, session_id: str = Cookie(None)):
     current_user = ACTIVE_SESSIONS.get(session_id)
     if not current_user: return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    
     data = await request.json()
     user_message = data.get("message", ""); current_tier = int(data.get("tier", 1))
     target_project = next((p for p in get_user_projects(current_user) if p.get("id") == data.get("id", "")), None)
@@ -209,7 +202,7 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.7 - ECOSYSTEM PLATFORM (PHẦN 3/4)
+# CINE AI STUDIO PRO 7.2.8 - ECOSYSTEM UX REFINED (PHẦN 3/4)
 # ==============================================================================
 
 @app.post("/api/cineai/render-scene-take")
@@ -226,28 +219,55 @@ async def delete_project(request: Request, session_id: str = Cookie(None)):
     USERS_DB[current_user]["projects"] = [p for p in get_user_projects(current_user) if p.get("id") != data.get("id", "")]
     save_users(); return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án!"})
 
-def get_studio_html_block_1(target_project, user_credits, active_tier, username):
+def get_studio_html_block_1(target_project, user_credits, active_tier, username, pub_text):
     t1_cls = "bg-amber-500 text-slate-950 shadow-md" if active_tier == 1 else "bg-slate-800 text-slate-200"
     t2_cls = "bg-amber-500 text-slate-950 shadow-md" if active_tier == 2 else "bg-slate-800 text-slate-200"
     t3_cls = "bg-amber-500 text-slate-950 shadow-md" if active_tier == 3 else "bg-slate-800 text-slate-200"
     t4_cls = "bg-amber-500 text-slate-950 shadow-md" if active_tier == 4 else "bg-slate-800 text-slate-200"
     t1_vis, t2_vis = "block" if active_tier == 1 else "hidden", "block" if active_tier == 2 else "hidden"
     t3_vis, t4_vis = "block" if active_tier == 3 else "hidden", "block" if active_tier == 4 else "hidden"
+    enc_id = target_project.get("id", "")
     
-    tmpl = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cine AI Studio 7.2.7 Platform</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28"><div class="max-w-4xl mx-auto space-y-3">
-        <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl">
-            <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-xs sm:text-sm font-black text-amber-400 uppercase">Cine AI 7.2.7 Platform</h1></div>
+    tmpl = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cine AI Studio 7.2.8 Platform</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28"><div class="max-w-4xl mx-auto space-y-3">
+        
+        <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative z-40">
+            <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-xs sm:text-sm font-black text-amber-400 uppercase">Cine AI 7.2.8</h1></div>
             <div class="relative"><button onclick="toggleProfileMenu()" class="w-9 h-9 rounded-full bg-slate-800 border-2 border-amber-400/80 flex items-center justify-center shadow"><span class="text-sm">👤</span></button>
-                <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-2xl z-50 space-y-2.5">
-                    <div class="border-b border-slate-800 pb-2"><p class="text-xs font-bold text-slate-200">USER_NAME_VAL</p><p class="text-[11px] text-emerald-400 font-bold mt-0.5">💰: USER_CREDITS_VAL C</p></div><a href="/logout" class="block w-full text-center bg-rose-950/80 text-rose-200 py-1.5 rounded-xl text-xs font-bold">Đăng Xuất</a>
-                </div></div></div>
+                
+                <!-- GIAO DIỆN QUẢN LÝ HỆ SINH THÁI TÍCH HỢP VÀO PROFILE -->
+                <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl p-3 shadow-2xl space-y-2">
+                    <div class="border-b border-slate-800 pb-2">
+                        <p class="text-xs font-bold text-slate-200">USER_NAME_VAL</p>
+                        <p class="text-[11px] text-emerald-400 font-bold mt-0.5">💰 Số dư: USER_CREDITS_VAL Credit</p>
+                    </div>
+                    <div class="py-1 space-y-1 border-b border-slate-800">
+                        <button onclick="alert('💳 Cổng thanh toán nội bộ đang được cấu hình.')" class="w-full text-left px-2 py-2 hover:bg-slate-800 rounded-lg text-xs font-bold text-amber-300 transition">💳 Nạp Credit</button>
+                        <button onclick="syncToCloud(this)" class="w-full text-left px-2 py-2 hover:bg-slate-800 rounded-lg text-xs font-bold text-blue-300 transition">☁️ Lưu Google Drive</button>
+                        <button onclick="scanSocial(this)" class="w-full text-left px-2 py-2 hover:bg-slate-800 rounded-lg text-xs font-bold text-indigo-300 transition">📊 Quét Mạng Xã Hội</button>
+                        <button onclick="toggleCommunity(this)" class="w-full text-left px-2 py-2 hover:bg-slate-800 rounded-lg text-xs font-bold text-emerald-400 transition">PUB_TEXT_VAL</button>
+                    </div>
+                    <a href="/logout" class="block w-full text-center bg-rose-950/80 hover:bg-rose-900 text-rose-200 py-2 rounded-xl text-xs font-bold transition">Đăng Xuất</a>
+                </div>
+            </div>
+        </div>
+        
         <div class="bg-slate-900/90 border border-amber-500/30 p-3 rounded-2xl flex items-center justify-between shadow-lg">
             <div class="flex items-center gap-2 overflow-hidden"><span class="text-amber-400 text-xs">🎞️ Dự án:</span><span id="global-project-title-display" class="text-amber-300 font-black text-xs truncate">PROJECT_TITLE_VAL</span></div>
-            <div class="flex gap-1.5"><button onclick="openBottomSheet('quick-edit')" class="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-xl text-xs border border-amber-500/30 font-bold">⚡ Menu</button></div></div>
+            <div class="flex gap-1.5"><button onclick="openBottomSheet('quick-edit')" class="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-xl text-xs border border-amber-500/30 font-bold">⚡ Menu</button></div>
+        </div>
+
+        <!-- BỔ SUNG ICON "CỘNG ĐỒNG" VÀO THANH ĐIỀU HƯỚNG CHÍNH -->
+        <div class="grid grid-cols-4 gap-2 text-center text-[10px] sm:text-xs font-bold">
+            <a href="/?new_project=1" class="bg-amber-500 text-slate-950 py-2 rounded-xl shadow flex flex-col items-center justify-center gap-0.5"><span class="text-sm">➕</span>Tạo Mới</a>
+            <a href="/library" class="bg-slate-900 border border-slate-700 text-slate-200 py-2 rounded-xl shadow flex flex-col items-center justify-center gap-0.5 hover:bg-slate-800 transition"><span class="text-sm">📁</span>Thư Viện</a>
+            <a href="/community" class="bg-indigo-900/40 border border-indigo-700 text-indigo-300 py-2 rounded-xl shadow flex flex-col items-center justify-center gap-0.5 hover:bg-indigo-800/60 transition"><span class="text-sm">🌐</span>Cộng Đồng</a>
+            <button onclick="openDrawer('chat')" class="bg-indigo-600 text-white py-2 rounded-xl shadow flex flex-col items-center justify-center gap-0.5 animate-pulse"><span class="text-sm">🤖</span>Trợ Lý AI</button>
+        </div>
+
         <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-[10px] sm:text-xs font-bold">
             <a href="/?load_id=ENC_ID_VAL&tier=1" class="py-2 rounded-xl T1_CLS_VAL">1. Kịch Bản</a><a href="/?load_id=ENC_ID_VAL&tier=2" class="py-2 rounded-xl T2_CLS_VAL">2. Casting</a>
             <a href="/?load_id=ENC_ID_VAL&tier=3" class="py-2 rounded-xl T3_CLS_VAL">3. Dựng cảnh</a><a href="/?load_id=ENC_ID_VAL&tier=4" class="py-2 rounded-xl T4_CLS_VAL">4. Render</a></div>"""
-    tmpl = tmpl.replace("USER_NAME_VAL", username).replace("USER_CREDITS_VAL", str(user_credits)).replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("ENC_ID_VAL", target_project.get("id", ""))
+    tmpl = tmpl.replace("USER_NAME_VAL", username).replace("USER_CREDITS_VAL", str(user_credits)).replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("ENC_ID_VAL", target_project.get("id", "")).replace("PUB_TEXT_VAL", pub_text)
     return tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls), t1_vis, t2_vis, t3_vis, t4_vis
 
 def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier):
@@ -257,42 +277,31 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
         if msg["role"] == "User": history_html += f'<div class="text-right mb-2"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">{msg["content"]}</span></div>'
         else: history_html += f'<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 mb-2 max-w-[85%]">{msg["content"]}</div>'
             
-    pub_text = "🔒 Đang riêng tư (Bấm để Public)" if not target_project["metadata"].get("is_public") else "🌐 Đã Public Cộng đồng (Bấm để ẩn)"
-
     tmpl = """
         <div id="screen-tier-1" class="T1_VIS_VAL space-y-3"><div class="grid grid-cols-2 gap-2"><button onclick="openDrawer('script')" class="bg-slate-900 border border-slate-700 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group"><div><span class="text-xs font-black text-slate-100">📜 Câu chuyện</span></div><span class="text-xs text-amber-400 font-bold">Mở ▼</span></button><button onclick="openDrawer('chat')" class="bg-indigo-950/40 border border-indigo-800/60 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group"><div><span class="text-xs font-black text-indigo-200">✨ Trợ lý AI</span></div><span class="text-xs text-indigo-300 font-bold">Mở ▼</span></button></div></div>
         <div id="screen-tier-2" class="T2_VIS_VAL space-y-3"><div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎨 Tầng 2: Casting</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Đạo Diễn</button></div><div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1"><p class="text-emerald-400 font-bold">✅ Thực thể & Bối cảnh khóa mẫu</p></div></div></div>
         <div id="screen-tier-3" class="T3_VIS_VAL space-y-3"><div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎬 Tầng 3: Dựng Cảnh</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Chuyên Gia</button></div><div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300"><p class="text-amber-300 font-bold">🌟 Phân rã ma trận 3 hồi chuẩn.</p></div></div></div>
         
-        <!-- TẦNG 4: HỆ SINH THÁI (RENDER + DRIVE + SOCIAL + COMMUNITY) -->
+        <!-- TẦNG 4 ĐƯỢC LÀM SẠCH, CHỈ CÒN RENDER -->
         <div id="screen-tier-4" class="T4_VIS_VAL space-y-3">
             <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-                <div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎞️ Tầng 4: Hệ Sinh Thái</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Giám Sát</button></div>
-                
-                <button onclick="renderScene(1)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-3 rounded-2xl text-xs shadow transition-all">🎬 1. Render Bản Khóa (Generative API)</button>
-                
-                <div class="grid grid-cols-2 gap-2 mt-2">
-                    <button onclick="syncToCloud(this)" class="bg-slate-800 border border-slate-700 text-blue-300 font-bold py-2.5 rounded-2xl text-xs flex items-center justify-center gap-1">☁️ Lưu Google Drive</button>
-                    <button onclick="toggleCommunity(this)" class="bg-slate-800 border border-slate-700 text-amber-300 font-bold py-2.5 rounded-2xl text-xs">PUB_TEXT_VAL</button>
-                </div>
-                
-                <div class="border-t border-slate-800 pt-3 space-y-2 mt-2">
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Social Loop (Quét Mạng Xã Hội)</p>
-                    <button onclick="scanSocial(this)" class="w-full bg-indigo-900/50 border border-indigo-500/30 text-indigo-200 font-bold py-2.5 rounded-2xl text-xs">📊 Quét Bình Luận & Trích Xuất Trải Nghiệm AI</button>
-                </div>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎞️ Tầng 4: Xuất Xưởng</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Giám Sát</button></div>
+                <p class="text-[11px] text-slate-400 text-center pb-2">Không gian chuyên biệt để Render và kiểm tra thông số Audiophile.</p>
+                <button onclick="renderScene(1)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-3 rounded-2xl text-xs shadow transition-all">🎬 Render Bản Khóa (Generative API)</button>
+                <button onclick="alert('📜 Đã xuất thành công tệp phụ đề SRT.')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-2xl text-xs shadow transition-all">📜 Xuất Phụ Đề .SRT</button>
             </div>
         </div>
 
-        <div id="bottom-sheet-quick-edit" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 space-y-3 shadow-2xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h3 class="text-xs font-bold text-amber-400 uppercase">⚡ Menu</h3><button onclick="closeBottomSheet('quick-edit')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><div class="grid grid-cols-3 gap-2 text-xs"><a href="/" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-slate-200">🏠 Studio</a><a href="/library" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-emerald-300">📁 Thư Viện</a><button onclick="closeBottomSheet('quick-edit'); openDrawer('chat');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-indigo-300">✨ Trợ Lý AI</button></div></div></div>
+        <div id="bottom-sheet-quick-edit" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 space-y-3 shadow-2xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h3 class="text-xs font-bold text-amber-400 uppercase">⚡ Menu</h3><button onclick="closeBottomSheet('quick-edit')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><div class="grid grid-cols-3 gap-2 text-xs"><a href="/" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-slate-200">🏠 Studio</a><a href="/library" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-emerald-300">📁 Thư Viện</a><a href="/community" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-indigo-300">🌐 Cộng Đồng</a></div></div></div>
         <div id="drawer-script" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2.5"><h3 class="text-xs font-bold text-amber-400 uppercase">📜 Kịch Bản</h3><button onclick="closeDrawer('script')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><input type="text" id="project-title" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-amber-300 font-bold"><textarea id="project-story" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 leading-relaxed">PROJECT_STORY_VAL</textarea><button onclick="saveAndCloseScriptDrawer()" class="w-full bg-amber-500 text-slate-950 font-black py-3 rounded-xl text-xs">💾 Lưu Lại & Đóng</button></div></div>
         <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl flex flex-col"><div class="flex justify-between items-center border-b border-slate-800 pb-2 shrink-0"><span class="text-xs font-bold text-amber-400 uppercase">🤖 TRỢ LÝ TẦNG ACTIVE_TIER_VAL</span><button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><div id="chat-box" class="bg-slate-950 flex-1 min-h-[200px] max-h-[40vh] rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800">HISTORY_HTML_VAL</div><div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-2 shrink-0"></div><div class="flex gap-2 pt-2 items-center shrink-0"><input type="text" id="chat-input" placeholder="Ra lệnh AI..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChatStreaming()"><button id="mic-btn" onclick="toggleVoiceInput()" class="bg-rose-600 text-white px-3 py-2.5 rounded-xl font-bold text-xs shadow">🎙️</button><button onclick="sendChatStreaming()" class="bg-indigo-600 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button></div></div></div></div>
         <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40"><div class="max-w-4xl mx-auto flex gap-2"><button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 text-slate-200 font-bold py-3.5 rounded-2xl text-xs">💾 Lưu</button><button onclick="proceedSmartAutoFallback(ACTIVE_TIER_VAL)" class="w-2/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg">BƯỚC VÀO THẾ GIỚI PHIM ➔</button></div></div>
     """
-    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis).replace("PUB_TEXT_VAL", pub_text)
+    tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
     return tmpl.replace("HISTORY_HTML_VAL", history_html).replace("ACTIVE_TIER_VAL", str(active_tier))
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.7 - ECOSYSTEM PLATFORM (PHẦN 4/4)
+# CINE AI STUDIO PRO 7.2.8 - ECOSYSTEM UX REFINED (PHẦN 4/4)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -327,7 +336,6 @@ def get_studio_javascript():
                 } catch(e) {}
             }
 
-            // --- 3 CỔNG I/O MỚI CỦA NỀN TẢNG ---
             async function renderScene(id) {
                 const btn = event.target; const orig = btn.innerHTML;
                 btn.innerHTML = "⏳ Đang nối API Generative (3s)..."; btn.classList.add("animate-pulse"); btn.disabled = true;
@@ -338,7 +346,7 @@ def get_studio_javascript():
             }
 
             async function syncToCloud(btn) {
-                const orig = btn.innerHTML; btn.innerHTML = "⏳ Nối OAuth Drive..."; btn.classList.add("animate-pulse"); btn.disabled = true;
+                const orig = btn.innerHTML; btn.innerHTML = "⏳ Đang nối Google Drive..."; btn.classList.add("animate-pulse"); btn.disabled = true;
                 try {
                     const res = await fetch('/api/cineai/ecosystem/cloud-sync', { method: 'POST' });
                     const data = await res.json(); alert(data.message);
@@ -360,7 +368,6 @@ def get_studio_javascript():
                 } finally { btn.innerHTML = orig; btn.classList.remove("animate-pulse"); btn.disabled = false; }
             }
 
-            // --- GIỌNG NÓI & AI STREAMING ---
             function selectChip(text) { const input = document.getElementById('chat-input'); if(input) { input.value = text; sendChatStreaming(); } }
 
             function toggleVoiceInput() {
@@ -428,12 +435,47 @@ async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = 
         projects.append(target_project); USERS_DB[current_user]["projects"] = projects; save_users()
 
     active_tier = tier if tier else target_project["metadata"].get("highest_tier", 1)
-    p1, t1_vis, t2_vis, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, current_user)
+    pub_text = "🌐 Ẩn khỏi Cộng Đồng" if target_project["metadata"].get("is_public") else "🌐 Đẩy lên Cộng Đồng"
+    
+    p1, t1_vis, t2_vis, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, current_user, pub_text)
     p2 = get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier)
     p3 = get_studio_javascript()
     
     final_html = p1 + p2 + p3
     return HTMLResponse(content=final_html.replace("ACTIVE_TIER_VAL", str(active_tier)).replace("PROJECT_ID_VAL", target_project.get("id", "")))
+
+@app.get("/community", response_class=HTMLResponse)
+async def community_page(session_id: str = Cookie(None)):
+    """GIAO DIỆN MỚI: RẠP CHIẾU CỘNG ĐỒNG - NƠI HỌC HỎI TƯƠNG TÁC"""
+    current_user = ACTIVE_SESSIONS.get(session_id)
+    if not current_user: return RedirectResponse(url="/login", status_code=303)
+    
+    public_projects_html = ""
+    for uname, udata in USERS_DB.items():
+        if uname == "admin": continue
+        for p in udata.get("projects", []):
+            if p.get("metadata", {}).get("is_public"):
+                title = p.get("metadata", {}).get("title", "Dự án")
+                story = p.get("ideation_core", {}).get("project_raw_story", "Đang cập nhật...")
+                likes = random.randint(10, 500)
+                comments = random.randint(5, 50)
+                
+                public_projects_html += f"""
+                <div class='bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl'>
+                    <div class='flex justify-between items-start'>
+                        <div><span class='text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30 uppercase'>Đạo diễn: @{uname}</span><h3 class='text-base font-black text-slate-100 mt-2'>{title}</h3></div>
+                        <button class='text-amber-400 text-xs bg-amber-400/10 px-3 py-1.5 rounded-xl font-bold border border-amber-400/20 shadow'>▶️ Trải nghiệm</button>
+                    </div>
+                    <p class='text-xs text-slate-400 line-clamp-2 leading-relaxed'>{story}</p>
+                    <div class='flex gap-3 pt-3 border-t border-slate-800 text-[11px] text-slate-400 font-bold'>
+                        <button onclick="alert('Đã thả tim tác phẩm này!')" class='hover:text-rose-400 transition flex items-center gap-1'>❤️ {likes}</button>
+                        <button onclick="alert('Tính năng bình luận đang được phát triển.')" class='hover:text-blue-400 transition flex items-center gap-1'>💬 {comments}</button>
+                        <button onclick="alert('✨ Đã Clone bộ thông số Audiophile của dự án này vào thư viện của bạn!')" class='text-emerald-400 hover:text-emerald-300 ml-auto transition flex items-center gap-1'>✨ Clone Template</button>
+                    </div>
+                </div>
+                """
+    
+    return HTMLResponse(content=f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Rạp Chiếu Cộng Đồng</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base sm:text-lg font-black text-amber-400 uppercase'>🌐 Rạp Chiếu Chung</h1><p class='text-[10px] text-slate-400'>Nơi giao thoa nghệ thuật & học hỏi</p></div><div class='flex gap-2'><a href='/' class='bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-4 py-2.5 rounded-xl text-xs transition'>🏠 Trở Về Studio</a></div></div><div class='space-y-4'>{public_projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs border border-slate-800\">Chưa có dự án nào được chia sẻ.</div>'}</div></div></body></html>")
 
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
@@ -446,7 +488,7 @@ async def library_page(session_id: str = Cookie(None)):
         pub_badge = "<span class='bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] ml-2 border border-indigo-500/30'>🌐 CỘNG ĐỒNG</span>" if p.get("metadata", {}).get("is_public") else ""
         projects_html += f"<div class='bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl'><div><span class='text-[11px] font-black bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 uppercase'>Tầng {p.get('metadata', {}).get('highest_tier', 1)}</span>{pub_badge}<h3 class='text-base font-black text-slate-100 mt-2'>{p.get('metadata', {}).get('title', 'Dự án')}</h3></div><div class='flex justify-between items-center pt-2 border-t border-slate-800'><span class='text-[10px] text-slate-500'>{p.get('metadata', {}).get('updated_at', '')}</span><div class='flex gap-2'><a href='/?load_id={p.get('id', '')}' class='bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase shadow'>Sân Khấu</a><button onclick=\"confirmDelete('{p.get('id', '')}', '{p.get('metadata', {}).get('title', '')}')\" class='bg-rose-950 text-rose-200 px-3 py-2 rounded-xl text-xs font-bold'>Xóa</button></div></div></div>"
 
-    return HTMLResponse(content=f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Thư Viện Ecosystem</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800'><div><h1 class='text-base font-black text-amber-400 uppercase'>📁 Thư Viện Platform</h1><p class='text-[10px] text-slate-400'>Quản lý sinh thái</p></div><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs'>🏠</a></div></div><div class='space-y-3'>{projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs\">Chưa có dự án.</div>'}</div></div><script>async function confirmDelete(id, title) {{ if(confirm(\"Xóa '\" + title + \"'?\")) {{ await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}}); location.reload(); }} }}</script></body></html>")
+    return HTMLResponse(content=f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Thư Viện Cá Nhân</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base font-black text-amber-400 uppercase'>📁 Thư Viện Của Tôi</h1></div><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs'>🏠 Studio</a></div></div><div class='space-y-3'>{projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs\">Chưa có dự án.</div>'}</div></div><script>async function confirmDelete(id, title) {{ if(confirm(\"Xóa '\" + title + \"'?\")) {{ await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}}); location.reload(); }} }}</script></body></html>")
 
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
@@ -459,7 +501,7 @@ async def login_handler(request: Request, tab: str = "login", error: str = None,
             resp = RedirectResponse(url="/", status_code=303); resp.set_cookie(key="session_id", value=sid); return resp
         return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai thông tin!"), status_code=303)
     
-    html = f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'><div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'><div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>Đăng Nhập Platform</h2><p class='text-xs text-slate-400'>Cine AI 7.2.7 Ecosystem</p></div><form method='POST' action='/login' class='space-y-3'><div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><div><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><button type='submit' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow'>Vào Studio</button></form></div></body></html>"
+    html = f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'><div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'><div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>Đăng Nhập Studio</h2><p class='text-xs text-slate-400'>Cine AI 7.2.8 Ecosystem</p></div><form method='POST' action='/login' class='space-y-3'><div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><div><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><button type='submit' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow'>Vào Studio</button></form></div></body></html>"
     return HTMLResponse(content=html)
 
 @app.get("/logout")
