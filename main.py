@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.2.6 - FULLY INTEGRATED STREAMING & MEMORY (PHẦN 1/4)
+# CINE AI STUDIO PRO 7.2.6 - ULTIMATE MONOLITH CORE (PHẦN 1/4)
 # ==============================================================================
 
 import os
@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException, Bac
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 import asyncio
 
-app = FastAPI(title="Cine AI Studio Pro 7.2.6 - Streaming Suite", version="7.2.6")
+app = FastAPI(title="Cine AI Studio Pro 7.2.6 - Ultimate Suite", version="7.2.6")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -58,7 +58,7 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 def migrate_project_to_tree(p):
-    """Cấu trúc dữ liệu nguyên khối 7.2.5 - GIỮ NGUYÊN HOÀN TOÀN"""
+    """CẤU TRÚC DỮ LIỆU NGUYÊN KHỐI (BẢO TOÀN TỪ 7.2.5)"""
     if "metadata" in p: return p
     new_id = p.get("id") or secrets.token_hex(6)
     return {
@@ -76,7 +76,7 @@ def migrate_project_to_tree(p):
         "ideation_core": {
             "project_raw_story": p.get("project_raw_story", "") or p.get("story", ""),
             "ideation_slots": p.get("ideation_slots", {}),
-            "chat_history": p.get("chat_history", []) # SẴN SÀNG CHO TRÍ NHỚ DÀI HẠN
+            "chat_history": p.get("chat_history", []) # TRÍ NHỚ DÀI HẠN
         },
         "master_schema": {
             "token_registry": p.get("token_registry", {"visual_tokens": [], "audio_tokens": []}),
@@ -101,13 +101,25 @@ def get_user_projects(target_username):
     if changed: save_users()
     return user_data["projects"]
 
-# ================= Ổ CẮM GENERATIVE API CHỜ SẴN (NEW 7.2.6) =================
+# ================= Ổ CẮM GENERATIVE API CHỜ SẴN (CẬP NHẬT 7.2.6) =================
 def generative_engine(task_type, payload):
     AUDIO_KEY = os.getenv("AUDIO_API_KEY", "")
     IMAGE_KEY = os.getenv("IMAGE_API_KEY", "")
+    
     if task_type == "render_audio":
-        if AUDIO_KEY: pass # Gọi API thật sau này
-        else: return {"status": "mock", "msg": "Đã giả lập Track Audio 3D Audiophile."}
+        if AUDIO_KEY: 
+            # Code gọi API Suno/Vbee thật
+            pass 
+        else: 
+            return {"status": "mock", "msg": "Đã render xong Track Audio: Không gian 3D, Dải mid ấm áp (Mockup)."}
+            
+    elif task_type == "render_image":
+        if IMAGE_KEY: 
+            # Code gọi API Runway/Midjourney thật
+            pass
+        else: 
+            return {"status": "mock", "msg": "Tạo Concept Art điện ảnh thành công (Mockup)."}
+            
     return {"status": "mock", "msg": "Xử lý thành công."}
 
 # ================= GEMINI SETUP & STREAMING HELPER =================
@@ -117,7 +129,6 @@ def get_gemini_keys():
 
 from google import genai
 def call_gemini_stream(prompt_text):
-    """Hàm mới hỗ trợ Streaming Thời gian thực từ Google SDK"""
     keys = get_gemini_keys()
     if not keys: yield "⚠️ Chưa cấu hình GEMINI_API_KEY"; return
     
@@ -140,7 +151,7 @@ async def self_healing_global_middleware(request: Request, call_next):
     try: return await call_next(request)
     except Exception as exc: return JSONResponse(status_code=500, content={"status": "error", "message": f"Auto-heal: {str(exc)}"})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.2.6 - FULLY INTEGRATED STREAMING & MEMORY (PHẦN 2/4)
+# CINE AI STUDIO PRO 7.2.6 - ULTIMATE MONOLITH CORE (PHẦN 2/4)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
@@ -179,7 +190,7 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
 
 @app.post("/api/cineai/auto-fallback-complete")
 async def auto_fallback_complete(request: Request, session_id: str = Cookie(None)):
-    """GIỮ NGUYÊN LUỒNG TỰ LẤP ĐẦY THÔNG MINH 7.2.5"""
+    """CƠ CHẾ LẤP ĐẦY DỮ LIỆU TỰ ĐỘNG - GIỮ NGUYÊN TỪ 7.2.5"""
     current_user = ACTIVE_SESSIONS.get(session_id)
     if not current_user: return JSONResponse({"status": "error", "message": "Phiên hết hạn"}, status_code=401)
     
@@ -203,7 +214,7 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
 
 @app.post("/api/cineai/chat_stream")
 async def chat_stream_with_director(request: Request, session_id: str = Cookie(None)):
-    """API MỚI 7.2.6: TÍCH HỢP TRÍ NHỚ VÀ STREAMING THỜI GIAN THỰC"""
+    """API STREAMING THỜI GIAN THỰC KẾT HỢP TRÍ NHỚ ĐA TẦNG"""
     current_user = ACTIVE_SESSIONS.get(session_id)
     if not current_user: return JSONResponse({"error": "Unauthorized"}, status_code=401)
     
@@ -212,13 +223,12 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
     current_tier = int(data.get("tier", 1))
     project_id = data.get("id", "")
     
-    # Kéo Trí Nhớ từ Cây Dữ Liệu
     projects = get_user_projects(current_user)
     target_project = next((p for p in projects if p.get("id") == project_id), None)
     if not target_project: return JSONResponse({"error": "Project not found"}, status_code=404)
     
     chat_history = target_project["ideation_core"].get("chat_history", [])
-    history_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-6:]]) # Nhớ 6 lượt gần nhất
+    history_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-6:]]) 
     
     tier_personas = {
         1: "Bạn là Đạo diễn ảo khâu Kịch bản & Ươm mầm ý tưởng.",
@@ -233,7 +243,7 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
     {history_context}
     ----------------------------------
     Dựa vào ngữ cảnh trên, hãy trả lời câu hỏi mới của User: "{user_message}".
-    Yêu cầu: Chỉ trả về nội dung trả lời (dạng text bình thường, không bọc trong JSON). Trả lời ngắn gọn, chuyên nghiệp, chạm cảm xúc.
+    Yêu cầu: Trả lời ngắn gọn, chuyên nghiệp, chạm cảm xúc (không dùng định dạng JSON).
     """
 
     async def event_stream():
@@ -245,11 +255,11 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
             yield f'data: {{"type": "text", "content": "{clean_chunk}"}}\n\n'
             await asyncio.sleep(0.01)
             
-        # 2. Bắn Thẻ Chip gợi ý sau khi nói xong (Nhận diện theo Tầng)
-        chips = ["Phân tích sâu hơn", "Thêm âm thanh 3D", "Chuyển cảnh mượt"]
+        # 2. Bắn Thẻ Chip gợi ý sau khi nói xong
         if current_tier == 1: chips = ["Phát triển đoạn này", "Thêm tiếng mưa rơi", "Ghi vào kịch bản"]
         elif current_tier == 2: chips = ["Chốt nhân vật này", "Đổi màu sắc Cinematic", "Thêm đạo cụ"]
         elif current_tier == 3: chips = ["Tăng kịch tính hồi 2", "Co giãn thời lượng", "Chốt nhịp phim"]
+        else: chips = ["Kiểm tra lại thông số", "Xuất file SRT", "Tối ưu hóa Audio"]
         
         yield f'data: {{"type": "chips", "content": {json.dumps(chips)}}}\n\n'
         
@@ -260,16 +270,42 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
         save_users()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
-# ==============================================================================
-# CINE AI STUDIO PRO 7.2.6 - FULLY INTEGRATED STREAMING & MEMORY (PHẦN 3/4)
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.2.6 - ULTIMATE MONOLITH CORE (PHẦN 3/4)
 # ==============================================================================
 
 @app.post("/api/cineai/render-scene-take")
-async def render_scene_take(request: Request, session_id: str = Cookie(None)): return JSONResponse({"status": "success", "message": "🎬 Đã render hoàn tất phân cảnh!"})
+async def render_scene_take(request: Request, session_id: str = Cookie(None)):
+    """API GỌI Ổ CẮM GENERATIVE VÀ MÔ PHỎNG ĐỘ TRỄ"""
+    current_user = ACTIVE_SESSIONS.get(session_id)
+    if not current_user:
+        return JSONResponse({"message": "Phiên hết hạn"}, status_code=401)
+    
+    user_data = USERS_DB.get(current_user, {})
+    user_data["credits"] = max(0, user_data.get("credits", 10) - 5)
+    save_users()
+    
+    # Mô phỏng độ trễ render 2.5s của Engine thật
+    await asyncio.sleep(2.5)
+    
+    # Gọi hàm Generative Engine
+    result = generative_engine("render_audio", {"tier": 4})
+    
+    return JSONResponse({"status": "success", "message": f"🎬 {result['msg']}"})
+
 @app.get("/api/cineai/export-srt")
-async def export_srt_subtitles(id: str = "", session_id: str = Cookie(None)): return JSONResponse({"status": "success", "srt_format": "1\n00:00:00,000 --> 00:01:00,000\n[Lip-Sync] Khởi đầu điện ảnh nguyên khối\n\n"})
+async def export_srt_subtitles(id: str = "", session_id: str = Cookie(None)):
+    return JSONResponse({"status": "success", "srt_format": "1\n00:00:00,000 --> 00:01:00,000\n[Lip-Sync] Khởi đầu điện ảnh nguyên khối\n\n"})
+
 @app.post("/api/cineai/delete-project")
-async def delete_project(request: Request, session_id: str = Cookie(None)): return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án!"})
+async def delete_project(request: Request, session_id: str = Cookie(None)):
+    current_user = ACTIVE_SESSIONS.get(session_id)
+    if not current_user: return JSONResponse({"status": "error", "message": "Phiên hết hạn"}, status_code=401)
+    data = await request.json()
+    projects = get_user_projects(current_user)
+    USERS_DB[current_user]["projects"] = [p for p in projects if p.get("id") != data.get("id", "")]
+    save_users()
+    return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án khỏi Cây dữ liệu!"})
 
 def get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, username):
     t1_cls = "bg-amber-500 text-slate-950 shadow-md" if active_tier == 1 else "bg-slate-800 text-slate-200 hover:bg-slate-700"
@@ -286,7 +322,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 7.2.6 - Streaming Suite</title>
+        <title>Cine AI Studio Pro 7.2.6 - Ultimate Suite</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28">
@@ -337,7 +373,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
 
     # TẠO GIAO DIỆN LỊCH SỬ CHAT (TRÍ NHỚ)
     chat_history = target_project["ideation_core"].get("chat_history", [])
-    history_html = '<p class="text-emerald-400 text-[10px] text-center mb-2">🔄 Đã đồng bộ trí nhớ dự án.</p>'
+    history_html = '<p class="text-emerald-400 text-[10px] text-center mb-2">🔄 Đã đồng bộ trí nhớ dự án.</p>' if chat_history else ''
     for msg in chat_history:
         if msg["role"] == "User":
             history_html += f'<div class="text-right mb-2"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">{msg["content"]}</span></div>'
@@ -373,7 +409,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
 
             <div id="screen-tier-4" class="T4_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎞️ Tầng 4: Xuất Xưởng</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-indigo-500/40">🤖 Giám Sát</button></div>
-                <button onclick="renderScene(1)" class="w-full bg-emerald-600 text-slate-950 font-black py-3 rounded-2xl text-xs shadow">🎬 Render Toàn Tập Tự Động</button>
+                <button onclick="renderScene(1)" class="w-full bg-emerald-600 text-slate-950 font-black py-3 rounded-2xl text-xs shadow transition-all">🎬 Render Toàn Tập Tự Động</button>
             </div>
 
             <div id="bottom-sheet-quick-edit" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
@@ -441,8 +477,8 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
     tmpl = tmpl.replace("DEFAULT_CHIPS_VAL", chips_html)
     tmpl = tmpl.replace("ACTIVE_TIER_VAL", str(active_tier))
     return tmpl
-# ==============================================================================
-# CINE AI STUDIO PRO 7.2.6 - FULLY INTEGRATED STREAMING & MEMORY (PHẦN 4/4)
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.2.6 - ULTIMATE MONOLITH CORE (PHẦN 4/4)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -481,7 +517,32 @@ def get_studio_javascript():
                 } catch(e) {}
             }
 
-            async function renderScene(id) { alert("🎬 Yêu cầu render đã được tiếp nhận qua Ổ cắm API Sinh tạo."); }
+            // GIAO TIẾP VỚI Ổ CẮM GENERATIVE VÀ MÔ PHỎNG ĐỘ TRỄ
+            async function renderScene(id) {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                
+                // Hiệu ứng Loading
+                btn.innerHTML = "⏳ Đang kết nối Generative API... (Đợi 3s)";
+                btn.classList.add("animate-pulse");
+                btn.disabled = true;
+
+                try {
+                    const res = await fetch('/api/cineai/render-scene-take', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({id: currentProjectId, scene_id: id})
+                    });
+                    const data = await res.json();
+                    alert(data.message);
+                } catch(e) {
+                    alert("⚠️ Lỗi kết nối Ổ cắm API!");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove("animate-pulse");
+                    btn.disabled = false;
+                }
+            }
+
             async function exportSrtSubtitles() { alert("📜 Đã xuất tệp phụ đề .SRT"); }
 
             function selectChip(text) {
@@ -522,7 +583,7 @@ def get_studio_javascript():
                 // 1. In User message
                 box.innerHTML += '<div class="text-right mb-2"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">' + text + '</span></div>';
                 input.value = '';
-                if(tray) tray.innerHTML = '<span class="text-slate-500 text-[10px] animate-pulse pl-1">⏳ Trợ lý đang type...</span>';
+                if(tray) tray.innerHTML = '<span class="text-slate-500 text-[10px] animate-pulse pl-1">⏳ Đạo diễn đang suy nghĩ...</span>';
                 
                 // 2. Tạo khung chat cho AI để hứng Streaming
                 const botMsgId = 'bot-msg-' + Date.now();
@@ -672,3 +733,4 @@ async def logout(session_id: str = Cookie(None)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
