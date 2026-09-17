@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.2.9 - PRODUCTION READY (PHẦN 1/4)
+# CINE AI STUDIO PRO 7.3 - STRATEGIC BILINGUAL RELEASE (PHẦN 1/4)
 # ==============================================================================
 
 import os
@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException, Bac
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 import asyncio
 
-app = FastAPI(title="Cine AI Studio Pro 7.2.9 - Production Ready", version="7.2.9")
+app = FastAPI(title="Cine AI Studio Pro 7.3 - Strategic Bilingual Release", version="7.3")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -42,6 +42,7 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 def migrate_project_to_tree(p):
+    """CẤU TRÚC DỮ LIỆU BẢO TOÀN NGUYÊN KHỐI (IMMORTAL DATA TREE)"""
     new_id = p.get("id") or secrets.token_hex(6)
     meta = p.get("metadata", {}); post_prod = p.get("post_production", {})
     return {
@@ -75,25 +76,57 @@ def get_user_projects(target_username):
     if changed: save_users()
     return user_data["projects"]
 
-# === CHỐT CHẶN 3: BỘ LỌC KIỂM DUYỆT (SANITIZATION) ===
+# === BỘ PROMPT CHIẾN LƯỢC SONG NGỮ (PHẪU NÉN THÔNG TIN) ===
+TIER_SYSTEM_PROMPTS = {
+    1: """Bạn là Đạo diễn trưởng kiêm Biên kịch cao cấp của "Cine AI Studio Pro". 
+Nhiệm vụ của bạn là đồng hành cùng nhà sáng tạo để mài giủa những ý tưởng thô, gai góc và đầy biến động từ đời thực thành kịch bản điện ảnh có chiều sâu.
+
+Core Principles & Directives:
+1. Absolute realism & depth: Avoid superficial summaries or generic storytelling. Every narrative must stem from raw, gritty real-life textures with high-impact dramatic details and a powerful "The Hook" within the first 10 seconds.
+2. Cinematic breakdown: Analyze user premises through character architecture, psychological conflict, and cinematic visual spaces.
+3. Tone: Professional, composed, razor-sharp. Recommend core thematic atmospheric keywords for subsequent production tiers.""",
+
+    2: """Bạn là Giám đốc Casting và Thiết kế Chân dung Nghệ thuật của "Cine AI Studio Pro".
+Nhiệm vụ của bạn là chuyển hóa kịch bản ở Tầng 1 thành hệ thống thực thể sống động: Nhân vật (Archetype), Bối cảnh (Locations) và Đạo cụ (Props) mang tính biểu tượng độc bản.
+
+Core Principles & Directives:
+1. Artistic Identity alignment:
+   - For Narrative / Art-Pop style: Focus on introspective depth, inner strength, and composure.
+   - For Innocent / High-Energy style: Focus on vibrant, playful, and positive energy dynamics.
+2. Uniqueness over clichés: Reject boring templates. Give every entity distinct psychological markers and iconic visual traits.
+3. Technical formatting: Deliver structured entity parameters optimized for asset registration and scene consistency across generation pipelines.""",
+
+    3: """You are the Pacing & Montage Director of "Cine AI Studio Pro". Your mission is to structure the storyline into a professional 3-act cinematic matrix (Act I, Act II, Act III).
+
+Core Principles & Directives:
+1. Pacing & Rhythm control: Strictly manage tempo, duration, and emotional resonance. Ensure dramatic beats have breathing room for emotional absorption while climaxing precisely on cue.
+2. Audio-Visual Synergy: Bind musical structures to visual editing. Music must act as the echo of emotion—never overpowering the narrative, but sublimating it at critical moments.
+3. Granular breakdown: Provide precise timecode/duration parameters (seconds/minutes) per scene to maximize Tier 4 generation efficiency.""",
+
+    4: """You are the Senior Post-Production Supervisor & Audiophile Sound Engineer of "Cine AI Studio Pro". Your mission is to audit all technical and artistic parameters to guarantee the final output achieves an "addictive" grade (≥ 90/100 points).
+
+Core Principles & Directives:
+1. Audiophile Technical Enforcement: Enforce pristine separation of elements without instrument bleeding. Ensure a warm Mid-range (highlighting vocals), sparkling yet non-fatiguing Treble, and an expansive, deep soundstage utilizing strict 3D audio parameters:
+   - Binaural 3D spatial audio
+   - Holographic soundstage
+   - Dynamic left-right hard panning
+   - Crystal clear 24-bit audiophile fidelity
+2. Emotional Impact: Evaluate the "addictive hook" and high replay value of the asset.
+3. Infrastructure & Export: Streamline .SRT subtitle packaging, cloud synchronization routines, and social distribution loops safely and flawlessly."""
+}
+
 NSFW_BLOCKLIST = ["bạo lực", "khiêu dâm", "đồi trụy", "máu me", "tự tử"]
 
 def sanitize_prompt(text: str) -> bool:
-    """Kiểm duyệt từ khóa nhạy cảm trước khi gọi API Sinh tạo"""
     lower_text = text.lower()
     for word in NSFW_BLOCKLIST:
         if word in lower_text: return False
     return True
 
-# === Ổ CẮM GENERATIVE API (HỖ TRỢ ASYNC TIMEOUT) ===
 async def generative_engine(task_type, payload):
-    AUDIO_KEY = os.getenv("AUDIO_API_KEY", "")
-    IMAGE_KEY = os.getenv("IMAGE_API_KEY", "")
-    await asyncio.sleep(2.5) # Giả lập thời gian máy chủ API xử lý
-    
+    await asyncio.sleep(2.5)
     if task_type == "render_audio":
-        if AUDIO_KEY: pass 
-        else: return {"status": "success", "msg": "Render Audio 3D Audiophile: Binaural 3D spatial audio, holographic soundstage."}
+        return {"status": "success", "msg": "Render Audio 3D Audiophile: Binaural 3D spatial audio, holographic soundstage."}
     return {"status": "success", "msg": "Xử lý Generative thành công."}
 
 def get_gemini_keys():
@@ -120,7 +153,7 @@ async def self_healing_global_middleware(request: Request, call_next):
     try: return await call_next(request)
     except Exception as exc: return JSONResponse(status_code=500, content={"status": "error", "message": f"Auto-heal: {str(exc)}"})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.2.9 - PRODUCTION READY (PHẦN 2/4)
+# CINE AI STUDIO PRO 7.3 - STRATEGIC BILINGUAL RELEASE (PHẦN 2/4)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
@@ -194,8 +227,10 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
     
     chat_history = target_project["ideation_core"].get("chat_history", [])
     history_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-6:]]) 
-    tier_personas = {1: "Đạo diễn khâu Kịch bản.", 2: "Đạo diễn Casting.", 3: "Chuyên gia Dựng cảnh.", 4: "Giám sát hậu kỳ."}
-    system_prompt = f"{tier_personas.get(current_tier, 'AI.')}\n--- Lịch sử ---\n{history_context}\nUser: {user_message}\nTrả lời ngắn gọn, chuyên nghiệp."
+    
+    # KẾT NỐI TRỰC TIẾP BỘ PROMPT SONG NGỮ VÀO HỆ THỐNG
+    base_prompt = TIER_SYSTEM_PROMPTS.get(current_tier, TIER_SYSTEM_PROMPTS[1])
+    system_prompt = f"{base_prompt}\n--- Lịch sử ---\n{history_context}\nUser: {user_message}\nTrả lời ngắn gọn, chuẩn xác."
 
     async def event_stream():
         full_response = ""
@@ -212,12 +247,11 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.9 - PRODUCTION READY (PHẦN 3/4)
+# CINE AI STUDIO PRO 7.3 - STRATEGIC BILINGUAL RELEASE (PHẦN 3/4)
 # ==============================================================================
 
 @app.post("/api/cineai/render-scene-take")
 async def render_scene_take(request: Request, session_id: str = Cookie(None)):
-    """API RENDER TÍCH HỢP 3 CHỐT CHẶN AN TOÀN KÉP"""
     current_user = ACTIVE_SESSIONS.get(session_id)
     if not current_user: return JSONResponse({"status": "error", "message": "Phiên hết hạn"}, status_code=401)
     
@@ -234,26 +268,24 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
     target_project = next((p for p in projects if p.get("id") == project_id), None)
     if not target_project: return JSONResponse({"status": "error", "message": "Lỗi truy xuất dự án!"})
 
-    # CHỐT CHẶN 3: VỆ SINH DỮ LIỆU ĐẦU VÀO
+    # CHỐT CHẶN 3: VỆ SINH DỮ LIỆU ĐẦU VÀO (NSFW)
     raw_story = target_project["ideation_core"].get("project_raw_story", "")
     if not sanitize_prompt(raw_story):
         return JSONResponse({"status": "error", "message": "⚠️ Kịch bản chứa từ khóa vi phạm tiêu chuẩn API. Bị từ chối!"})
 
-    # Tạm trừ Credit
     user_data["credits"] -= cost
     save_users()
 
-    # CHỐT CHẶN 2: BẪY LỖI & ROLLBACK THỜI GIAN THỰC
+    # CHỐT CHẶN 2: BẪY LỖI & ROLLBACK THỜI GIAN THỰC (45s Timeout)
     try:
-        # Giới hạn API Generative xử lý tối đa 45 giây
         result = await asyncio.wait_for(generative_engine("render_audio", {"tier": 4}), timeout=45.0)
         return JSONResponse({"status": "success", "message": f"🎬 {result['msg']}"})
     except asyncio.TimeoutError:
-        user_data["credits"] += cost # Rollback hoàn tiền
+        user_data["credits"] += cost # Hoàn tiền
         save_users()
         return JSONResponse({"status": "error", "message": "⏳ Máy chủ API đối tác đang quá tải. Đã hoàn lại Credit!"})
     except Exception as e:
-        user_data["credits"] += cost # Rollback hoàn tiền
+        user_data["credits"] += cost # Hoàn tiền
         save_users()
         return JSONResponse({"status": "error", "message": "⚠️ Lỗi Render API. Đã hoàn lại Credit an toàn!"})
 
@@ -273,9 +305,9 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, username,
     t3_vis, t4_vis = "block" if active_tier == 3 else "hidden", "block" if active_tier == 4 else "hidden"
     enc_id = target_project.get("id", "")
     
-    tmpl = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cine AI Studio 7.2.9</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28"><div class="max-w-4xl mx-auto space-y-3">
+    tmpl = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cine AI Studio 7.3</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28"><div class="max-w-4xl mx-auto space-y-3">
         <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative z-40">
-            <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-xs sm:text-sm font-black text-amber-400 uppercase">Cine AI 7.2.9</h1></div>
+            <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-xs sm:text-sm font-black text-amber-400 uppercase">Cine AI 7.3</h1></div>
             <div class="relative"><button onclick="toggleProfileMenu()" class="w-9 h-9 rounded-full bg-slate-800 border-2 border-amber-400/80 flex items-center justify-center shadow"><span class="text-sm">👤</span></button>
                 <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl p-3 shadow-2xl space-y-2">
                     <div class="border-b border-slate-800 pb-2"><p class="text-xs font-bold text-slate-200">USER_NAME_VAL</p><p class="text-[11px] text-emerald-400 font-bold mt-0.5">💰: USER_CREDITS_VAL C</p></div>
@@ -305,7 +337,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
     history_html = '<p class="text-emerald-400 text-[10px] text-center mb-2">🔄 Đã đồng bộ trí nhớ dự án.</p>' if chat_history else '<p class="text-blue-200">Chào đạo diễn! Tôi đang trực chiến ở Tầng ACTIVE_TIER_VAL.</p>'
     for msg in chat_history:
         if msg["role"] == "User": history_html += f'<div class="text-right mb-2"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">{msg["content"]}</span></div>'
-        else: history_html += f'<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 mb-2 max-w-[85%]">{msg["content"]}</div>'
+        else: history_html += f'<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 mb-2 max-w-[85%]" style="overflow-wrap: anywhere;">{msg["content"]}</div>'
             
     tmpl = """
         <div id="screen-tier-1" class="T1_VIS_VAL space-y-3"><div class="grid grid-cols-2 gap-2"><button onclick="openDrawer('script')" class="bg-slate-900 border border-slate-700 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group"><div><span class="text-xs font-black text-slate-100">📜 Câu chuyện</span></div><span class="text-xs text-amber-400 font-bold">Mở ▼</span></button><button onclick="openDrawer('chat')" class="bg-indigo-950/40 border border-indigo-800/60 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group"><div><span class="text-xs font-black text-indigo-200">✨ Trợ lý AI</span></div><span class="text-xs text-indigo-300 font-bold">Mở ▼</span></button></div></div>
@@ -330,7 +362,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
     tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
     return tmpl.replace("HISTORY_HTML_VAL", history_html).replace("ACTIVE_TIER_VAL", str(active_tier))
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.9 - PRODUCTION READY (PHẦN 4/4)
+# CINE AI STUDIO PRO 7.3 - STRATEGIC BILINGUAL RELEASE (PHẦN 4/4)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -365,15 +397,13 @@ def get_studio_javascript():
                 } catch(e) {}
             }
 
-            // --- Ổ CẮM RENDER ĐÃ BẪY LỖI TIMEOUT & THIẾU TIỀN ---
             async function renderScene(id) {
                 const btn = event.target; const orig = btn.innerHTML;
-                btn.innerHTML = "⏳ Đang kết nối Generative API (Bẫy lỗi kích hoạt)..."; btn.classList.add("animate-pulse"); btn.disabled = true;
+                btn.innerHTML = "⏳ Đang kết nối Generative API (Kiểm tra ví)..."; btn.classList.add("animate-pulse"); btn.disabled = true;
                 try {
                     const res = await fetch('/api/cineai/render-scene-take', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: currentProjectId}) });
                     const data = await res.json(); alert(data.message);
-                    if(data.status === 'error' && data.message.includes('Credit')) { /* Chặn lệnh nếu hết tiền */ }
-                } catch(e) { alert("⚠️ Lỗi kết nối Ổ cắm API!"); } finally { btn.innerHTML = orig; btn.classList.remove("animate-pulse"); btn.disabled = false; }
+                } catch(e) { alert("⚠️ Lỗi kết nối API!"); } finally { btn.innerHTML = orig; btn.classList.remove("animate-pulse"); btn.disabled = false; }
             }
 
             async function syncToCloud(btn) {
@@ -399,7 +429,6 @@ def get_studio_javascript():
                 } finally { btn.innerHTML = orig; btn.classList.remove("animate-pulse"); btn.disabled = false; }
             }
 
-            // --- GIỌNG NÓI & AI STREAMING ---
             function selectChip(text) { const input = document.getElementById('chat-input'); if(input) { input.value = text; sendChatStreaming(); } }
 
             function toggleVoiceInput() {
@@ -517,7 +546,7 @@ async def login_handler(request: Request, tab: str = "login", error: str = None,
             resp = RedirectResponse(url="/", status_code=303); resp.set_cookie(key="session_id", value=sid); return resp
         return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai thông tin!"), status_code=303)
     
-    html = f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'><div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'><div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>Đăng Nhập Studio</h2><p class='text-xs text-slate-400'>Cine AI 7.2.9 Production Ready</p></div><form method='POST' action='/login' class='space-y-3'><div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><div><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><button type='submit' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow'>Vào Studio</button></form></div></body></html>"
+    html = f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'><div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'><div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>Đăng Nhập Studio</h2><p class='text-xs text-slate-400'>Cine AI 7.3 Release</p></div><form method='POST' action='/login' class='space-y-3'><div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><div><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><button type='submit' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow'>Vào Studio</button></form></div></body></html>"
     return HTMLResponse(content=html)
 
 @app.get("/logout")
