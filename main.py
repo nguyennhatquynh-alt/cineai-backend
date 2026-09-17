@@ -230,7 +230,7 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
     if not current_user: return JSONResponse({"error": "Unauthorized"}, status_code=401)
     data = await request.json()
     user_message = data.get("message", ""); current_tier = int(data.get("tier", 1))
-    target_project = next((p for p in get_user_projects(current_user) if p.get("id"] == data.get("id", "")), None)
+    target_project = next((p for p in get_user_projects(current_user) if p.get("id") == data.get("id", "")), None)
     if not target_project: return JSONResponse({"error": "Not found"}, status_code=404)
     
     compressed_context = target_project["ideation_core"].get("compressed_dna", "")
