@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 1/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS MULTI-TIER AI SUITE (PHẦN 1/4)
 # ==============================================================================
 
 import os
@@ -17,7 +17,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
-app = FastAPI(title="Cine AI Studio Pro 7.2.5 - Voice Suite", version="7.2.5")
+app = FastAPI(title="Cine AI Studio Pro 7.2.5 - Multi-Tier AI Suite", version="7.2.5")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -67,7 +67,7 @@ def migrate_project_to_tree(p):
         "id": new_id,
         "metadata": {
             "title": p.get("title", "Dự án mới"),
-            "header": p.get("header", "Thể loại: Điện ảnh cảm xúc • Tương tác giọng nói"),
+            "header": p.get("header", "Thể loại: Điện ảnh cảm xúc • Đa tầng trợ lý ảo"),
             "aspect_ratio": p.get("aspect_ratio", "16:9"),
             "target_duration": p.get("target_duration", "45p"),
             "highest_tier": p.get("highest_tier", 4),
@@ -139,7 +139,7 @@ async def self_healing_global_middleware(request: Request, call_next):
     except Exception as exc:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(exc)})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 2/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS MULTI-TIER AI SUITE (PHẦN 2/4)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
@@ -238,15 +238,23 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         return JSONResponse({"reply": "⚠️ Phiên đăng nhập hết hạn!"}, status_code=401)
     data = await request.json()
     user_message = data.get("message", "")
+    current_tier = data.get("tier", 1)
     
+    tier_context = {
+        1: "Bạn là Đạo diễn ảo khâu Kịch bản & Ươm mầm ý tưởng.",
+        2: "Bạn là Đạo diễn Casting chuyên phân tích nhân vật, bối cảnh và đạo cụ.",
+        3: "Bạn là Chuyên gia Dựng cảnh & Nhịp điệu (Pacing Director) 3 hồi.",
+        4: "Bạn là Giám sát hậu kỳ & Kỹ thuật Render chuyên nghiệp."
+    }.get(current_tier, "Bạn là Đạo diễn ảo thấu cảm.")
+
     system_persona = (
-        "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 7.2.5. Trả về DUY NHẤT JSON:\n"
+        f"{tier_context} Trả về DUY NHẤT JSON:\n"
         "{\n"
-        '  "message": "Câu nói tâm tình chạm cảm xúc (1-2 câu)",\n'
-        '  "quick_chips": ["Tiếng mưa rơi trên mái tôn", "Căn phòng đêm tĩnh mịch", "Một lời xin lỗi muộn màng"]\n'
+        '  "message": "Câu trả lời chuyên nghiệp, chạm cảm xúc (1-2 câu)",\n'
+        '  "quick_chips": ["Ý tưởng gợi ý 1", "Ý tưởng gợi ý 2", "Ý tưởng gợi ý 3"]\n'
         "}"
     )
-    raw_res, err_msg = call_gemini_direct(system_persona + f"\nUser: {user_message}")
+    raw_res, err_msg = call_gemini_direct(system_persona + f"\nUser (Tầng {current_tier}): {user_message}")
     if raw_res:
         try:
             clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
@@ -254,9 +262,9 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
             return JSONResponse({"reply": parsed.get("message", "Đã tiếp nhận chỉ đạo."), "chips": parsed.get("quick_chips", [])})
         except Exception:
             pass
-    return JSONResponse({"reply": raw_res or err_msg, "chips": ["Tiếng mưa rơi", "Ký ức cũ", "Khoảng lặng phía trước"]})
+    return JSONResponse({"reply": raw_res or err_msg, "chips": ["Tối ưu cảnh này", "Đổi góc máy", "Làm sâu sắc thêm"]})
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 3/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS MULTI-TIER AI SUITE (PHẦN 3/4)
 # ==============================================================================
 
 @app.post("/api/cineai/render-scene-take")
@@ -303,7 +311,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 7.2.5 - Voice Suite</title>
+        <title>Cine AI Studio Pro 7.2.5 - Multi-Tier AI Suite</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28">
@@ -334,13 +342,16 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                     <span class="text-amber-400 text-xs whitespace-nowrap">🎞️ Dự án:</span>
                     <span id="global-project-title-display" class="text-amber-300 font-black text-xs truncate">PROJECT_TITLE_VAL</span>
                 </div>
-                <button onclick="openBottomSheet('quick-edit')" class="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-xl text-xs border border-amber-500/30 font-bold">⚡ Menu</button>
+                <div class="flex gap-1.5">
+                    <button onclick="openBottomSheet('quick-edit')" class="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-xl text-xs border border-amber-500/30 font-bold">⚡ Menu</button>
+                    <button onclick="openDrawer('chat')" class="bg-indigo-600/80 text-white px-2.5 py-1 rounded-xl text-xs font-bold animate-pulse">🤖 Trợ Lý Tầng ACTIVE_TIER_VAL</button>
+                </div>
             </div>
 
             <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
                 <a href="/?new_project=1" class="bg-amber-500 text-slate-950 py-2.5 rounded-xl shadow flex items-center justify-center gap-1">➕ Tạo Mới</a>
                 <a href="/library" class="bg-slate-900 border border-slate-800 text-slate-200 py-2.5 rounded-xl shadow flex items-center justify-center gap-1">📁 Thư Viện</a>
-                <button onclick="openDrawer('chat')" class="bg-indigo-600 text-white py-2.5 rounded-xl shadow flex items-center justify-center gap-1">🤖 Trợ Lý</button>
+                <button onclick="openDrawer('chat')" class="bg-indigo-600 text-white py-2.5 rounded-xl shadow flex items-center justify-center gap-1">🤖 Trợ Lý AI</button>
             </div>
 
             <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-[10px] sm:text-xs font-bold">
@@ -360,7 +371,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                 </button>
                 <button onclick="openDrawer('chat')" class="bg-indigo-950/40 border border-indigo-800/60 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group">
                     <div>
-                        <span class="text-xs font-black text-indigo-200">✨ Ươm mầm ý tưởng</span>
+                        <span class="text-xs font-black text-indigo-200">✨ Trợ lý Tầng 1</span>
                         <span class="text-[10px] text-indigo-400 block">Trò chuyện AI & Micro</span>
                     </div>
                     <span class="text-xs text-indigo-300 font-bold">Mở ▼</span>
@@ -385,9 +396,13 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 </div>
             </div>
 
+            <!-- TẦNG 2: CASTING TÍCH HỢP TRỢ LÝ CASTING -->
             <div id="screen-tier-2" class="T2_VIS_VAL space-y-3">
                 <div class="bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                    <h2 class="text-xs font-bold text-amber-400 uppercase">🎨 Tầng 2: Casting & Đạo Cụ Đã Khóa</h2>
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <h2 class="text-xs font-bold text-amber-400 uppercase">🎨 Tầng 2: Casting & Đạo Cụ</h2>
+                        <button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-indigo-500/40">🤖 Gọi Đạo Diễn Casting</button>
+                    </div>
                     <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1">
                         <p class="text-emerald-400 font-bold">✅ Thực thể nhân vật đã sẵn sàng</p>
                         <p class="text-indigo-400 font-bold">✅ Bối cảnh điện ảnh đã khóa</p>
@@ -395,15 +410,23 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 </div>
             </div>
 
+            <!-- TẦNG 3: DỰNG CẢNH TÍCH HỢP TRỢ LÝ PACING -->
             <div id="screen-tier-3" class="T3_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                <h2 class="text-xs font-bold text-amber-400 uppercase">🎬 Tầng 3: Dựng Cảnh 3 Hồi</h2>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold text-amber-400 uppercase">🎬 Tầng 3: Dựng Cảnh 3 Hồi</h2>
+                    <button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-indigo-500/40">🤖 Gọi Chuyên Gia Nhịp Điệu</button>
+                </div>
                 <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-2">
                     <p class="text-amber-300 font-bold">🌟 Đã tự động chia nhịp phân cảnh chuẩn Enterprise.</p>
                 </div>
             </div>
 
+            <!-- TẦNG 4: RENDER TÍCH HỢP GIÁM SÁT HẬU KỲ -->
             <div id="screen-tier-4" class="T4_VIS_VAL bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
-                <h2 class="text-xs font-bold text-amber-400 uppercase">🎞️ Tầng 4: Phòng Dựng & Xuất Xưởng</h2>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-bold text-amber-400 uppercase">🎞️ Tầng 4: Phòng Dựng & Xuất Xưởng</h2>
+                    <button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-indigo-500/40">🤖 Gọi Giám Sát Hậu Kỳ</button>
+                </div>
                 <button onclick="renderScene(1)" class="w-full bg-emerald-600 text-slate-950 font-black py-3 rounded-2xl text-xs shadow">🎬 Render Toàn Tập Tự Động</button>
                 <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-2xl text-xs">📜 Xuất Phụ Đề .SRT</button>
             </div>
@@ -417,7 +440,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <button onclick="closeBottomSheet('quick-edit'); openDrawer('script');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-amber-300">📜 Sửa Kịch Bản</button>
-                        <button onclick="closeBottomSheet('quick-edit'); openDrawer('chat');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-indigo-300">✨ Trò Chuyện & Micro</button>
+                        <button onclick="closeBottomSheet('quick-edit'); openDrawer('chat');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-indigo-300">✨ Trợ Lý AI & Micro</button>
                     </div>
                 </div>
             </div>
@@ -436,36 +459,32 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 </div>
             </div>
 
-            <!-- DRAWER TRỢ LÝ ẢO (TÍCH HỢP THẺ CHIP VÀ MICRO GIỌNG NÓI) -->
+            <!-- DRAWER TRỢ LÝ ẢO XUYÊN SUỐT 4 TẦNG (TÍCH HỢP CHIP VÀ MICRO) -->
             <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
                 <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                        <span class="text-xs font-bold text-amber-400 uppercase">✨ Ươm Mầm Ý Tưởng & Giọng Nói</span>
+                        <span class="text-xs font-bold text-amber-400 uppercase">🤖 Trợ Lý Đạo Diễn (Tầng ACTIVE_TIER_VAL)</span>
                         <button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center">✕</button>
                     </div>
                     
                     <div id="chat-box" class="bg-slate-950 h-48 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2">
-                        <p class="text-blue-200">Chào đạo diễn! Hãy dùng thẻ chip gợi ý nhanh hoặc bấm nút Micro để ra lệnh bằng giọng nói nhé.</p>
+                        <p class="text-blue-200">Chào đạo diễn! Tôi đang trực chiến ở Tầng ACTIVE_TIER_VAL. Hãy trao đổi hoặc dùng Micro để ra lệnh.</p>
                     </div>
 
-                    <!-- THẺ CHIP GỢI Ý NHANH -->
                     <div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-1">
-                        <button onclick="selectChip('Tiếng mưa rơi trên mái tôn')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">🌧️ Tiếng mưa rơi trên mái tôn</button>
-                        <button onclick="selectChip('Căn phòng đêm tĩnh mịch')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">🌙 Căn phòng đêm tĩnh mịch</button>
-                        <button onclick="selectChip('Một lời xin lỗi muộn màng')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">💔 Lời xin lỗi muộn màng</button>
+                        <button onclick="selectChip('Tối ưu hóa các thông số cho khâu này')" class="bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px]">⚡ Tối ưu khâu này</button>
+                        <button onclick="selectChip('Làm sâu sắc thêm màu sắc điện ảnh')" class="bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px]">🎨 Nâng cấp màu sắc</button>
                     </div>
 
                     <div class="flex gap-2 pt-1 items-center">
-                        <input type="text" id="chat-input" placeholder="Nhập yêu cầu hoặc bấm Micro..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChat()">
-                        <!-- NÚT MICRO GIỌNG NÓI SPEECH-TO-TEXT -->
-                        <button id="mic-btn" onclick="toggleVoiceInput()" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-2.5 rounded-xl font-bold text-xs transition shadow flex items-center gap-1" title="Nói để nhập liệu">🎙️</button>
-                        <button onclick="sendChat()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button>
+                        <input type="text" id="chat-input" placeholder="Ra lệnh cho trợ lý AI..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChat()">
+                        <button id="mic-btn" onclick="toggleVoiceInput()" class="bg-rose-600 text-white px-3 py-2.5 rounded-xl font-bold text-xs shadow">🎙️</button>
+                        <button onclick="sendChat()" class="bg-indigo-600 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- CỤM NÚT ĐÁY TỐI ƯU MỘT TAY -->
         <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40">
             <div class="max-w-4xl mx-auto flex gap-2">
                 <button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 text-slate-200 font-bold py-3.5 rounded-2xl text-xs">💾 Lưu</button>
@@ -473,13 +492,15 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
             </div>
         </div>
     """
+    tmpl = tmpl.replace("USER_NAME_VAL", username)
+    tmpl = tmpl.replace("USER_CREDITS_VAL", str(user_credits))
     tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"])
     tmpl = tmpl.replace("PROJECT_HEADER_VAL", target_project["metadata"]["header"])
     tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     return tmpl
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 4/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS MULTI-TIER AI SUITE (PHẦN 4/4)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -567,27 +588,24 @@ def get_studio_javascript():
                 }
             }
 
-            // CHỌN THẺ CHIP NHANH
             function selectChip(text) {
                 const input = document.getElementById('chat-input');
                 if(input) input.value = text;
                 sendChat();
             }
 
-            // TÍCH HỢP NHẬP LIỆU BẰNG GIỌNG NÓI (SPEECH-TO-TEXT MICRO)
             function toggleVoiceInput() {
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (!SpeechRecognition) {
-                    alert("⚠️ Trình duyệt của bạn không hỗ trợ nhận diện giọng nói trực tiếp!");
+                    alert("⚠️ Trình duyệt không hỗ trợ nhận diện giọng nói!");
                     return;
                 }
                 const recognition = new SpeechRecognition();
                 recognition.lang = 'vi-VN';
                 recognition.interimResults = false;
-                recognition.maxAlternatives = 1;
 
                 const micBtn = document.getElementById('mic-btn');
-                micBtn.innerHTML = "🔴 Đang nghe...";
+                micBtn.innerHTML = "🔴";
                 micBtn.classList.add('animate-pulse');
 
                 recognition.onresult = function(event) {
@@ -600,7 +618,6 @@ def get_studio_javascript():
                 };
 
                 recognition.onerror = function() {
-                    alert("⚠️ Không nhận diện được giọng nói. Vui lòng thử lại!");
                     micBtn.innerHTML = "🎙️";
                     micBtn.classList.remove('animate-pulse');
                 };
@@ -627,7 +644,7 @@ def get_studio_javascript():
                 try {
                     const res = await fetch('/api/cineai/chat', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({message: text, id: currentProjectId})
+                        body: JSON.stringify({message: text, id: currentProjectId, tier: currentActiveTier})
                     });
                     const data = await res.json();
                     box.innerHTML += '<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 leading-relaxed max-w-[85%]" style="overflow-wrap: anywhere;">' + (data.reply || "Đã xử lý.") + '</div>';
