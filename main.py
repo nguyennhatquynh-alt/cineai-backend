@@ -218,7 +218,7 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
     current_user = ACTIVE_SESSIONS.get(session_id)
     if not current_user: return JSONResponse({"error": "Phiên hết hạn"}, status_code=401)
     data = await request.json()
-    target_project = next((p for p in get_user_projects(current_user) if p.get("id"] == data.get("id", "")), None)
+    target_project = next((p for p in get_user_projects(current_user) if p.get("id") == data.get("id", "")), None)
     if not target_project: return JSONResponse({"error": "Not found"}, status_code=404)
         
     if not target_project["ideation_core"].get("project_raw_story"): target_project["ideation_core"]["project_raw_story"] = "Hành trình điện ảnh tự sự."
