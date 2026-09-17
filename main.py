@@ -356,6 +356,19 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     return tmpl, t1_vis, t2_vis, t3_vis, t4_vis
 
 def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier):
+    # Khởi tạo Thẻ Chip mặc định theo từng tầng
+    default_chips = {
+        1: """<button onclick="selectChip('Tiếng mưa rơi trên mái tôn')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">🌧️ Tiếng mưa rơi</button>
+              <button onclick="selectChip('Căn phòng đêm tĩnh mịch')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">🌙 Đêm tĩnh mịch</button>
+              <button onclick="selectChip('Một lời xin lỗi muộn màng')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">💔 Lời xin lỗi</button>""",
+        2: """<button onclick="selectChip('Đề xuất phong cách nhân vật chính')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">🎭 Phong cách nhân vật</button>
+              <button onclick="selectChip('Gợi ý bối cảnh Cinematic')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">🌆 Bối cảnh</button>""",
+        3: """<button onclick="selectChip('Tăng kịch tính cho hồi 2')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">📈 Tăng kịch tính</button>
+              <button onclick="selectChip('Tối ưu hóa nhịp phim')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">⏱️ Tối ưu nhịp</button>""",
+        4: """<button onclick="selectChip('Kiểm tra thông số trước khi xuất')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">⚙️ Kiểm tra thông số</button>"""
+    }
+    chips_html = default_chips.get(active_tier, default_chips[1])
+
     tmpl = """
             <div id="screen-tier-1" class="T1_VIS_VAL space-y-3">
                 <div class="grid grid-cols-2 gap-2">
@@ -426,16 +439,16 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
             <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
                 <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                        <span class="text-xs font-bold text-amber-400 uppercase">🤖 Trợ Lý Tầng ACTIVE_TIER_VAL</span>
+                        <span class="text-xs font-bold text-amber-400 uppercase">🤖 TRỢ LÝ TẦNG ACTIVE_TIER_VAL</span>
                         <button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center">✕</button>
                     </div>
                     <div id="chat-box" class="bg-slate-950 h-48 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2">
                         <p class="text-blue-200">Chào đạo diễn! Tôi đang trực chiến ở Tầng ACTIVE_TIER_VAL.</p>
                     </div>
                     
-                    <!-- VÙNG RENDER THẺ CHIP ĐỘNG -->
+                    <!-- VÙNG RENDER THẺ CHIP ĐỘNG THEO TẦNG -->
                     <div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-1">
-                        <button onclick="selectChip('Tối ưu hóa thông số tầng này')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">⚡ Tối ưu tầng này</button>
+                        DEFAULT_CHIPS_VAL
                     </div>
 
                     <div class="flex gap-2 pt-1 items-center">
@@ -457,6 +470,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("PROJECT_HEADER_VAL", target_project["metadata"]["header"])
     tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
+    tmpl = tmpl.replace("DEFAULT_CHIPS_VAL", chips_html)
     tmpl = tmpl.replace("ACTIVE_TIER_VAL", str(active_tier))
     return tmpl
     # ==============================================================================
@@ -545,15 +559,18 @@ def get_studio_javascript():
                 const input = document.getElementById('chat-input');
                 const box = document.getElementById('chat-box');
                 const tray = document.getElementById('quick-chips-tray');
-                if(!input || !box) return;
                 
+                if(!input || !box) return;
                 const text = input.value.trim();
                 if(!text) return;
 
-                // User message
+                // Thêm tin nhắn của User
                 box.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">' + text + '</span></div>';
                 input.value = '';
                 box.scrollTop = box.scrollHeight;
+                
+                // Hiển thị trạng thái đang xử lý trên khay chip
+                if(tray) tray.innerHTML = '<span class="text-slate-500 text-[10px] animate-pulse pl-1">⏳ Đạo diễn ảo đang suy nghĩ...</span>';
 
                 try {
                     const res = await fetch('/api/cineai/chat', {
@@ -562,23 +579,26 @@ def get_studio_javascript():
                     });
                     const data = await res.json();
                     
-                    // Bot response
+                    // Thêm tin nhắn của AI
                     box.innerHTML += '<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 leading-relaxed max-w-[85%]" style="overflow-wrap: anywhere;">' + (data.reply || "Đã xử lý.") + '</div>';
                     box.scrollTop = box.scrollHeight;
 
-                    // LOGIC VẼ THẺ CHIP ĐỘNG TỪ AI
-                    if (data.chips && data.chips.length > 0) {
-                        let chipsHtml = '';
-                        data.chips.forEach(chip => {
-                            chipsHtml += `<button onclick="selectChip('${chip}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">✨ ${chip}</button>`;
-                        });
-                        tray.innerHTML = chipsHtml;
-                    } else {
-                        tray.innerHTML = '';
+                    // PHỤC HỒI LOGIC VẼ THẺ CHIP ĐỘNG TỪ AI
+                    if (tray) {
+                        if (data.chips && data.chips.length > 0) {
+                            let chipsHtml = '';
+                            data.chips.forEach(chip => {
+                                chipsHtml += `<button onclick="selectChip('${chip}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">✨ ${chip}</button>`;
+                            });
+                            tray.innerHTML = chipsHtml;
+                        } else {
+                            tray.innerHTML = '';
+                        }
                     }
 
                 } catch(e) {
                     box.innerHTML += '<div class="bg-rose-950 p-2 rounded-xl text-rose-200">⚠️ Lỗi kết nối trợ lý ảo!</div>';
+                    if (tray) tray.innerHTML = '';
                 }
             }
         </script>
@@ -620,7 +640,6 @@ async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = 
     p2 = get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier)
     p3 = get_studio_javascript()
     
-    # THAY THẾ TOÀN CỤC CHUẨN XÁC ĐỂ TRÁNH LỖI HIỂN THỊ "ACTIVE_TIER_VAL"
     final_html = p1 + p2 + p3
     final_html = final_html.replace("ACTIVE_TIER_VAL", str(active_tier))
     final_html = final_html.replace("PROJECT_ID_VAL", target_project.get("id", ""))
