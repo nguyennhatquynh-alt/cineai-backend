@@ -248,7 +248,7 @@ async def spin_off_project(request: Request, session_id: str = Cookie(None)):
     if not current_user: return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
     data = await request.json(); p_id = data.get("id")
     projects = get_user_projects(current_user)
-    source_project = next((p for p in projects if p.get("id"] == p_id), None)
+    source_project = next((p for p in projects if p.get("id") == p_id), None)
     if not source_project: return JSONResponse({"status": "error", "message": "Không tìm thấy dự án gốc."}, status_code=404)
     
     if len(projects) >= 5: return JSONResponse({"status": "limit", "message": "⚠️ Đã đạt giới hạn 5 dự án!"}, status_code=400)
