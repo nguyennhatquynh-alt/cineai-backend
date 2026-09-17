@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS ONE-HANDED SUITE (PHẦN 1/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 1/4)
 # ==============================================================================
 
 import os
@@ -17,7 +17,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Request, Form, Response, Cookie, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
-app = FastAPI(title="Cine AI Studio Pro 7.2.5 - Venus One-Handed Suite", version="7.2.5")
+app = FastAPI(title="Cine AI Studio Pro 7.2.5 - Voice Suite", version="7.2.5")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -67,7 +67,7 @@ def migrate_project_to_tree(p):
         "id": new_id,
         "metadata": {
             "title": p.get("title", "Dự án mới"),
-            "header": p.get("header", "Thể loại: Điện ảnh cảm xúc • Thao tác một tay"),
+            "header": p.get("header", "Thể loại: Điện ảnh cảm xúc • Tương tác giọng nói"),
             "aspect_ratio": p.get("aspect_ratio", "16:9"),
             "target_duration": p.get("target_duration", "45p"),
             "highest_tier": p.get("highest_tier", 4),
@@ -139,7 +139,7 @@ async def self_healing_global_middleware(request: Request, call_next):
     except Exception as exc:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(exc)})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS ONE-HANDED SUITE (PHẦN 2/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 2/4)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
@@ -243,7 +243,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         "Bạn là Đạo diễn ảo thấu cảm của Cine AI Studio Pro 7.2.5. Trả về DUY NHẤT JSON:\n"
         "{\n"
         '  "message": "Câu nói tâm tình chạm cảm xúc (1-2 câu)",\n'
-        '  "quick_chips": ["Ý tưởng 1", "Ý tưởng 2", "Ý tưởng 3"]\n'
+        '  "quick_chips": ["Tiếng mưa rơi trên mái tôn", "Căn phòng đêm tĩnh mịch", "Một lời xin lỗi muộn màng"]\n'
         "}"
     )
     raw_res, err_msg = call_gemini_direct(system_persona + f"\nUser: {user_message}")
@@ -254,9 +254,9 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
             return JSONResponse({"reply": parsed.get("message", "Đã tiếp nhận chỉ đạo."), "chips": parsed.get("quick_chips", [])})
         except Exception:
             pass
-    return JSONResponse({"reply": raw_res or err_msg, "chips": ["Tiếng mưa rơi", "Ký ức cũ"]})
+    return JSONResponse({"reply": raw_res or err_msg, "chips": ["Tiếng mưa rơi", "Ký ức cũ", "Khoảng lặng phía trước"]})
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS ONE-HANDED SUITE (PHẦN 3/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 3/4)
 # ==============================================================================
 
 @app.post("/api/cineai/render-scene-take")
@@ -303,13 +303,12 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cine AI Studio Pro 7.2.5 - One-Handed Venus</title>
+        <title>Cine AI Studio Pro 7.2.5 - Voice Suite</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28">
         <div class="max-w-4xl mx-auto space-y-3">
             
-            <!-- HEADER THAO TÁC MỘT TAY -->
             <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative">
                 <div class="flex items-center gap-2">
                     <span class="text-xl">🎬</span>
@@ -330,7 +329,6 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                 </div>
             </div>
 
-            <!-- THANH THÔNG TIN DỰ ÁN & MENU BUÔNG THẢ -->
             <div class="bg-slate-900/90 border border-amber-500/30 p-3 rounded-2xl flex items-center justify-between shadow-lg">
                 <div class="flex items-center gap-2 overflow-hidden">
                     <span class="text-amber-400 text-xs whitespace-nowrap">🎞️ Dự án:</span>
@@ -339,14 +337,12 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                 <button onclick="openBottomSheet('quick-edit')" class="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-xl text-xs border border-amber-500/30 font-bold">⚡ Menu</button>
             </div>
 
-            <!-- 3 NÚT ĐIỀU HƯỚNG MỘT TAY -->
             <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
                 <a href="/?new_project=1" class="bg-amber-500 text-slate-950 py-2.5 rounded-xl shadow flex items-center justify-center gap-1">➕ Tạo Mới</a>
                 <a href="/library" class="bg-slate-900 border border-slate-800 text-slate-200 py-2.5 rounded-xl shadow flex items-center justify-center gap-1">📁 Thư Viện</a>
                 <button onclick="openDrawer('chat')" class="bg-indigo-600 text-white py-2.5 rounded-xl shadow flex items-center justify-center gap-1">🤖 Trợ Lý</button>
             </div>
 
-            <!-- BREADCRUMB 4 TẦNG NHẢY CÓC LINH HOẠT -->
             <div class="grid grid-cols-4 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 text-center text-[10px] sm:text-xs font-bold">
                 <a href="/?load_id=ENC_ID_VAL&tier=1" class="py-2 rounded-xl transition T1_CLS_VAL">1. Kịch Bản</a>
                 <a href="/?load_id=ENC_ID_VAL&tier=2" class="py-2 rounded-xl transition T2_CLS_VAL">2. Casting</a>
@@ -365,7 +361,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
                 <button onclick="openDrawer('chat')" class="bg-indigo-950/40 border border-indigo-800/60 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group">
                     <div>
                         <span class="text-xs font-black text-indigo-200">✨ Ươm mầm ý tưởng</span>
-                        <span class="text-[10px] text-indigo-400 block">Trò chuyện AI</span>
+                        <span class="text-[10px] text-indigo-400 block">Trò chuyện AI & Micro</span>
                     </div>
                     <span class="text-xs text-indigo-300 font-bold">Mở ▼</span>
                 </button>
@@ -412,16 +408,16 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 <button onclick="exportSrtSubtitles()" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-2xl text-xs">📜 Xuất Phụ Đề .SRT</button>
             </div>
 
-            <!-- BOTTOM SHEET OVERLAYS (MÀN HÌNH BUÔNG THẢ TỪ ĐÁY) -->
+            <!-- BOTTOM SHEET QUICK-EDIT -->
             <div id="bottom-sheet-quick-edit" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
                 <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 space-y-3 shadow-2xl">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                        <h3 class="text-xs font-bold text-amber-400 uppercase">⚡ Bảng Điều Hướng Nhanh (Một Tay)</h3>
+                        <h3 class="text-xs font-bold text-amber-400 uppercase">⚡ Bảng Điều Hướng Nhanh</h3>
                         <button onclick="closeBottomSheet('quick-edit')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center">✕</button>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <button onclick="closeBottomSheet('quick-edit'); openDrawer('script');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-amber-300">📜 Sửa Kịch Bản</button>
-                        <button onclick="closeBottomSheet('quick-edit'); openDrawer('chat');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-indigo-300">✨ Trò Chuyện Đạo Diễn</button>
+                        <button onclick="closeBottomSheet('quick-edit'); openDrawer('chat');" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-left font-bold text-indigo-300">✨ Trò Chuyện & Micro</button>
                     </div>
                 </div>
             </div>
@@ -440,19 +436,30 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                 </div>
             </div>
 
-            <!-- DRAWER TRỢ LÝ ẢO (CHAT THỜI GIAN THỰC VỚI GEMINI) -->
+            <!-- DRAWER TRỢ LÝ ẢO (TÍCH HỢP THẺ CHIP VÀ MICRO GIỌNG NÓI) -->
             <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4">
                 <div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl">
                     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                        <span class="text-xs font-bold text-amber-400 uppercase">✨ Ươm Mầm Ý Tưởng</span>
+                        <span class="text-xs font-bold text-amber-400 uppercase">✨ Ươm Mầm Ý Tưởng & Giọng Nói</span>
                         <button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold flex items-center justify-center">✕</button>
                     </div>
-                    <div id="chat-box" class="bg-slate-950 h-52 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2">
-                        <p class="text-blue-200">Chào đạo diễn! Hãy trao đổi để em tự động tinh chỉnh các khâu phim ảnh nhé.</p>
+                    
+                    <div id="chat-box" class="bg-slate-950 h-48 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2">
+                        <p class="text-blue-200">Chào đạo diễn! Hãy dùng thẻ chip gợi ý nhanh hoặc bấm nút Micro để ra lệnh bằng giọng nói nhé.</p>
                     </div>
-                    <div class="flex gap-2">
-                        <input type="text" id="chat-input" placeholder="Nhập yêu cầu..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChat()">
-                        <button onclick="sendChat()" class="bg-indigo-600 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button>
+
+                    <!-- THẺ CHIP GỢI Ý NHANH -->
+                    <div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-1">
+                        <button onclick="selectChip('Tiếng mưa rơi trên mái tôn')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">🌧️ Tiếng mưa rơi trên mái tôn</button>
+                        <button onclick="selectChip('Căn phòng đêm tĩnh mịch')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">🌙 Căn phòng đêm tĩnh mịch</button>
+                        <button onclick="selectChip('Một lời xin lỗi muộn màng')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">💔 Lời xin lỗi muộn màng</button>
+                    </div>
+
+                    <div class="flex gap-2 pt-1 items-center">
+                        <input type="text" id="chat-input" placeholder="Nhập yêu cầu hoặc bấm Micro..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChat()">
+                        <!-- NÚT MICRO GIỌNG NÓI SPEECH-TO-TEXT -->
+                        <button id="mic-btn" onclick="toggleVoiceInput()" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-2.5 rounded-xl font-bold text-xs transition shadow flex items-center gap-1" title="Nói để nhập liệu">🎙️</button>
+                        <button onclick="sendChat()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button>
                     </div>
                 </div>
             </div>
@@ -472,7 +479,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     return tmpl
     # ==============================================================================
-# CINE AI STUDIO PRO 7.2.5 - VENUS ONE-HANDED SUITE (PHẦN 4/4)
+# CINE AI STUDIO PRO 7.2.5 - VENUS VOICE-ENABLED SUITE (PHẦN 4/4)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -560,7 +567,52 @@ def get_studio_javascript():
                 }
             }
 
-            // GIAO TIEP THỜI GIAN THỰC VỚI GEMINI QUA TRỢ LÝ ẢO
+            // CHỌN THẺ CHIP NHANH
+            function selectChip(text) {
+                const input = document.getElementById('chat-input');
+                if(input) input.value = text;
+                sendChat();
+            }
+
+            // TÍCH HỢP NHẬP LIỆU BẰNG GIỌNG NÓI (SPEECH-TO-TEXT MICRO)
+            function toggleVoiceInput() {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    alert("⚠️ Trình duyệt của bạn không hỗ trợ nhận diện giọng nói trực tiếp!");
+                    return;
+                }
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'vi-VN';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                const micBtn = document.getElementById('mic-btn');
+                micBtn.innerHTML = "🔴 Đang nghe...";
+                micBtn.classList.add('animate-pulse');
+
+                recognition.onresult = function(event) {
+                    const speechResult = event.results[0][0].transcript;
+                    const input = document.getElementById('chat-input');
+                    if(input) input.value = speechResult;
+                    micBtn.innerHTML = "🎙️";
+                    micBtn.classList.remove('animate-pulse');
+                    sendChat();
+                };
+
+                recognition.onerror = function() {
+                    alert("⚠️ Không nhận diện được giọng nói. Vui lòng thử lại!");
+                    micBtn.innerHTML = "🎙️";
+                    micBtn.classList.remove('animate-pulse');
+                };
+
+                recognition.onend = function() {
+                    micBtn.innerHTML = "🎙️";
+                    micBtn.classList.remove('animate-pulse');
+                };
+
+                recognition.start();
+            }
+
             async function sendChat() {
                 const input = document.getElementById('chat-input');
                 const box = document.getElementById('chat-box');
@@ -578,7 +630,7 @@ def get_studio_javascript():
                         body: JSON.stringify({message: text, id: currentProjectId})
                     });
                     const data = await res.json();
-                    box.innerHTML += '<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 leading-relaxed max-w-[85%]">' + (data.reply || "Đã xử lý.") + '</div>';
+                    box.innerHTML += '<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 leading-relaxed max-w-[85%]" style="overflow-wrap: anywhere;">' + (data.reply || "Đã xử lý.") + '</div>';
                     box.scrollTop = box.scrollHeight;
                 } catch(e) {
                     box.innerHTML += '<div class="bg-rose-950 p-2 rounded-xl text-rose-200">⚠️ Lỗi kết nối trợ lý ảo!</div>';
