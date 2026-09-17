@@ -58,7 +58,6 @@ USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
 def migrate_project_to_tree(p):
-    """Cấu trúc dữ liệu nguyên khối chuẩn thương mại"""
     if "metadata" in p: 
         return p
     new_id = p.get("id") or secrets.token_hex(6)
@@ -224,7 +223,7 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
         }
     
     save_users()
-    return JSONResponse({"status": "success", "message": "🚀 AI đã lấp đầy toàn bộ khâu sản xuất!"})
+    return JSONResponse({"status": "success", "message": "🚀 AI đã tự động lấp đầy toàn bộ khâu sản xuất!"})
 
 @app.post("/api/cineai/chat")
 async def chat_with_director(request: Request, session_id: str = Cookie(None)):
@@ -251,7 +250,7 @@ async def chat_with_director(request: Request, session_id: str = Cookie(None)):
         '  "quick_chips": ["Ý tưởng 1", "Ý tưởng 2", "Ý tưởng 3"]\n'
         "}"
     )
-    raw_res, err_msg = call_gemini_direct(system_prompt + f"\nUser (Tầng {current_tier}): {user_message}")
+    raw_res, err_msg = call_gemini_direct(system_prompt + f"\nUser (Đang ở Tầng {current_tier}): {user_message}")
     if raw_res:
         try:
             clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_res.strip(), flags=re.IGNORECASE)
@@ -356,7 +355,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, highest_t
     tmpl = tmpl.replace("T1_CLS_VAL", t1_cls).replace("T2_CLS_VAL", t2_cls).replace("T3_CLS_VAL", t3_cls).replace("T4_CLS_VAL", t4_cls)
     return tmpl, t1_vis, t2_vis, t3_vis, t4_vis
 
-def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, tokens_html):
+def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier):
     tmpl = """
             <div id="screen-tier-1" class="T1_VIS_VAL space-y-3">
                 <div class="grid grid-cols-2 gap-2">
@@ -433,9 +432,12 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
                     <div id="chat-box" class="bg-slate-950 h-48 rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800 space-y-2">
                         <p class="text-blue-200">Chào đạo diễn! Tôi đang trực chiến ở Tầng ACTIVE_TIER_VAL.</p>
                     </div>
+                    
+                    <!-- VÙNG RENDER THẺ CHIP ĐỘNG -->
                     <div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-1">
-                        <button onclick="selectChip('Tối ưu hóa các thông số tại tầng này')" class="bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px]">⚡ Tối ưu tầng này</button>
+                        <button onclick="selectChip('Tối ưu hóa thông số tầng này')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition">⚡ Tối ưu tầng này</button>
                     </div>
+
                     <div class="flex gap-2 pt-1 items-center">
                         <input type="text" id="chat-input" placeholder="Ra lệnh cho trợ lý AI..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChat()">
                         <button id="mic-btn" onclick="toggleVoiceInput()" class="bg-rose-600 text-white px-3 py-2.5 rounded-xl font-bold text-xs shadow">🎙️</button>
@@ -455,6 +457,7 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, toke
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("PROJECT_HEADER_VAL", target_project["metadata"]["header"])
     tmpl = tmpl.replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
+    tmpl = tmpl.replace("ACTIVE_TIER_VAL", str(active_tier))
     return tmpl
     # ==============================================================================
 # CINE AI STUDIO PRO 7.2.5 - UNIFIED MONOLITH CORE (PHẦN 4/4)
@@ -541,10 +544,13 @@ def get_studio_javascript():
             async function sendChat() {
                 const input = document.getElementById('chat-input');
                 const box = document.getElementById('chat-box');
+                const tray = document.getElementById('quick-chips-tray');
                 if(!input || !box) return;
+                
                 const text = input.value.trim();
                 if(!text) return;
 
+                // User message
                 box.innerHTML += '<div class="text-right"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">' + text + '</span></div>';
                 input.value = '';
                 box.scrollTop = box.scrollHeight;
@@ -555,8 +561,22 @@ def get_studio_javascript():
                         body: JSON.stringify({message: text, id: currentProjectId, tier: currentActiveTier})
                     });
                     const data = await res.json();
+                    
+                    // Bot response
                     box.innerHTML += '<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 leading-relaxed max-w-[85%]" style="overflow-wrap: anywhere;">' + (data.reply || "Đã xử lý.") + '</div>';
                     box.scrollTop = box.scrollHeight;
+
+                    // LOGIC VẼ THẺ CHIP ĐỘNG TỪ AI
+                    if (data.chips && data.chips.length > 0) {
+                        let chipsHtml = '';
+                        data.chips.forEach(chip => {
+                            chipsHtml += `<button onclick="selectChip('${chip}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-xl text-[11px] transition shadow">✨ ${chip}</button>`;
+                        });
+                        tray.innerHTML = chipsHtml;
+                    } else {
+                        tray.innerHTML = '';
+                    }
+
                 } catch(e) {
                     box.innerHTML += '<div class="bg-rose-950 p-2 rounded-xl text-rose-200">⚠️ Lỗi kết nối trợ lý ảo!</div>';
                 }
@@ -597,11 +617,15 @@ async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = 
     highest_tier = 4
 
     p1, t1_vis, t2_vis, t3_vis, t4_vis = get_studio_html_block_1(target_project, user_credits, active_tier, highest_tier, current_user)
-    p2 = get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, "")
+    p2 = get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier)
     p3 = get_studio_javascript()
-    p3 = p3.replace("ACTIVE_TIER_VAL", str(active_tier)).replace("PROJECT_ID_VAL", target_project.get("id", ""))
+    
+    # THAY THẾ TOÀN CỤC CHUẨN XÁC ĐỂ TRÁNH LỖI HIỂN THỊ "ACTIVE_TIER_VAL"
+    final_html = p1 + p2 + p3
+    final_html = final_html.replace("ACTIVE_TIER_VAL", str(active_tier))
+    final_html = final_html.replace("PROJECT_ID_VAL", target_project.get("id", ""))
 
-    return HTMLResponse(content=p1 + p2 + p3)
+    return HTMLResponse(content=final_html)
 
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
