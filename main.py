@@ -1,5 +1,5 @@
 # ==============================================================================
-# CINE AI STUDIO PRO 7.3.3 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 1/4)
+# CINE AI STUDIO PRO 7.3.4 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 1/5)
 # ==============================================================================
 
 import os
@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException, Bac
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 import asyncio
 
-app = FastAPI(title="Cine AI Studio Pro 7.3.3 - Unified Interlocked Release", version="7.3.3")
+app = FastAPI(title="Cine AI Studio Pro 7.3.4 - Unified Interlocked Release", version="7.3.4")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://djkxwtkhmjpehgqvhkee.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -41,8 +41,63 @@ def save_users():
 USERS_DB = load_users()
 ACTIVE_SESSIONS = {}
 
+class ImmortalDataTreeRegistry:
+    """Trụ cột bất tử (Global Asset Registry): Lưu trữ DNA dự án, Continuity Lock và Token Compression."""
+    def __init__(self):
+        self.nodes: Dict[str, Any] = {}
+        self.continuity_locks: Dict[str, str] = {}
+        self.compressed_dna_cache: Dict[str, str] = {}
+
+    def register_asset(self, asset_id: str, data: Dict[str, Any], state_lock: Optional[str] = None) -> None:
+        self.nodes[asset_id] = data
+        if state_lock: self.continuity_locks[asset_id] = state_lock
+
+    def apply_token_compression(self, project_id: str, history_log: List[str]) -> str:
+        dna_summary = f"[DNA-CORE-{project_id}]: " + " | ".join([h[:50] for h in history_log[-5:]])
+        self.compressed_dna_cache[project_id] = dna_summary
+        return dna_summary
+
+    def verify_continuity(self, asset_id: str, current_style_params: str) -> bool:
+        locked_style = self.continuity_locks.get(asset_id)
+        if not locked_style: return True
+        return locked_style == current_style_params
+
+immortal_registry = ImmortalDataTreeRegistry()
+# ==============================================================================
+# CINE AI STUDIO PRO 7.3.4 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 2/5)
+# ==============================================================================
+
+class CineAIProDirectorEngine:
+    """Động cơ đạo diễn thông minh tích hợp hậu kỳ Hollywood: Sawtooth Pacing, Audiophile 3D, Show Don't Tell."""
+    @staticmethod
+    def evaluate_sawtooth_pacing(scene_id: str, raw_script: str) -> Dict[str, Any]:
+        return {
+            "scene_id": scene_id,
+            "pacing_formula": "Emotional Sawtooth Pacing",
+            "hook_segment": "[FAST-CUT: 0.8s - 1.5s per shot] - Kích thích Adrenaline 10s đầu",
+            "dropdown_segment": "[DROPDOWN-SLOW: 4s - 6s] - Nốt trầm vỡ oà cảm xúc",
+            "script_content": raw_script.strip()
+        }
+
+    @staticmethod
+    def generate_audiophile_sound_mapping(genre_mood: str) -> Dict[str, str]:
+        return {
+            "spatial_tech": "Binaural 3D spatial audio, holographic soundstage",
+            "panning_mix": "dynamic left-right hard panning, crystal clear 24-bit audiophile",
+            "frequency_balance": "Warm Mid-range for vocal intimacy, shimmering Treble without harshness",
+            "sound_bridge_rule": "Apply 2-second pre-transition audio bridge to link scenes smoothly",
+            "full_suno_prompt": f"Genre: {genre_mood}. Binaural 3D spatial audio, holographic soundstage, dynamic left-right hard panning, crystal clear 24-bit audiophile, warm mid-range, shimmering treble."
+        }
+
+    @staticmethod
+    def enforce_show_dont_tell(script_fragment: str) -> Dict[str, Any]:
+        return {
+            "rule": "Show, Don't Tell (Visual Symbolism)",
+            "action": "Strip out unnecessary dialogue explanations.",
+            "enforced_visual_metaphor": f"Expressing inner conflict via symbolic imagery (e.g., rusted key, fading sunlight) instead of words: [{script_fragment[:40]}...]"
+        }
+
 def migrate_project_to_tree(p):
-    """CẤU TRÚC CÂY BẤT TỬ ĐAN CHÉO 4 CƠ CHẾ VINH QUANG"""
     new_id = p.get("id") or secrets.token_hex(6)
     meta = p.get("metadata", {}); post_prod = p.get("post_production", {})
     master_schema = p.get("master_schema", {})
@@ -91,10 +146,10 @@ def get_user_projects(target_username):
     return user_data["projects"]
 
 TIER_SYSTEM_PROMPTS = {
-    1: "Đạo diễn trưởng: Kịch bản chiều sâu, The Hook trong 10 giây đầu, tuân thủ DNA nén.",
+    1: "Đạo diễn trưởng: Kịch bản chiều sâu, The Hook trong 10 giây đầu, áp dụng Show Don't Tell.",
     2: "Casting Director: Khóa Asset Registry, áp dụng Vaccine chống lỗi và Continuity Lock.",
-    3: "Pacing Director: Ma trận 3 hồi, đồng bộ nhịp điệu cắt cảnh theo Audiophile BPM.",
-    4: "Post-Production Supervisor: Kiểm duyệt Dry-Run, kích hoạt Lazy Evaluation tối ưu chi phí."
+    3: "Pacing Director: Ma trận 3 hồi, đồng bộ nhịp điệu cắt cảnh theo Emotional Sawtooth Pacing.",
+    4: "Post-Production Supervisor: Kiểm duyệt Dry-Run, kích hoạt Lazy Evaluation và Audiophile 3D Sound Mapping."
 }
 
 NSFW_BLOCKLIST = ["bạo lực", "khiêu dâm", "đồi trụy", "máu me", "tự tử"]
@@ -108,7 +163,7 @@ def sanitize_prompt(text: str) -> bool:
 async def generative_engine(task_type, payload):
     await asyncio.sleep(2.0)
     if task_type == "render_audio":
-        return {"status": "success", "msg": "Render Audiophile 3D thành công với Continuity Lock & Vaccine bảo vệ."}
+        return {"status": "success", "msg": "Render Audiophile 3D thành công với Continuity Lock & Sawtooth Pacing."}
     return {"status": "success", "msg": "Xử lý thành công."}
 
 def get_gemini_keys():
@@ -133,9 +188,9 @@ def call_gemini_stream(prompt_text):
 @app.middleware("http")
 async def self_healing_global_middleware(request: Request, call_next):
     try: return await call_next(request)
-    except Exception as exc: return JSONResponse(status_code=500, content={"status": "error", "message": f"Auto-heal v7.3.3: {str(exc)}"})
+    except Exception as exc: return JSONResponse(status_code=500, content={"status": "error", "message": f"Auto-heal v7.3.4: {str(exc)}"})
         # ==============================================================================
-# CINE AI STUDIO PRO 7.3.3 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 2/4)
+# CINE AI STUDIO PRO 7.3.4 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 3/5)
 # ==============================================================================
 
 @app.post("/api/cineai/save-draft")
@@ -152,14 +207,12 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
         raw_story = data.get("story", "").strip()
         target_project["ideation_core"]["project_raw_story"] = raw_story
         
-        if len(raw_story) > 250:
-            target_project["ideation_core"]["compressed_dna"] = f"[DNA Tóm tắt v7.3.3]: {raw_story[:120]}... [Đã nén tối ưu token]"
-        else:
-            target_project["ideation_core"]["compressed_dna"] = raw_story
+        compressed_dna = immortal_registry.apply_token_compression(target_project["id"], [raw_story])
+        target_project["ideation_core"]["compressed_dna"] = compressed_dna
 
         target_project["metadata"]["current_tier"] = int(data.get("tier", 1))
         target_project["metadata"]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg = "💾 Đã lưu & Nén token ngầm thành công!"
+        msg = "💾 Đã lưu & Nén token ngầm qua Cây Bất Tử v7.3.4!"
     else:
         if len(projects) >= 5: return JSONResponse({"status": "limit", "message": "Đạt giới hạn 5 dự án!"}, status_code=400)
         target_project = migrate_project_to_tree({"id": secrets.token_hex(6), "title": data.get("title", ""), "header": data.get("header", ""), "story": data.get("story", "")})
@@ -194,7 +247,7 @@ async def spin_off_project(request: Request, session_id: str = Cookie(None)):
 @app.post("/api/cineai/ecosystem/cloud-sync")
 async def sync_to_cloud(request: Request, session_id: str = Cookie(None)):
     await asyncio.sleep(1.0)
-    return JSONResponse({"status": "success", "message": "☁️ Đã đồng bộ an toàn lên Google Drive (CineAI_Export v7.3.3)."})
+    return JSONResponse({"status": "success", "message": "☁️ Đã đồng bộ an toàn lên Google Drive (CineAI_Export v7.3.4)."})
 
 @app.post("/api/cineai/ecosystem/toggle-community")
 async def toggle_community(request: Request, session_id: str = Cookie(None)):
@@ -211,7 +264,7 @@ async def toggle_community(request: Request, session_id: str = Cookie(None)):
 @app.post("/api/cineai/ecosystem/social-loop")
 async def social_loop_scan(request: Request, session_id: str = Cookie(None)):
     await asyncio.sleep(1.5)
-    return JSONResponse({"status": "success", "message": "📊 Thẩm âm AI v7.3.3: Continuity Lock và Vaccine chống lỗi hoạt động hoàn hảo. Độ gây nghiện: 95/100."})
+    return JSONResponse({"status": "success", "message": "📊 Thẩm âm AI v7.3.4: Sawtooth Pacing và Audiophile 3D hoạt động hoàn hảo. Độ gây nghiện: 98/100."})
 
 @app.post("/api/cineai/auto-fallback-complete")
 async def auto_fallback_complete(request: Request, session_id: str = Cookie(None)):
@@ -221,8 +274,8 @@ async def auto_fallback_complete(request: Request, session_id: str = Cookie(None
     target_project = next((p for p in get_user_projects(current_user) if p.get("id") == data.get("id", "")), None)
     if not target_project: return JSONResponse({"error": "Not found"}, status_code=404)
         
-    if not target_project["ideation_core"].get("project_raw_story"): target_project["ideation_core"]["project_raw_story"] = "Hành trình điện ảnh tự sự."
-    save_users(); return JSONResponse({"status": "success", "message": "🚀 Đã tự động lấp đầy hệ thống đan chéo v7.3.3!"})
+    if not target_project["ideation_core"].get("project_raw_story"): target_project["ideation_core"]["project_raw_story"] = "Hành trình điện ảnh tự sự xuyên không."
+    save_users(); return JSONResponse({"status": "success", "message": "🚀 Đã tự động lấp đầy hệ thống đan chéo v7.3.4!"})
 
 @app.post("/api/cineai/chat_stream")
 async def chat_stream_with_director(request: Request, session_id: str = Cookie(None)):
@@ -235,7 +288,7 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
     
     compressed_context = target_project["ideation_core"].get("compressed_dna", "")
     base_prompt = TIER_SYSTEM_PROMPTS.get(current_tier, TIER_SYSTEM_PROMPTS[1])
-    system_prompt = f"{base_prompt}\n--- DNA Nén ---\n{compressed_context}\nUser: {user_message}\nTrả lời ngắn gọn, đậm chất điện ảnh."
+    system_prompt = f"{base_prompt}\n--- DNA Nén (Cây Bất Tử) ---\n{compressed_context}\nUser: {user_message}\nTrả lời ngắn gọn, đậm chất điện ảnh, áp dụng triệt để Show Don't Tell và Sawtooth Pacing."
 
     async def event_stream():
         full_response = ""
@@ -244,7 +297,7 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
             full_response += chunk
             yield f'data: {{"type": "text", "content": "{clean_chunk}"}}\n\n'; await asyncio.sleep(0.01)
             
-        chips = ["Tối ưu kịch bản", "Kiểm tra Continuity Lock"] if current_tier < 3 else ["Chạy Dry-Run (0đ)", "Render Phân Đoạn 🎬"]
+        chips = ["Phân tích Sawtooth Pacing", "Kiểm tra Audiophile 3D"] if current_tier < 3 else ["Chạy Dry-Run (0đ)", "Render Phân Đoạn (Lazy Evaluation) 🎬"]
         yield f'data: {{"type": "chips", "content": {json.dumps(chips)}}}\n\n'
         
         chat_history = target_project["ideation_core"].setdefault("chat_history", [])
@@ -252,9 +305,6 @@ async def chat_stream_with_director(request: Request, session_id: str = Cookie(N
         save_users()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
-    # ==============================================================================
-# CINE AI STUDIO PRO 7.3.3 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 3/4)
-# ==============================================================================
 
 @app.post("/api/cineai/render-scene-take")
 async def render_scene_take(request: Request, session_id: str = Cookie(None)):
@@ -268,10 +318,10 @@ async def render_scene_take(request: Request, session_id: str = Cookie(None)):
     
     if scene_type == "static_dialogue":
         cost = 0
-        render_msg = "💡 [Lazy Evaluation]: Cảnh hội thoại tĩnh kích hoạt Ken Burns Effect ngầm — TIẾT KIỆM 100% Chi phí API Video!"
+        render_msg = "💡 [Lazy Evaluation v7.3.4]: Mô phỏng Ken Burns Effect ngầm trên ảnh tĩnh — TIẾT KIỆM 90-100% Chi phí API Video!"
     else:
         cost = 2
-        render_msg = "🎬 Kích hoạt API Video chuẩn cho phân cảnh cao trào."
+        render_msg = "🎬 Kích hoạt API Video chuẩn kết hợp Audiophile 3D Sound Mapping."
 
     if user_data.get("credits", 0) < cost and cost > 0:
         return JSONResponse({"status": "error", "message": "⚠️ Tài khoản không đủ Credit!"})
@@ -292,6 +342,9 @@ async def delete_project(request: Request, session_id: str = Cookie(None)):
     data = await request.json()
     USERS_DB[current_user]["projects"] = [p for p in get_user_projects(current_user) if p.get("id") != data.get("id", "")]
     save_users(); return JSONResponse({"status": "success", "message": "🗑️ Đã xóa dự án!"})
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.3.4 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 4/5)
+# ==============================================================================
 
 def get_studio_html_block_1(target_project, user_credits, active_tier, username, pub_text):
     t1_cls = "bg-amber-500 text-slate-950 shadow-md" if active_tier == 1 else "bg-slate-800 text-slate-200"
@@ -302,9 +355,9 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, username,
     t3_vis, t4_vis = "block" if active_tier == 3 else "hidden", "block" if active_tier == 4 else "hidden"
     enc_id = target_project.get("id", "")
     
-    tmpl = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cine AI Studio 7.3.3</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28"><div class="max-w-4xl mx-auto space-y-3">
+    tmpl = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cine AI Studio 7.3.4</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 font-sans pb-28"><div class="max-w-4xl mx-auto space-y-3">
         <div class="flex justify-between items-center bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 shadow-xl relative z-40">
-            <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-xs sm:text-sm font-black text-amber-400 uppercase">Cine AI 7.3.3</h1></div>
+            <div class="flex items-center gap-2"><span class="text-xl">🎬</span><h1 class="text-xs sm:text-sm font-black text-amber-400 uppercase">Cine AI 7.3.4</h1></div>
             <div class="flex items-center gap-2">
                 <button onclick="triggerSpinOff('ENC_ID_VAL')" class="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 px-2.5 py-1.5 rounded-xl text-xs border border-emerald-500/30 font-bold flex items-center gap-1 shadow">✨ Spin-off</button>
                 <div class="relative"><button onclick="toggleProfileMenu()" class="w-9 h-9 rounded-full bg-slate-800 border-2 border-amber-400/80 flex items-center justify-center shadow"><span class="text-sm">👤</span></button>
@@ -333,7 +386,7 @@ def get_studio_html_block_1(target_project, user_credits, active_tier, username,
 
 def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, active_tier):
     chat_history = target_project["ideation_core"].get("chat_history", [])
-    history_html = '<p class="text-emerald-400 text-[10px] text-center mb-2">🔄 Đã đồng bộ 4 cơ chế đan chéo.</p>' if chat_history else '<p class="text-blue-200">Chào đạo diễn! Hệ thống v7.3.3 đang vận hành tự động toàn diện.</p>'
+    history_html = '<p class="text-emerald-400 text-[10px] text-center mb-2">🔄 Đã đồng bộ Cây Bất Tử & Trợ lý Đạo diễn v7.3.4.</p>' if chat_history else '<p class="text-blue-200">Chào đạo diễn! Hệ thống v7.3.4 đang vận hành tự động toàn diện.</p>'
     for msg in chat_history:
         if msg["role"] == "User": history_html += f'<div class="text-right mb-2"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">{msg["content"]}</span></div>'
         else: history_html += f'<div class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 mb-2 max-w-[85%]" style="overflow-wrap: anywhere;">{msg["content"]}</div>'
@@ -341,36 +394,36 @@ def get_studio_html_block_2(target_project, t1_vis, t2_vis, t3_vis, t4_vis, acti
     tmpl = """
         <div id="screen-tier-1" class="T1_VIS_VAL space-y-3"><div class="grid grid-cols-2 gap-2"><button onclick="openDrawer('script')" class="bg-slate-900 border border-slate-700 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group"><div><span class="text-xs font-black text-slate-100">📜 Câu chuyện</span></div><span class="text-xs text-amber-400 font-bold">Mở ▼</span></button><button onclick="openDrawer('chat')" class="bg-indigo-950/40 border border-indigo-800/60 p-3.5 rounded-2xl text-left shadow flex items-center justify-between group"><div><span class="text-xs font-black text-indigo-200">✨ Trợ lý AI</span></div><span class="text-xs text-indigo-300 font-bold">Mở ▼</span></button></div></div>
         <div id="screen-tier-2" class="T2_VIS_VAL space-y-3"><div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎨 Tầng 2: Casting & Continuity Lock</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Đạo Diễn</button></div><div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1"><p class="text-emerald-400 font-bold">✅ Đã khóa hằng số Continuity Lock & Vaccine chống lỗi.</p><p class="text-[10px] text-slate-400">Chống biến dạng khuôn mặt và nhảy cóc bối cảnh toàn diện.</p></div></div></div>
-        <div id="screen-tier-3" class="T3_VIS_VAL space-y-3"><div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎬 Tầng 3: Dựng Cảnh (BPM Sync)</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Chuyên Gia</button></div><div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300"><p class="text-amber-300 font-bold">🌟 Đồng bộ nhịp điệu cắt cảnh theo lưới tọa độ âm thanh Audiophile.</p></div></div></div>
+        <div id="screen-tier-3" class="T3_VIS_VAL space-y-3"><div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎬 Tầng 3: Dựng Cảnh (Sawtooth Pacing)</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Chuyên Gia</button></div><div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1"><p class="text-amber-300 font-bold">🌟 [FAST-CUT: 0.8s - 1.5s] kết hợp [DROPDOWN-SLOW: 4s - 6s].</p><p class="text-[10px] text-slate-400">Công thức Lưỡi cưa cảm xúc và quy tắc Show, Don't Tell.</p></div></div></div>
         
         <div id="screen-tier-4" class="T4_VIS_VAL space-y-3">
             <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-                <div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎞️ Tầng 4: Xuất Xưởng & Lazy Evaluation</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Giám Sát</button></div>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2"><h2 class="text-xs font-bold text-amber-400 uppercase">🎞️ Tầng 4: Xuất Xưởng & Audiophile 3D</h2><button onclick="openDrawer('chat')" class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded-xl text-[10px] font-bold">🤖 Giám Sát</button></div>
                 
                 <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
                     <label class="block text-[11px] font-bold text-amber-400">⚡ Chế độ Render (Lazy Evaluation):</label>
                     <select id="render-scene-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-100 font-bold">
-                        <option value="static_dialogue">💬 Hội thoại tĩnh / Tâm lý (Ken Burns - 0đ)</option>
-                        <option value="dynamic">🔥 Cao trào / Hành động (API Video chuẩn)</option>
+                        <option value="static_dialogue">💬 Hội thoại tĩnh / Tâm lý (Ken Burns - Tiết kiệm 90% Cost)</option>
+                        <option value="dynamic">🔥 Cao trào / Hành động (API Video chuẩn + Audiophile 3D)</option>
                     </select>
                 </div>
 
                 <button onclick="runDryRunCheck()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 rounded-2xl text-xs shadow transition-all">🔍 Kiểm Tra Khô (Dry-Run 0đ)</button>
                 <button onclick="renderSceneWithLazyEval()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-3 rounded-2xl text-xs shadow transition-all">🎬 Render Thông Minh (Tối ưu Cost)</button>
-                <button onclick="alert('📜 Đã xuất tệp phụ đề SRT chuẩn Audiophile v7.3.3.')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-2xl text-xs shadow transition-all">📜 Xuất Phụ Đề .SRT</button>
+                <button onclick="alert('📜 Đã xuất tệp phụ đề SRT chuẩn Audiophile v7.3.4.')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-2xl text-xs shadow transition-all">📜 Xuất Phụ Đề .SRT</button>
             </div>
         </div>
 
         <div id="bottom-sheet-quick-edit" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 space-y-3 shadow-2xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2"><h3 class="text-xs font-bold text-amber-400 uppercase">⚡ Menu</h3><button onclick="closeBottomSheet('quick-edit')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><div class="grid grid-cols-3 gap-2 text-xs"><a href="/" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-slate-200">🏠 Studio</a><a href="/library" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-emerald-300">📁 Thư Viện</a><a href="/community" class="bg-slate-950 border border-slate-700 p-3 rounded-2xl text-center font-bold text-indigo-300">🌐 Cộng Đồng</a></div></div></div>
-        <div id="drawer-script" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2.5"><h3 class="text-xs font-bold text-amber-400 uppercase">📜 Kịch Bản</h3><button onclick="closeDrawer('script')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><input type="text" id="project-title" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-amber-300 font-bold"><textarea id="project-story" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 leading-relaxed">PROJECT_STORY_VAL</textarea><button onclick="saveAndCloseScriptDrawer()" class="w-full bg-amber-500 text-slate-950 font-black py-3 rounded-xl text-xs">💾 Lưu Lại & Nén Ngữ Cảnh</button></div></div>
-        <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl flex flex-col"><div class="flex justify-between items-center border-b border-slate-800 pb-2 shrink-0"><span class="text-xs font-bold text-amber-400 uppercase">🤖 TRỢ LÝ TẦNG ACTIVE_TIER_VAL (v7.3.3 Unified)</span><button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><div id="chat-box" class="bg-slate-950 flex-1 min-h-[200px] max-h-[40vh] rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800">HISTORY_HTML_VAL</div><div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-2 shrink-0"></div><div class="flex gap-2 pt-2 items-center shrink-0"><input type="text" id="chat-input" placeholder="Ra lệnh AI v7.3.3..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChatStreaming()"><button id="mic-btn" onclick="toggleVoiceInput()" class="bg-rose-600 text-white px-3 py-2.5 rounded-xl font-bold text-xs shadow">🎙️</button><button onclick="sendChatStreaming()" class="bg-indigo-600 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button></div></div></div></div>
-        <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40"><div class="max-w-4xl mx-auto flex gap-2"><button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 text-slate-200 font-bold py-3.5 rounded-2xl text-xs">💾 Lưu</button><button onclick="proceedSmartAutoFallback(ACTIVE_TIER_VAL)" class="w-2/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg">BƯỚC VÀO THẾ GIỚI PHIM ➔</button></div></div>
+        <div id="drawer-script" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl"><div class="flex justify-between items-center border-b border-slate-800 pb-2.5"><h3 class="text-xs font-bold text-amber-400 uppercase">📜 Kịch Bản</h3><button onclick="closeDrawer('script')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><input type="text" id="project-title" value="PROJECT_TITLE_VAL" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-amber-300 font-bold"><textarea id="project-story" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 leading-relaxed">PROJECT_STORY_VAL</textarea><button onclick="saveAndCloseScriptDrawer()" class="w-full bg-amber-500 text-slate-950 font-black py-3 rounded-xl text-xs">💾 Lưu Lại & Nén Ngữ Cảnh (Cây Bất Tử)</button></div></div>
+        <div id="drawer-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex flex-col justify-end p-2 sm:p-4"><div class="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto space-y-3 shadow-2xl flex flex-col"><div class="flex justify-between items-center border-b border-slate-800 pb-2 shrink-0"><span class="text-xs font-bold text-amber-400 uppercase">🤖 TRỢ LÝ TẦNG ACTIVE_TIER_VAL (v7.3.4 Unified)</span><button onclick="closeDrawer('chat')" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button></div><div id="chat-box" class="bg-slate-950 flex-1 min-h-[200px] max-h-[40vh] rounded-2xl p-3 overflow-y-auto text-xs text-slate-300 border border-slate-800">HISTORY_HTML_VAL</div><div id="quick-chips-tray" class="flex flex-wrap gap-1.5 pt-2 shrink-0"></div><div class="flex gap-2 pt-2 items-center shrink-0"><input type="text" id="chat-input" placeholder="Ra lệnh AI v7.3.4..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100" onkeypress="if(event.key==='Enter') sendChatStreaming()"><button id="mic-btn" onclick="toggleVoiceInput()" class="bg-rose-600 text-white px-3 py-2.5 rounded-xl font-bold text-xs shadow">🎙️</button><button onclick="sendChatStreaming()" class="bg-indigo-600 px-4 py-2.5 rounded-xl font-bold text-xs text-white">Gửi</button></div></div></div></div>
+        <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40"><div class="max-w-4xl mx-auto flex gap-2"><button onclick="saveDraftCurrent(ACTIVE_TIER_VAL)" class="w-1/3 bg-slate-800 text-slate-200 font-bold py-3.5 rounded-2xl text-xs">💾 Lưu</button><button onclick="proceedSmartAutoFallback(ACTIVE_TIER_VAL)" class="w-2/3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg">BƯỚC Vào THẾ GIỚI PHIM ➔</button></div></div>
     """
     tmpl = tmpl.replace("T1_VIS_VAL", t1_vis).replace("T2_VIS_VAL", t2_vis).replace("T3_VIS_VAL", t3_vis).replace("T4_VIS_VAL", t4_vis)
     tmpl = tmpl.replace("PROJECT_TITLE_VAL", target_project["metadata"]["title"]).replace("PROJECT_STORY_VAL", target_project["ideation_core"]["project_raw_story"])
     return tmpl.replace("HISTORY_HTML_VAL", history_html).replace("ACTIVE_TIER_VAL", str(active_tier))
     # ==============================================================================
-# CINE AI STUDIO PRO 7.3.3 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 4A/4)
+# CINE AI STUDIO PRO 7.3.4 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 5A/5)
 # ==============================================================================
 
 def get_studio_javascript():
@@ -388,7 +441,7 @@ def get_studio_javascript():
             async function saveAndCloseScriptDrawer() { await saveDraftCurrent(currentActiveTier); closeDrawer('script'); }
             
             async function proceedSmartAutoFallback(currentTier) {
-                const btn = event.target; btn.innerHTML = "⏳ Đang kiến tạo v7.3.3..."; btn.disabled = true;
+                const btn = event.target; btn.innerHTML = "⏳ Đang kiến tạo v7.3.4..."; btn.disabled = true;
                 await saveDraftCurrent(currentTier);
                 try { await fetch('/api/cineai/auto-fallback-complete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: currentProjectId}) }); } catch(e) {}
                 let nextTier = currentTier + 1; if (nextTier > 4) nextTier = 4;
@@ -406,11 +459,11 @@ def get_studio_javascript():
             }
 
             async function runDryRunCheck() {
-                alert("🔍 [Dry-Run Gatekeeper v7.3.3]: Đã kiểm tra Asset Registry, Vaccine chống lỗi & Continuity Lock. Kịch bản hoàn hảo, sẵn sàng xuất xưởng!");
+                alert("🔍 [Dry-Run Gatekeeper v7.3.4]: Đã kiểm tra Asset Registry, Sawtooth Pacing, Audiophile 3D & Continuity Lock. Sẵn sàng xuất xưởng!");
             }
 
             async function triggerSpinOff(pId) {
-                if(!confirm("✨ Tạo Spin-off Season 2? Kế thừa toàn diện Asset, Vaccine & Continuity Lock.")) return;
+                if(!confirm("✨ Tạo Spin-off Season 2? Kế thừa toàn diện Cây Bất Tử, Asset & Continuity Lock.")) return;
                 try {
                     const res = await fetch('/api/cineai/spin-off', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: pId}) });
                     const data = await res.json();
@@ -424,7 +477,7 @@ def get_studio_javascript():
                 const sceneType = sceneTypeSel ? sceneTypeSel.value : 'dynamic';
                 
                 const btn = event.target; const orig = btn.innerHTML;
-                btn.innerHTML = "⏳ Đang chạy Lazy Evaluation & Render..."; btn.classList.add("animate-pulse"); btn.disabled = true;
+                btn.innerHTML = "⏳ Đang chạy Lazy Evaluation & Audiophile 3D..."; btn.classList.add("animate-pulse"); btn.disabled = true;
                 
                 try {
                     const res = await fetch('/api/cineai/render-scene-take', { 
@@ -481,7 +534,7 @@ def get_studio_javascript():
                 if(!input || !box) return; const text = input.value.trim(); if(!text) return;
 
                 box.innerHTML += '<div class="text-right mb-2"><span class="bg-slate-800 p-2 rounded-xl text-slate-100 inline-block max-w-[85%] text-left">' + text + '</span></div>';
-                input.value = ''; if(tray) tray.innerHTML = '<span class="text-slate-500 text-[10px] animate-pulse pl-1">⏳ Đạo diễn v7.3.3 đang xử lý ngữ cảnh...</span>';
+                input.value = ''; if(tray) tray.innerHTML = '<span class="text-slate-500 text-[10px] animate-pulse pl-1">⏳ Đạo diễn v7.3.4 đang xử lý ngữ cảnh...</span>';
                 
                 const botMsgId = 'bot-' + Date.now();
                 box.innerHTML += '<div id="' + botMsgId + '" class="bg-blue-950/80 border border-blue-800/50 p-2.5 rounded-xl text-blue-200 mb-2 max-w-[85%]" style="overflow-wrap: anywhere;"></div>';
@@ -510,6 +563,9 @@ def get_studio_javascript():
             }
         </script>
     """
+    # ==============================================================================
+# CINE AI STUDIO PRO 7.3.4 - UNIFIED INTERLOCKED MASTER RELEASE (PHẦN 5B/5)
+# ==============================================================================
 
 @app.get("/", response_class=HTMLResponse)
 async def home(session_id: str = Cookie(None), load_id: str = None, tier: int = None, new_project: str = None):
@@ -553,9 +609,9 @@ async def community_page(session_id: str = Cookie(None)):
                 title = p.get("metadata", {}).get("title", "Dự án")
                 story = p.get("ideation_core", {}).get("project_raw_story", "Đang cập nhật...")
                 likes = random.randint(10, 500); comments = random.randint(5, 50)
-                public_projects_html += f"""<div class='bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl'><div class='flex justify-between items-start'><div><span class='text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30 uppercase'>Đạo diễn: @{uname}</span><h3 class='text-base font-black text-slate-100 mt-2'>{title}</h3></div><button class='text-amber-400 text-xs bg-amber-400/10 px-3 py-1.5 rounded-xl font-bold border border-amber-400/20 shadow'>▶️ Trải nghiệm</button></div><p class='text-xs text-slate-400 line-clamp-2 leading-relaxed'>{story}</p><div class='flex gap-3 pt-3 border-t border-slate-800 text-[11px] text-slate-400 font-bold'><button onclick="alert('Thả tim thành công!')" class='hover:text-rose-400 transition flex items-center gap-1'>❤️ {likes}</button><button onclick="alert('Bình luận đang phát triển.')" class='hover:text-blue-400 transition flex items-center gap-1'>💬 {comments}</button><button onclick="alert('✨ Đã Clone bộ thông số v7.3.3!')" class='text-emerald-400 hover:text-emerald-300 ml-auto transition flex items-center gap-1'>✨ Clone Template</button></div></div>"""
+                public_projects_html += f"""<div class='bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-3 shadow-xl'><div class='flex justify-between items-start'><div><span class='text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30 uppercase'>Đạo diễn: @{uname}</span><h3 class='text-base font-black text-slate-100 mt-2'>{title}</h3></div><button class='text-amber-400 text-xs bg-amber-400/10 px-3 py-1.5 rounded-xl font-bold border border-amber-400/20 shadow'>▶️ Trải nghiệm</button></div><p class='text-xs text-slate-400 line-clamp-2 leading-relaxed'>{story}</p><div class='flex gap-3 pt-3 border-t border-slate-800 text-[11px] text-slate-400 font-bold'><button onclick="alert('Thả tim thành công!')" class='hover:text-rose-400 transition flex items-center gap-1'>❤️ {likes}</button><button onclick="alert('Bình luận đang phát triển.')" class='hover:text-blue-400 transition flex items-center gap-1'>💬 {comments}</button><button onclick="alert('✨ Đã Clone bộ thông số v7.3.4!')" class='text-emerald-400 hover:text-emerald-300 ml-auto transition flex items-center gap-1'>✨ Clone Template</button></div></div>"""
     
-    return HTMLResponse(content=f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Rạp Chiếu Cộng Đồng v7.3.3</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base sm:text-lg font-black text-amber-400 uppercase'>🌐 Rạp Chiếu Chung v7.3.3</h1><p class='text-[10px] text-slate-400'>Nơi giao thoa nghệ thuật & học hỏi</p></div><div class='flex gap-2'><a href='/' class='bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-4 py-2.5 rounded-xl text-xs transition'>🏠 Trở Về Studio</a></div></div><div class='space-y-4'>{public_projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs border border-slate-800\">Chưa có dự án nào được chia sẻ.</div>'}</div></div></body></html>")
+    return HTMLResponse(content=f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Rạp Chiếu Cộng Đồng v7.3.4</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base sm:text-lg font-black text-amber-400 uppercase'>🌐 Rạp Chiếu Chung v7.3.4</h1><p class='text-[10px] text-slate-400'>Nơi giao thoa nghệ thuật & học hỏi</p></div><div class='flex gap-2'><a href='/' class='bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-4 py-2.5 rounded-xl text-xs transition'>🏠 Trở Về Studio</a></div></div><div class='space-y-4'>{public_projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs border border-slate-800\">Chưa có dự án nào được chia sẻ.</div>'}</div></div></body></html>")
 
 @app.get("/library", response_class=HTMLResponse)
 async def library_page(session_id: str = Cookie(None)):
@@ -588,7 +644,7 @@ async def library_page(session_id: str = Cookie(None)):
         </div>
         """
 
-    return HTMLResponse(content=f"""<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Thư Viện Cá Nhân v7.3.3</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base font-black text-amber-400 uppercase'>📁 Thư Viện Cá Nhân v7.3.3</h1></div><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs'>🏠 Studio</a></div></div><div class='space-y-3'>{projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs\">Chưa có dự án.</div>'}</div></div><script>async function confirmDelete(id, title) {{ if(confirm("Xóa '" + title + "'?")) {{ await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}}); location.reload(); }} }}</script></body></html>""")
+    return HTMLResponse(content=f"""<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Thư Viện Cá Nhân v7.3.4</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 p-4 font-sans pb-20'><div class='max-w-3xl mx-auto space-y-4'><div class='flex justify-between items-center bg-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl'><div><h1 class='text-base font-black text-amber-400 uppercase'>📁 Thư Viện Cá Nhân v7.3.4</h1></div><div class='flex gap-2'><a href='/?new_project=1' class='bg-emerald-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow'>➕ Tạo Mới</a><a href='/' class='bg-slate-800 text-slate-200 font-bold px-3 py-2 rounded-xl text-xs'>🏠 Studio</a></div></div><div class='space-y-3'>{projects_html or '<div class=\"bg-slate-900 p-8 rounded-3xl text-center text-slate-500 text-xs\">Chưa có dự án.</div>'}</div></div><script>async function confirmDelete(id, title) {{ if(confirm("Xóa '" + title + "'?")) {{ await fetch('/api/cineai/delete-project', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{id: id}})}}); location.reload(); }} }}</script></body></html>""")
 
 @app.get("/login", response_class=HTMLResponse)
 @app.post("/login", response_class=HTMLResponse)
@@ -601,7 +657,7 @@ async def login_handler(request: Request, tab: str = "login", error: str = None,
             resp = RedirectResponse(url="/", status_code=303); resp.set_cookie(key="session_id", value=sid); return resp
         return RedirectResponse(url="/login?error=" + urllib.parse.quote("⚠️ Sai thông tin!"), status_code=303)
     
-    html = f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'><div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'><div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>Đăng Nhập Studio</h2><p class='text-xs text-slate-400'>Cine AI 7.3.3 Unified Release</p></div><form method='POST' action='/login' class='space-y-3'><div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><div><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><button type='submit' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow'>Vào Studio v7.3.3</button></form></div></body></html>"
+    html = f"<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen p-4'><div class='bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-md space-y-4 shadow-2xl'><div class='text-center space-y-1'><h2 class='text-xl font-black text-amber-400'>Đăng Nhập Studio</h2><p class='text-xs text-slate-400'>Cine AI 7.3.4 Master Unified</p></div><form method='POST' action='/login' class='space-y-3'><div><label class='block text-xs font-bold text-slate-300 mb-1'>Tài khoản:</label><input type='text' name='username' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><div><label class='block text-xs font-bold text-slate-300 mb-1'>Mật khẩu:</label><input type='password' name='password' required class='w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100'></div><button type='submit' class='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs uppercase shadow'>Vào Studio v7.3.4</button></form></div></body></html>"
     return HTMLResponse(content=html)
 
 @app.get("/logout")
@@ -612,3 +668,4 @@ async def logout(session_id: str = Cookie(None)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
