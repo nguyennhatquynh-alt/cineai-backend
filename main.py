@@ -198,7 +198,7 @@ async def save_project_draft(request: Request, session_id: str = Cookie(None)):
     if not current_user: return JSONResponse({"status": "error", "message": "Phiên hết hạn"}, status_code=401)
     data = await request.json(); project_id = data.get("id", "").strip()
     projects = get_user_projects(current_user)
-    target_project = next((p for p in projects if p.get("id"] == project_id), None)
+    target_project = next((p for p in projects if p.get("id") == project_id), None)
             
     if target_project:
         target_project["metadata"]["title"] = data.get("title", "").strip()
