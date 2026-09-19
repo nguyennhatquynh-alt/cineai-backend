@@ -183,20 +183,27 @@ def get_gemini_keys():
 from google import genai
 from google import genai
 
+from google import genai
+
 def call_gemini_stream(prompt_text):
     keys = get_gemini_keys()
-    if not keys: yield "⚠️ Chưa cấu hình GEMINI_API_KEY"; return
+    if not keys: 
+        yield "⚠️ Chưa cấu hình GEMINI_API_KEY"
+        return
     try:
         client = genai.Client(api_key=random.choice(keys))
-        for m in ["gemini-1.5-flash", "gemini-2.5-flash"]:
-            try:
-                for chunk in client.models.generate_content_stream(model=m, contents=prompt_text):
-                    if chunk.text: yield chunk.text
-                return
-            except Exception: continue
-        yield "⚠️ Quota vượt giới hạn."
-    except Exception as e: yield f"Lỗi SDK: {str(e)[:120]}"
-
+        # Sử dụng trực tiếp model chuẩn xác nhất, không vòng lặp rườm rà
+        response = client.models.generate_content_stream(
+            model="gemini-1.5-flash", 
+            contents=prompt_text
+        )
+        for chunk in response:
+            if hasattr(chunk, 'text') and chunk.text: 
+                yield chunk.text
+    except Exception as e:
+        # In thẳng lỗi thực tế từ Google SDK để dễ dàng xử lý
+        yield f"⚠️ Lỗi Google API thực tế: {str(e)}"
+        
 @app.middleware("http")
 async def self_healing_global_middleware(request: Request, call_next):
     try: return await call_next(request)
