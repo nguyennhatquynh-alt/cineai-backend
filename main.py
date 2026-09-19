@@ -181,6 +181,8 @@ def get_gemini_keys():
     return [k.strip() for k in raw.split(",") if k.strip()]
 
 from google import genai
+from google import genai
+
 def call_gemini_stream(prompt_text):
     keys = get_gemini_keys()
     if not keys: yield "⚠️ Chưa cấu hình GEMINI_API_KEY"; return
