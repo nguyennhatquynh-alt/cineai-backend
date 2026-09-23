@@ -1,148 +1,3 @@
-class DeploymentManifest(BaseModel):
-    branch_name: str
-    commit_sha: str
-    pr_number: int
-    deployment_status: Literal["ISOLATED", "MERGED", "TRIGGERED", "FAILED"]
-
-class DeploymentPipeline:
-    def __init__(self, cfg: Settings):
-        self.settings = cfg
-
-    async def dispatch_full_deployment(self, code_content: str) -> DeploymentManifest:
-        timestamp = int(time.time())
-        branch_name = f"gge-auto-patch-{timestamp}"
-        try:
-            await asyncio.sleep(0.4)
-            if self.settings.RENDER_DEPLOY_HOOK_URL:
-                async with httpx.AsyncClient() as client:
-                    await client.post(str(self.settings.RENDER_DEPLOY_HOOK_URL))
-            return DeploymentManifest(
-                branch_name=branch_name,
-                commit_sha=uuid.uuid4().hex,
-                pr_number=108,
-                deployment_status="TRIGGERED"
-            )
-        except Exception:
-            return DeploymentManifest(branch_name=branch_name, commit_sha="", pr_number=-1, deployment_status="FAILED")
-
-deploy_pipeline = DeploymentPipeline(settings)
-class ASTSecurityInspector(ast.NodeVisitor):
-    BANNED_MODULES = {"os", "sys", "subprocess", "shutil", "pty", "socket", "ctypes", "pickle"}
-    BANNED_FUNCTIONS = {"eval", "exec", "__import__", "open", "input"}
-
-    def visit_Import(self, node: ast.Import) -> None:
-        for alias in node.names:
-            if alias.name.split(".")[0] in self.BANNED_MODULES:
-                raise ValueError(f"Cấm import module nguy hiểm: {alias.name}")
-        self.generic_visit(node)
-
-    def visit_Call(self, node: ast.Call) -> None:
-        if isinstance(node.func, ast.Name) and node.func.id in self.BANNED_FUNCTIONS:
-            raise ValueError(f"Cấm gọi hàm nguy hiểm: {node.func.id}")
-        self.generic_visit(node)
-
-class SmokeTestResult(BaseModel):
-    passed: bool
-    latency_ms: float
-    error_message: Optional[str] = None
-
-class SandboxSmokeTestRunner:
-    def __init__(self, timeout_limit: float = 3.0):
-        self.timeout_limit = timeout_limit
-
-    async def execute_smoke_test(self, port: int = 8000) -> SmokeTestResult:
-        start_t = time.time()
-        passed = False
-        latency = 0.0
-        async with httpx.AsyncClient() as client:
-            for _ in range(int(self.timeout_limit / 0.15)):
-                await asyncio.sleep(0.15)
-                try:
-                    res = await client.get(f"http://127.0.0.1:{port}/health", timeout=0.5)
-                    if res.status_code == 200:
-                        passed = True
-                        latency = (time.time() - start_t) * 1000
-                        break
-                except Exception:
-                    continue
-        return SmokeTestResult(passed=passed, latency_ms=latency, error_message=None if passed else "Watchdog Timeout 3.0s")
-
-smoke_runner = SandboxSmokeTestRunner(timeout_limit=settings.WATCHDOG_TIMEOUT_SECONDS)
-class OCCConflictException(Exception): pass
-class ProjectNotFoundException(Exception): pass
-
-class SupabaseGateway:
-    def __init__(self, cfg: Settings):
-        self.base_url = str(cfg.SUPABASE_URL).rstrip("/")
-        self.key = cfg.SUPABASE_SERVICE_ROLE_KEY.get_secret_value()
-        self.headers = {
-            "apikey": self.key,
-            "Authorization": f"Bearer {self.key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
-        }
-
-    async def create_project(self, name: str) -> Dict[str, Any]:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            payload = {
-                "project_name": name,
-                "current_stage": "SPEC",
-                "version": 1,
-                "stage_1_spec": {"status": "INITIALIZED", "title": name},
-                "history": []
-            }
-            res = await client.post(f"{self.base_url}/rest/v1/gge_projects", headers=self.headers, json=payload)
-            if res.status_code not in (200, 201):
-                p_id = uuid.uuid4()
-                return {"project_id": str(p_id), "project_name": name, "current_stage": "SPEC", "version": 1}
-            data = res.json()
-            return data[0] if isinstance(data, list) else data
-
-    async def commit_stage_atomic(self, payload: StageUpdatePayload) -> Dict[str, Any]:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            rpc_body = {
-                "p_project_id": str(payload.project_id),
-                "p_expected_version": payload.expected_version,
-                "p_stage": payload.stage,
-                "p_stage_data": payload.stage_data,
-                "p_next_stage": payload.next_stage
-            }
-            res = await client.post(f"{self.base_url}/rest/v1/rpc/update_project_stage_atomic", headers=self.headers, json=rpc_body)
-            if res.status_code == 409 or "OCC_CONFLICT" in res.text:
-                raise OCCConflictException("Xung đột phiên bản dữ liệu (OCC Conflict).")
-            if res.status_code != 200:
-                return {"success": True, "new_version": payload.expected_version + 1, "stage": payload.next_stage or payload.stage}
-            return res.json()
-
-supabase_gateway = SupabaseGateway(settings)
-class HybridOTPValidator:
-    def __init__(self, hmac_secret: str, time_step_seconds: int = 300):
-        self.secret_bytes = hmac_secret.encode("utf-8")
-        self.time_step = time_step_seconds
-
-    def generate_current_otp(self) -> str:
-        counter = int(time.time() // self.time_step)
-        msg = struct.pack(">Q", counter)
-        h = hmac.new(self.secret_bytes, msg, hashlib.sha256).digest()
-        offset = h[-1] & 0x0F
-        code_int = struct.unpack(">I", h[offset:offset + 4])[0] & 0x7FFFFFFF
-        return f"{code_int % 1000000:06d}"
-
-    def verify(self, provided_otp: str) -> bool:
-        if not provided_otp or len(provided_otp) != 6 or not provided_otp.isdigit():
-            return False
-        current_counter = int(time.time() // self.time_step)
-        for offset in (0, -1, 1):
-            msg = struct.pack(">Q", current_counter + offset)
-            h = hmac.new(self.secret_bytes, msg, hashlib.sha256).digest()
-            offset_b = h[-1] & 0x0F
-            code_int = struct.unpack(">I", h[offset_b:offset_b + 4])[0] & 0x7FFFFFFF
-            expected_otp = f"{code_int % 1000000:06d}"
-            if hmac.compare_digest(provided_otp, expected_otp):
-                return True
-        return False
-
-otp_validator = HybridOTPValidator(settings.DEPLOY_HMAC_SECRET.get_secret_value())
 from __future__ import annotations
 import os, sys, ast, hmac, hashlib, struct, time, uuid, asyncio, subprocess
 from datetime import datetime, timezone
@@ -193,6 +48,152 @@ class StageUpdatePayload(BaseModel):
 class ActionRequest(BaseModel):
     action: str
     custom_payload: Dict[str, Any] = Field(default_factory=dict)
+class HybridOTPValidator:
+    def __init__(self, hmac_secret: str, time_step_seconds: int = 300):
+        self.secret_bytes = hmac_secret.encode("utf-8")
+        self.time_step = time_step_seconds
+
+    def generate_current_otp(self) -> str:
+        counter = int(time.time() // self.time_step)
+        msg = struct.pack(">Q", counter)
+        h = hmac.new(self.secret_bytes, msg, hashlib.sha256).digest()
+        offset = h[-1] & 0x0F
+        code_int = struct.unpack(">I", h[offset:offset + 4])[0] & 0x7FFFFFFF
+        return f"{code_int % 1000000:06d}"
+
+    def verify(self, provided_otp: str) -> bool:
+        if not provided_otp or len(provided_otp) != 6 or not provided_otp.isdigit():
+            return False
+        current_counter = int(time.time() // self.time_step)
+        for offset in (0, -1, 1):
+            msg = struct.pack(">Q", current_counter + offset)
+            h = hmac.new(self.secret_bytes, msg, hashlib.sha256).digest()
+            offset_b = h[-1] & 0x0F
+            code_int = struct.unpack(">I", h[offset_b:offset_b + 4])[0] & 0x7FFFFFFF
+            expected_otp = f"{code_int % 1000000:06d}"
+            if hmac.compare_digest(provided_otp, expected_otp):
+                return True
+        return False
+
+otp_validator = HybridOTPValidator(settings.DEPLOY_HMAC_SECRET.get_secret_value())
+class OCCConflictException(Exception): pass
+class ProjectNotFoundException(Exception): pass
+
+class SupabaseGateway:
+    def __init__(self, cfg: Settings):
+        self.base_url = str(cfg.SUPABASE_URL).rstrip("/")
+        self.key = cfg.SUPABASE_SERVICE_ROLE_KEY.get_secret_value()
+        self.headers = {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+
+    async def create_project(self, name: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            payload = {
+                "project_name": name,
+                "current_stage": "SPEC",
+                "version": 1,
+                "stage_1_spec": {"status": "INITIALIZED", "title": name},
+                "history": []
+            }
+            res = await client.post(f"{self.base_url}/rest/v1/gge_projects", headers=self.headers, json=payload)
+            if res.status_code not in (200, 201):
+                p_id = uuid.uuid4()
+                return {"project_id": str(p_id), "project_name": name, "current_stage": "SPEC", "version": 1}
+            data = res.json()
+            return data[0] if isinstance(data, list) else data
+
+    async def commit_stage_atomic(self, payload: StageUpdatePayload) -> Dict[str, Any]:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            rpc_body = {
+                "p_project_id": str(payload.project_id),
+                "p_expected_version": payload.expected_version,
+                "p_stage": payload.stage,
+                "p_stage_data": payload.stage_data,
+                "p_next_stage": payload.next_stage
+            }
+            res = await client.post(f"{self.base_url}/rest/v1/rpc/update_project_stage_atomic", headers=self.headers, json=rpc_body)
+            if res.status_code == 409 or "OCC_CONFLICT" in res.text:
+                raise OCCConflictException("Xung đột phiên bản dữ liệu (OCC Conflict).")
+            if res.status_code != 200:
+                return {"success": True, "new_version": payload.expected_version + 1, "stage": payload.next_stage or payload.stage}
+            return res.json()
+
+supabase_gateway = SupabaseGateway(settings)
+class ASTSecurityInspector(ast.NodeVisitor):
+    BANNED_MODULES = {"os", "sys", "subprocess", "shutil", "pty", "socket", "ctypes", "pickle"}
+    BANNED_FUNCTIONS = {"eval", "exec", "__import__", "open", "input"}
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            if alias.name.split(".")[0] in self.BANNED_MODULES:
+                raise ValueError(f"Cấm import module nguy hiểm: {alias.name}")
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if isinstance(node.func, ast.Name) and node.func.id in self.BANNED_FUNCTIONS:
+            raise ValueError(f"Cấm gọi hàm nguy hiểm: {node.func.id}")
+        self.generic_visit(node)
+
+class SmokeTestResult(BaseModel):
+    passed: bool
+    latency_ms: float
+    error_message: Optional[str] = None
+
+class SandboxSmokeTestRunner:
+    def __init__(self, timeout_limit: float = 3.0):
+        self.timeout_limit = timeout_limit
+
+    async def execute_smoke_test(self, port: int = 8000) -> SmokeTestResult:
+        start_t = time.time()
+        passed = False
+        latency = 0.0
+        async with httpx.AsyncClient() as client:
+            for _ in range(int(self.timeout_limit / 0.15)):
+                await asyncio.sleep(0.15)
+                try:
+                    res = await client.get(f"http://127.0.0.1:{port}/health", timeout=0.5)
+                    if res.status_code == 200:
+                        passed = True
+                        latency = (time.time() - start_t) * 1000
+                        break
+                except Exception:
+                    continue
+        return SmokeTestResult(passed=passed, latency_ms=latency, error_message=None if passed else "Watchdog Timeout 3.0s")
+
+smoke_runner = SandboxSmokeTestRunner(timeout_limit=settings.WATCHDOG_TIMEOUT_SECONDS)
+class DeploymentManifest(BaseModel):
+    branch_name: str
+    commit_sha: str
+    pr_number: int
+    deployment_status: Literal["ISOLATED", "MERGED", "TRIGGERED", "FAILED"]
+
+class DeploymentPipeline:
+    def __init__(self, cfg: Settings):
+        self.settings = cfg
+
+    async def dispatch_full_deployment(self, code_content: str) -> DeploymentManifest:
+        timestamp = int(time.time())
+        branch_name = f"gge-auto-patch-{timestamp}"
+        try:
+            await asyncio.sleep(0.4)
+            if self.settings.RENDER_DEPLOY_HOOK_URL:
+                async with httpx.AsyncClient() as client:
+                    await client.post(str(self.settings.RENDER_DEPLOY_HOOK_URL))
+            return DeploymentManifest(
+                branch_name=branch_name,
+                commit_sha=uuid.uuid4().hex,
+                pr_number=108,
+                deployment_status="TRIGGERED"
+            )
+        except Exception:
+            return DeploymentManifest(branch_name=branch_name, commit_sha="", pr_number=-1, deployment_status="FAILED")
+
+deploy_pipeline = DeploymentPipeline(settings)
+
 class CinematicSPABuilder:
     @staticmethod
     def render_index_html() -> str:
@@ -336,6 +337,8 @@ class CinematicSPABuilder:
         </body>
         </html>
         """
+
+
 app = FastAPI(title="Gemini Genesis Engine v64.0", version="64.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
